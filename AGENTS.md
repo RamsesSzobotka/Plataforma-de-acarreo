@@ -449,12 +449,14 @@ Patrones probados y templates para implementar funcionalidades específicas.
 |-------|-------------|-----------|
 | `clerk-auth-patterns` | Integración Clerk + MongoDB, webhooks, middleware de auth | [SKILL.md](Doc/SKILLS/clerk-auth-patterns/SKILL.md) |
 | `stripe-webhook-patterns` | PaymentIntents, webhooks idempotentes, cálculo de comisiones (10%) | [SKILL.md](Doc/SKILLS/stripe-webhook-patterns/SKILL.md) |
+| `hono-backend-patterns` | Backend Bun + Hono, modelos Mongoose, paginación, middlewares | [SKILL.md](Doc/SKILLS/hono-backend-patterns/SKILL.md) |
 
 ### Uso de las Skills
 
-Cuando vayas a implementar auth o pagos, carga la skill correspondiente:
+Cuando vayas a implementar funcionalidades específicas, carga la skill correspondiente:
 
 ```
+SKILL: Load `Doc/SKILLS/hono-backend-patterns/SKILL.md` before starting.
 SKILL: Load `Doc/SKILLS/clerk-auth-patterns/SKILL.md` before starting.
 SKILL: Load `Doc/SKILLS/stripe-webhook-patterns/SKILL.md` before starting.
 ```
