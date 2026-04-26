@@ -143,7 +143,7 @@ Al crear un pedido el cliente **debe** proporcionar:
 - Ver foto de entrega subida por el conductor
 - Confirmar entrega
 - Realizar pago con Stripe
-- Calificar al conductor (1-5 estrellas + comentario)
+- Calificar al conductor (1-5 estrellas + comentario) - Solo después de `paid`
 - Cancelar pedido según reglas de estado
 
 ### 6.2 Portal Conductor / Driver (Prioridad Alta)
@@ -160,7 +160,7 @@ Al crear un pedido el cliente **debe** proporcionar:
 - Compartir ubicación en tiempo real mientras está `in_progress`
 - Tomar y subir foto de la entrega al llegar al destino
 - Ver perfil del cliente
-- Calificar al cliente después de completar el servicio
+- Calificar al cliente después de completar el servicio - Solo después de `paid`
 - Ver historial de sus acarreos
 
 ### 6.3 Portal Admin (Prioridad Media-Alta)
@@ -184,12 +184,12 @@ Al crear un pedido el cliente **debe** proporcionar:
 1. Cliente crea pedido → `requested`
 2. Conductor ve pedido cercano, chatea y negocia
 3. Conductor acepta → `accepted` (precio final acordado)
-4. Conductor llega al pickup → confirma “Ya tengo la mercancía”
+4. Conductor llega al pickup → confirma "Ya tengo la mercancía"
 5. Conductor inicia viaje → `in_progress` + tracking activo
 6. Conductor llega al destino, sube foto de entrega
 7. Cliente confirma entrega → `completed`
 8. Cliente realiza pago → Stripe PaymentIntent + webhook → `paid`
-9. Ambas partes se califican mutuamente
+9. **Ambas partes se califican mutuamente** → Solo disponible después de `paid`
 
 ## 9. Modelo de Datos
 
@@ -288,10 +288,33 @@ Al crear un pedido el cliente **debe** proporcionar:
 }
 ```
 
-## 10. Pagos
+### ratings (Calificaciones)
+```typescript
+{
+  _id: ObjectId
+  rideId: string           // Ride asociado
+  raterId: string         // Quién califica (clerkId)
+  ratedId: string        // Quién recibe la calificación (clerkId)
+  role: 'client' | 'driver'  // Rol de quién recibe la calificación
+  
+  rating: number         // 1-5 estrellas
+  comment?: string      // Comentario opcional
+   
+  createdAt: Date
+}
+```
 
-- Cliente paga al confirmar entrega usando Stripe PaymentIntent.
+## 10. Pagos y Comisiones
+
+### Comisiones (TU GANANCIA)
+- **Comisión de plataforma**: 10% del monto final del ride
+- El conductor recibe: `finalPrice * 0.90` (90%)
+- Tu ganancia: `finalPrice * 0.10` (10%)
+
+### Флуйо де Паго
+- Cliente пага al confirmar entrega usando Stripe PaymentIntent.
 - Backend recibe webhook de Stripe para confirmar `paid`.
+- **Al conductor se le descuenta el 10%** automáticamente antes de transferir.
 - No implementar payouts semanales todavía (se dejará para fase 2).
 
 ## 11. API Endpoints
@@ -415,3 +438,29 @@ bun run preview   # Preview producción
 **Este documento es vivo.** Actualizar según decisiones técnicas tomadas durante el desarrollo.
 
 Referencia principal: Ver PRD "PRD-Plataforma de acarreso.md" para detalles de arquitectura, middlewares, optimizaciones, estructura de carpetas y criterios de aceptación.
+
+---
+
+## 17. Skills del Proyecto
+
+Patrones probados y templates para implementar funcionalidades específicas.
+
+| Skill | Descripción | Ubicación |
+|-------|-------------|-----------|
+| `clerk-auth-patterns` | Integración Clerk + MongoDB, webhooks, middleware de auth | [SKILL.md](Doc/SKILLS/clerk-auth-patterns/SKILL.md) |
+| `stripe-webhook-patterns` | PaymentIntents, webhooks idempotentes, cálculo de comisiones (10%) | [SKILL.md](Doc/SKILLS/stripe-webhook-patterns/SKILL.md) |
+
+### Uso de las Skills
+
+Cuando vayas a implementar auth o pagos, carga la skill correspondiente:
+
+```
+SKILL: Load `Doc/SKILLS/clerk-auth-patterns/SKILL.md` before starting.
+SKILL: Load `Doc/SKILLS/stripe-webhook-patterns/SKILL.md` before starting.
+```
+
+Cada skill incluye:
+- Patrones críticos documentados
+- Templates de código listos para copiar
+- Commands útiles para desarrollo
+- Recursos adicionales
