@@ -353,7 +353,7 @@ Webhook seguro:
 8. Ambas partes se califican
 ```
 
-### 7.2 Flujo de Pago
+### 7.2 Flujo de Pago y Comisiones
 ```
 1. Backend calcula costo (tarifa base + distancia + ajustes)
 2. Backend crea PaymentIntent en Stripe
@@ -361,6 +361,15 @@ Webhook seguro:
 4. Stripe notifica por webhook
 5. Backend actualiza payment y ride de forma atómica
 ```
+
+#### Comisiones de Plataforma
+- **Comisión de plataforma**: 10% del monto final del ride
+- El conductor recibe: `finalPrice * 0.90` (90%)
+- Tu ganancia: `finalPrice * 0.10` (10%)
+
+#### Calificaciones
+- Las calificaciones (1-5 estrellas + comentario) están disponibles **solo después del pago confirmado (`paid`)**
+- Ambas partes (cliente y conductor) pueden calificarse mutuamente
 
 ## 8. Tiempo Real (WebSocket)
 
