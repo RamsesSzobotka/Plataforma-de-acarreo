@@ -41,7 +41,8 @@ function RideDetails() {
     }
   }
 
-  async function handleCancel() {\n  if (!confirm('¿Estás seguro de cancelar este pedido?')) return
+  async function handleCancel() {
+    if (!confirm('Estas seguro de cancelar este pedido?')) return
     
     try {
       await fetch(`/api/rides/${id}/cancel`, {
@@ -72,13 +73,13 @@ function RideDetails() {
   if (!ride) return <div>Pedido no encontrado</div>
 
   const isOwner = user?.id === ride.clientId
-  const canEdit = ride.status === 'requested' || ride.status === 'negotiating'
   const canCancel = ride.status === 'requested' || ride.status === 'negotiating' || ride.status === 'accepted'
 
   return (
     <div>
-      <Link to="/my-rides" style={{ display: 'inline-block', marginBottom: '1rem' }}>
-        ← Volver a Mis Pedidos
+      <Link to="/my-rides" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+        <span className="material-symbols-rounded">arrow_back</span>
+        Volver a Mis Pedidos
       </Link>
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
@@ -101,11 +102,17 @@ function RideDetails() {
         {/* Route info */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
-            <strong>📍 Recogida</strong>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-symbols-rounded" style={{ color: '#0D9488' }}>location_on</span>
+              Recogida
+            </strong>
             <p>{ride.pickupLocation.address}</p>
           </div>
           <div>
-            <strong>🏁 Entrega</strong>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-symbols-rounded" style={{ color: '#F97316' }}>flag</span>
+              Entrega
+            </strong>
             <p>{ride.dropoffLocation.address}</p>
           </div>
         </div>
@@ -123,11 +130,13 @@ function RideDetails() {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {canCancel && isOwner && (
               <button className="btn btn-outline" onClick={handleCancel}>
+                <span className="material-symbols-rounded">cancel</span>
                 Cancelar
               </button>
             )}
             {ride.status === 'in_progress' && isOwner && (
               <button className="btn btn-primary" onClick={handleConfirmDelivery}>
+                <span className="material-symbols-rounded">check_circle</span>
                 Confirmar Entrega
               </button>
             )}
@@ -138,7 +147,8 @@ function RideDetails() {
         {(ride.status === 'negotiating' || ride.status === 'accepted' || ride.status === 'in_progress') && (
           <div style={{ marginTop: '1.5rem' }}>
             <Link to={`/chat/${ride._id}`} className="btn btn-secondary">
-              💬 Abrir Chat
+              <span className="material-symbols-rounded">chat</span>
+              Abrir Chat
             </Link>
           </div>
         )}
@@ -146,7 +156,10 @@ function RideDetails() {
         {/* Delivery photo */}
         {ride.deliveryPhoto && (
           <div style={{ marginTop: '1.5rem' }}>
-            <strong>Foto de Entrega</strong>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-symbols-rounded">photo_camera</span>
+              Foto de Entrega
+            </strong>
             <img 
               src={ride.deliveryPhoto.url} 
               alt="Delivery" 
