@@ -180,22 +180,48 @@ Integraciones externas:
 - { clerkId: 1 } unique
 - { role: 1 }
 
-### 4.2 Drivers
+### 4.2 Drivers (EXPANDIDO)
 ```javascript
 {
   _id: ObjectId,
-  userId: String,              // clerkId
+  userId: String,              // clerkId - único
   vehicleType: String,
   plate: String,
   capacityKg: Number,
+  
+  // === DOCUMENTOS OBLIGATORIOS ===
+  vehicleImages: [String],      // Fotos del vehículo (mín. 1)
+  licenseType: String,          // Tipo de licencia
+  licenseImage: String,        // Foto de licencia
+  cedulaFront: String,          // Cédula - frente
+  cedulaBack: String,          // Cédula - reverso
+  ruvDocument: String,         // RUV del vehículo
+  plateImage: String,          // Foto de placa vigente
+  insurancePolicy: String,    // Póliza de seguro terceros
+  
+  // === DOCUMENTOS OPCIONALES ===
+  carneBlanco: String,         // Carné blanco
+  carneVerde: String,         // Carné verde
+  carneTransporteCarga: String, // Carné transporte
+  fumigationCertificate: String, // Fumigación
+  
+  // === DATOS DE CONTACTO ===
+  phone: String,              // Obligatorio
+  
+  // === VERIFICACIÓN ===
+  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended',
+  rejectionReason: String,    // Por qué fue rechazado
+  reviewedBy: String,        // clerkId del admin
+  reviewedAt: Date,
+  
+  // === DISPONIBILIDAD ===
   isAvailable: Boolean,
-  currentLocation: {
-    type: 'Point',
-    coordinates: [lng, lat]
-  },
+  currentLocation: { type: 'Point', coordinates: [lng, lat] },
+  
+  // === CALIFICACIÓN ===
   rating: Number,
   totalRides: Number,
-  isVerified: Boolean,
+  
   createdAt: Date,
   updatedAt: Date
 }
@@ -204,6 +230,7 @@ Integraciones externas:
 - { userId: 1 } unique
 - { currentLocation: '2dsphere' }
 - { isAvailable: 1 }
+- { verificationStatus: 1 }
 
 ### 4.3 Rides
 ```javascript
@@ -495,9 +522,14 @@ Respuesta estándar:
 - GET /api/rides?status=requested - Ver pedidos disponibles
 - POST /api/rides/:id/accept - Aceptar ride
 - PATCH /api/users/driver/:userId/location - Actualizar ubicación
+- GET /api/users/driver/me - Mi perfil de conductor (propio)
+- PATCH /api/users/driver/profile - Actualizar perfil y documentos
+- PATCH /api/users/driver/resubmit - Reenviar a verificación (pending)
 
 **Admin**:
 - GET /api/users - Listar usuarios
+- GET /api/users/drivers - Listar drivers (con filtros por status)
+- PATCH /api/users/driver/:userId/verify - Aprobar/rechazar driver
 - GET /api/rides?status=completed - Listar rides completados
 - GET /api/payments - Listar pagos
 
@@ -518,6 +550,9 @@ CLERK_WEBHOOK_SECRET=whsec_xxxxx
 STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
 STRIPE_SECRET_KEY=sk_test_xxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+CLOUDINARY_CLOUD_NAME=xxxxx
+CLOUDINARY_API_KEY=xxxxx
+CLOUDINARY_API_SECRET=xxxxx
 PORT=3000
 NODE_ENV=development
 ```
@@ -527,6 +562,7 @@ NODE_ENV=development
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 VITE_API_URL=http://localhost:3000
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
+VITE_CLOUDINARY_CLOUD_NAME=xxxxx
 ```
 
 ## 14. Scripts
@@ -612,6 +648,138 @@ Regla de dependencia:
 - ⏳ Matching de conductores y tracking en tiempo real.
 - ⏳ Endpoints protegidos, auditables y optimizados con paginación.
 
+## 18.3 Sistema de Verificación de Conductores (NUEVO)
+
+### 18.3.1 Flujo de Verificación
+
+```
+1. Conductor se registra → verificationStatus: 'pending'
+2. Redirect a /driver → ve mensaje "pendiente de verificación"
+3. Admin revisa en /admin/drivers
+4. Admin aprueba → verificationStatus: 'verified' → conductor puede operar
+5. Admin rechaza → verificationStatus: 'rejected' + rejectionReason
+6. Conductor ve razón → edita perfil → reenvía (pending)
+7. Ciclo se repite
+```
+
+### 18.3.2 Estados de Verificación
+
+| Estado | Color | Descripción |
+|--------|-------|-------------|
+| `pending` | Ámbar | Esperando revisión del admin |
+| `in_review` | Azul | Un admin está revisando los documentos |
+| `verified` | Verde | Aprobado, puede aceptar pedidos |
+| `rejected` | Rojo | Rechazado, debe editar y reenviar |
+| `suspended` | Rojo | Suspendido por el admin |
+
+### 18.3.3 Restricciones por Estado
+
+| Estado | Ver pedidos | Aceptar pedido | Chatear | Editar perfil |
+|--------|------------|----------------|--------|---------------|
+| pending | ✅ | ❌ (mensaje) | ✅ | ✅ |
+| in_review | ✅ | ❌ (mensaje) | ✅ | ✅ |
+| verified | ✅ | ✅ | ✅ | ✅ |
+| rejected | ✅ | ❌ (mensaje) | ✅ | ✅ |
+| suspended | ❌ | ❌ | ❌ | ❌ |
+
+### 18.3.4 Documentos Requeridos para Registro
+
+**Obligatorios:**
+- Fotos del vehículo (mínimo 1)
+- Tipo de licencia de conducir
+- Foto de licencia de conducir
+- Cédula de Identidad Personal (frente)
+- Cédula de Identidad Personal (reverso)
+- RUV del vehículo (certificado de circulación)
+- Placa vigente (foto)
+- Póliza de Seguro de Daños a Terceros
+- Teléfono de contacto
+
+**Opcionales (visibles para cliente y admin):**
+- Carné Blanco (transporte de alimentos)
+- Carné Verde (manipulación de alimentos)
+- Carné de Transporte de Carga
+- Certificado de Fumigación del Vehículo
+
+### 18.3.5 Modelo Driver Expandido (MongoDB)
+
+```javascript
+{
+  _id: ObjectId,
+  userId: String,              // clerkId
+  vehicleType: String,
+  plate: String,
+  capacityKg: Number,
+  
+  // === DOCUMENTOS OBLIGATORIOS ===
+  vehicleImages: [String],      // Fotos del vehículo (mín. 1)
+  licenseType: String,          // Tipo de licencia
+  licenseImage: String,        // Foto de licencia
+  cedulaFront: String,          // Cédula - frente
+  cedulaBack: String,          // Cédula - reverso
+  ruvDocument: String,         // RUV del vehículo
+  plateImage: String,          // Foto de placa vigente
+  insurancePolicy: String,    // Póliza de seguro terceros
+  
+  // === DOCUMENTOS OPCIONALES ===
+  carneBlanco: String,         // Carné blanco
+  carneVerde: String,         // Carné verde
+  carneTransporteCarga: String, // Carné transporte
+  fumigationCertificate: String, // Fumigación
+  
+  // === DATOS DE CONTACTO ===
+  phone: String,              // Obligatorio
+  
+  // === VERIFICACIÓN ===
+  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended',
+  rejectionReason: String,    // Por qué fue rechazado
+  reviewedBy: String,        // clerkId del admin
+  reviewedAt: Date,
+  
+  // === DISPONIBILIDAD ===
+  isAvailable: Boolean,
+  currentLocation: { type: 'Point', coordinates: [lng, lat] },
+  
+  // === CALIFICACIÓN ===
+  rating: Number,
+  totalRides: Number,
+  isVerified: Boolean,       // Legacy
+  
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### 18.3.6 Endpoints
+
+```
+POST /api/users/register-driver   - Registrar conductor (crea pending)
+GET  /api/users/driver/:userId    - Obtener perfil de conductor
+PATCH /api/users/driver/profile  - Actualizar perfil y documentos
+GET  /api/users/driver/me        - Mi perfil de conductor (propio)
+PATCH /api/users/driver/resubmit - Reenviar a revisión (pending)
+```
+
+### 18.3.7 Frontend - RegisterDriver.tsx
+
+Estructura con secciones:
+- Sección 1: Datos del Vehículo (tipo, placa, capacidad, fotos)
+- Sección 2: Documentos Personales (licencia, cédula frente/reverso)
+- Sección 3: Documentos del Vehículo (RUV, placa, póliza)
+- Sección 4: Datos de Contacto (teléfono)
+- Sección 5: Documentos Adicionales (opcionales)
+
+### 18.3.8 Driver Dashboard
+
+Mensajes según estado:
+- **pending**: "pendiente de verificación"
+- **in_review**: "en revisión"
+- **verified**: "cuenta verificada - puede aceptar pedidos"
+- **rejected**: "rechazado + razón + botón reenviar"
+- **suspended**: "cuenta suspendida"
+
+---
+
 ## 19. Criterios de Aceptación por Módulo
 
 | Módulo | Criterio |
@@ -619,6 +787,7 @@ Regla de dependencia:
 | Auth SSO | login/callback funcional, token válido y usuario sincronizado. |
 | Cliente | puede crear ride, pagar y ver historial paginado. |
 | Conductor | puede aceptar ride y actualizar estado en tiempo real. |
+| Verificación Driver | debe completar documentos obligatorios + verificación admin antes de operar. |
 | Pagos | ride solo pasa a paid con webhook válido de Stripe. |
 | Admin | puede listar/filtrar/accionar usuarios, rides y pagos con RBAC. |
 | Seguridad | anti-IDOR, validaciones y rate limiting activos. |

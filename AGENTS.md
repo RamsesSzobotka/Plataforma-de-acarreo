@@ -434,10 +434,16 @@ Al crear un pedido el cliente **debe** proporcionar:
 - `GET /api/users` - Listar usuarios (admin)
 - `GET /api/users/:clerkId` - Obtener usuario
 - `POST /api/users` - Crear/actualizar usuario
-- `POST /api/users/register-driver` - Registrar como driver
+- `POST /api/users/register-driver` - Registrar como driver (con documentos)
 - `GET /api/users/driver/:userId` - Perfil de driver
+- `GET /api/users/driver/me` - Mi perfil de conductor (propio)
+- `PATCH /api/users/driver/profile` - Actualizar perfil y documentos
+- `PATCH /api/users/driver/resubmit` - Reenviar a verificación (pending)
 - `PATCH /api/users/driver/:userId/availability` - Disponibilidad
 - `PATCH /api/users/driver/:userId/location` - Ubicación
+
+### Upload
+- `POST /api/upload` - Subir imagen (Cloudinary)
 
 ### Messages
 - `GET /api/messages/ride/:rideId` - Mensajes de un ride
@@ -460,6 +466,9 @@ CLERK_WEBHOOK_SECRET=whsec_xxxxx
 STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
 STRIPE_SECRET_KEY=sk_test_xxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+CLOUDINARY_CLOUD_NAME=xxxxx
+CLOUDINARY_API_KEY=xxxxx
+CLOUDINARY_API_SECRET=xxxxx
 PORT=3000
 NODE_ENV=development
 ```
@@ -469,6 +478,7 @@ NODE_ENV=development
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 VITE_API_URL=http://localhost:3000
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
+VITE_CLOUDINARY_CLOUD_NAME=xxxxx
 ```
 
 ## 13. Scripts
@@ -520,6 +530,181 @@ bun run preview   # Preview producción
 | Google Maps | TODO | Maps API |
 | Rating/Reviews | TODO | Calificaciones mutuas |
 | Portal Admin | TODO | Back office |
+
+## 15.1 Sistema de Verificación de Conductores
+
+### 15.1.1 Flujo de Verificación
+
+```
+1. Conductor se registra → verificationStatus: 'pending'
+2. Redirect a /driver → ve mensaje "pendiente de verificación"
+3. Admin revisa en /admin/drivers
+4. Admin aprueba → verificationStatus: 'verified' → conductor puede operar
+5. Admin rechaza → verificationStatus: 'rejected' + rejectionReason
+6. Conductor ve razón → edita perfil → reenvía (pending)
+7.循环 de nuevo
+```
+
+### 15.1.2 Estados de Verificación
+
+| Estado | Color | Descripción |
+|--------|-------|-------------|
+| `pending` | Ámbar | Esperando revisión del admin |
+| `in_review` | Azul | Un admin está revisando los documentos |
+| `verified` | Verde | Aprobado, puede aceptar pedidos |
+| `rejected` | Rojo | Rechazado, debe editar y reenviar |
+| `suspended` | Rojo | Suspendido por el admin |
+
+### 15.1.3 Restricciones por Estado
+
+| Estado | Ver pedidos | Aceptar pedido | Chatear | Editar perfil |
+|--------|------------|----------------|--------|---------------|
+| pending | ✅ | ❌ (mensaje) | ✅ | ✅ |
+| in_review | ✅ | ❌ (mensaje) | ✅ | ✅ |
+| verified | ✅ | ✅ | ✅ | ✅ |
+| rejected | ✅ | ❌ (mensaje) | ✅ | ✅ |
+| suspended | ❌ | ❌ | ❌ | ❌ |
+
+### 15.1.4 Documentos Requeridos para Registro
+
+**Obligatorios:**
+- Fotos del vehículo (mínimo 1)
+- Tipo de licencia de conducir
+- Foto de licencia de conducir
+- Cédula de Identidad Personal (frente)
+- Cédula de Identidad Personal (reverso)
+- RUV del vehículo (certificado de circulación)
+- Placa vigente (foto)
+- Póliza de Seguro de Daños a Terceros
+- Teléfono de contacto
+
+**Opcionales (visibles para cliente y admin):**
+- Carné Blanco (transporte de alimentos)
+- Carné Verde (manipulación de alimentos)
+- Carné de Transporte de Carga
+- Certificado de Fumigación del Vehículo
+
+### 15.1.5 Modelo Driver Expandido
+
+```typescript
+// backend/src/models/driver.ts
+{
+  // === INFO BÁSICA ===
+  userId: string,
+  vehicleType: string,
+  plate: string,
+  capacityKg: number,
+  
+  // === DOCUMENTOS OBLIGATORIOS ===
+  vehicleImages: [string],      // Fotos del vehículo
+  licenseType: string,          // Tipo de licencia
+  licenseImage: string,        // Foto de licencia
+  cedulaFront: string,          // Cédula - frente
+  cedulaBack: string,          // Cédula - reverso
+  ruvDocument: string,         // RUV del vehículo
+  plateImage: string,          // Foto de placa vigente
+  insurancePolicy: string,    // Póliza de seguro terceros
+  
+  // === DOCUMENTOS OPCIONALES ===
+  carneBlanco: string,         // Carné blanco
+  carneVerde: string,         // Carné verde
+  carneTransporteCarga: string, // Carné transporte
+  fumigationCertificate: string, // Fumigación
+  
+  // === DATOS DE CONTACTO ===
+  phone: string,               // Obligatorio
+  
+  // === VERIFICACIÓN ===
+  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended',
+  rejectionReason: string,     // Por qué fue rechazado
+  reviewedBy: string,         // clerkId del admin
+  reviewedAt: Date,
+  
+  // === DISPONIBILIDAD ===
+  isAvailable: boolean,
+  currentLocation: { type: 'Point', coordinates: [lng, lat] },
+  
+  // === CALIFICACIÓN ===
+  rating: number,
+  totalRides: number,
+  isVerified: boolean,        // Legacy - mantener por compatibilidad
+}
+```
+
+### 15.1.6 Endpoints de Verificación
+
+```
+POST /api/users/register-driver   - Registrar conductor (crea pending)
+GET  /api/users/driver/:userId    - Obtener perfil de conductor
+PATCH /api/users/driver/profile  - Actualizar perfil y documentos
+GET  /api/users/driver/me        - Mi perfil de conductor (propio)
+PATCH /api/users/driver/resubmit - Reenviar a revisión (pending)
+```
+
+### 15.1.7 Frontend - RegisterDriver.tsx (Nueva estructura)
+
+```
+📋 Sección 1: Datos del Vehículo
+   - Tipo de vehículo * (selector visual)
+   - Placa * (input)
+   - Capacidad * (input number)
+   - Fotos del vehículo * (drag & drop)
+
+📋 Sección 2: Documentos Personales
+   - Tipo de licencia * (select)
+   - Foto de licencia * (upload)
+   - Cédula frente * (upload)
+   - Cédula reverso * (upload)
+
+📋 Sección 3: Documentos del Vehículo
+   - RUV * (upload)
+   - Placa vigente * (upload)
+   - Póliza de seguro * (upload)
+
+📋 Sección 4: Datos de Contacto
+   - Teléfono * (input)
+
+📋 Sección 5: Documentos Adicionales (opcionales)
+   - Carné Blanco, Carné Verde, Carné Transporte, Fumigación
+   - Siempre visibles, no colapsados
+
+📋 Indicador de progreso visual
+   - [✓] Completo   [○] Pendiente...
+```
+
+### 15.1.8 Driver Dashboard - Mensajes de Estado
+
+```
+pending:
+┌─────────────────────────────────────────┐
+│ ⚠️ Verificación Pendiente              │
+│                                         │
+│ Sus documentos están en revisión.      │
+│ No podrá aceptar encargos hasta que      │
+│ un admin apruebe su perfil.             │
+│                                         │
+│ Tiempo estimado: 24-48 horas            │
+└─────────────────────────────────────────┘
+
+rejected:
+┌─────────────────────────────────────────┐
+│ ❌ Verificación Rechazada               │
+│                                         │
+│ Motivo: [rejectionReason]              │
+│                                         │
+│ Por favor, corrija los documentos     │
+│ y vuelva a enviar para revisión.     │
+│                                         │
+│ [Corregir y reenviar]                │
+└─────────────────────────────────────────┘
+
+verified:
+┌─────────────────────────────────────────┐
+│ ✅ Cuenta Verificada                   │
+│                                         │
+│ Ya puede comenzar a aceptar pedidos.  │
+└─────────────────────────────────────────┘
+```
 
 ## 16. Notas Importantes
 
