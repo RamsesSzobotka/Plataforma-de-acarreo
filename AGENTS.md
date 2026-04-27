@@ -3,16 +3,109 @@
 Documento principal para guías de desarrollo, IA y equipo fullstack.  
 Basado en el PRD "PRD-Plataforma de acarreso.md" con ajustes específicos del producto.
 
-## 0. Visión y Objetivo del Producto
+## 0. Sistema de Diseño
 
-Plataforma tipo **marketplace C2C de acarreos** que combina:
+### Paleta de Colores (Turquesa + Naranja Terracotta)
+
+| Rol | Color | Hex | Uso |
+|-----|-------|-----|-----|
+| **Primary** | 🌿 Verde Azulado (Turquesa) | `#0D9488` | Buttons principales, CTAs, estado "aceptado" |
+| **Primary Hover** | 🌿 Verde más oscuro | `#0F766E` | Hover states |
+| **Secondary** | 🟡 Naranja Terracotta | `#F97316` | Acentos, badges de precio, alertas de acción |
+| **Secondary Hover** | 🟠 Naranja oscuro | `#EA580C` | Hover de acentos |
+| **Success** | ✅ Verde | `#22C55E` | Estados: completado, pagado, disponible |
+| **Warning** | ⚠️ Ámbar | `#F59E0B` | Pendiente, en negociación |
+| **Error** | ❌ Rojo | `#EF4444` | Errores, cancelado |
+| **Background Primary** | ⚪ Blanco | `#FFFFFF` | Card surfaces |
+| **Background Secondary** | 🔵 Gris muy claro | `#F8FAFC` | Fondo página |
+| **Background Alt** | 🔵 Gris claro | `#F1F5F9` | Headers, secciones alternate |
+| **Text Primary** | 🔒 Negro azulado | `#0F172A` | Texto principal |
+| **Text Secondary** | 🔒 Gris | `#334155` | Subtítulos |
+| **Text Muted** | 🔒 Gris claro | `#64748B` | Placeholder, info secundaria |
+| **Border** | 🔲 Gris Borde | `#E2E8F0` | Bordes inputs, separadores |
+
+**Justificación**:
+- Verde azulado (turquesa) = confianza, profesionalismo, modernos
+- Naranja terracotta = acción, transporte, mudanza, tierra - diferente a Uber (verde) pero relacionado
+
+### Tipografía
+
+| Elemento | Fuente | Peso | Tamaño |
+|----------|-------|------|--------|
+| **Headings (h1-h3)** | **Plus Jakarta Sans** | 700 (Bold) | 32px/28px/24px |
+| **Subheadings (h4-h6)** | **Plus Jakarta Sans** | 600 (SemiBold) | 20px/18px/16px |
+| **Body** | **Inter** | 400 (Regular) | 16px |
+| **Small/Caption** | **Inter** | 400 | 14px |
+| **Button** | **Plus Jakarta Sans** | 600 (SemiBold) | 14px |
+| **Mono (precios)** | **JetBrains Mono** | 600 | 16px |
+
+**Recursos**:
+- [Plus Jakarta Sans](https://fonts.google.com/specimen/Plus+Jakarta+Sans)
+- [Inter](https://fonts.google.com/specimen/Inter)
+- [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono)
+
+### Iconos
+
+Usar **Material Symbols** de Google Fonts:
+- [Material Symbols](https://fonts.google.com/icons) - Iconos gratuitos, coherentes con Material Design
+- Estilo: `rounded` o `outlined` según contexto
+- Sizes: 20px (default), 24px (large), 16px (small)
+
+### CSS Variables
+
+```css
+:root {
+  /* Primary Colors */
+  --primary: #0D9488;
+  --primary-hover: #0F766E;
+  --secondary: #F97316;
+  --secondary-hover: #EA580C;
+  
+  /* Semantic Colors */
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  
+  /* Backgrounds */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8FAFC;
+  --bg-tertiary: #F1F5F9;
+  
+  /* Text */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  
+  /* Borders & Shadows */
+  --border: #E2E8F0;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* Radius */
+  --radius: 12px;
+  --radius-sm: 8px;
+  
+  /* Typography */
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+## 0.1. Visión y Objetivo del Producto
+
+Plataforma tipo **marketplace B2B de transporte de mercancías** que combina:
 - **Experiencia Uber**: tracking en tiempo real, perfil visible del conductor, calificaciones, pago digital.
 - **Experiencia Facebook Marketplace**: cliente sube múltiples imágenes, descripción rica, chat directo para negociar.
 
 **Nombre interno**: Plataforma de Acarreos
 
+**Modelo de negocio**:
+- **Target principal**: Empresas con necesidades de transporte recurrentes (B2B)
+- **Conductores**: Transportistas independientes que buscan cargas frecuentemente
+- **B2C secundario**: Mudanzas y envíos puntuales de personas naturales
+
 **Roles principales**:
-- **Client** (Cliente)
+- **Client** (Cliente - empresa o persona)
 - **Driver** (Acarreador / Conductor)
 - **Admin** (Back Office)
 
