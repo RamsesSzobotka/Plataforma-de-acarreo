@@ -510,10 +510,12 @@ bun run preview   # Preview producción
 | Módulo | Estado | Notas |
 |--------|--------|-------|
 | MongoDB Docker | ✅ Listo | `bun run db:up` |
-| Auth middleware | TODO | Validar token Clerk |
-| Role middleware | TODO | Verificar rol |
-| Ownership middleware | TODO | Anti-IDOR |
-| WebSockets | TODO | Chat real-time |
+| Auth middleware | ✅ Listo | `backend/src/middleware/auth.ts` |
+| Role middleware | ✅ Listo | `backend/src/middleware/role.ts` |
+| Ownership middleware | ✅ Listo | `backend/src/middleware/index.ts` |
+| Register Driver | ✅ Listo | `frontend/pages/RegisterDriver.tsx` |
+| Client Profile | ✅ Listo | `frontend/components/ClientProfile.tsx` |
+|WebSockets | TODO | Chat real-time |
 | Upload imágenes | TODO | Cloudinary/S3 |
 | Google Maps | TODO | Maps API |
 | Rating/Reviews | TODO | Calificaciones mutuas |
@@ -525,6 +527,32 @@ bun run preview   # Preview producción
 - El frontend debe tener rutas protegidas por rol (client / driver / admin).
 - Todas las operaciones sensibles deben validar ownership en backend.
 - Priorizar experiencia mobile-first (muchos usuarios usarán la plataforma desde celular).
+
+### 16.1 Regla de UX: Navegabilidad
+
+**REGLA OBLIGATORIA: Toda pagina debe tener forma de volver a la anterior.**
+
+- Cada pagina/pantana debe tener un boton "volver" o link al contexto anterior
+- Páginas standalone (como login) deben tener link al home/pagina principal
+- Usar `arrow_back` de Material Symbols para botones de "volver"
+- En `/sign-in`: siempre mostrar link "Volver al inicio" o logo clickeable
+- En `/create-ride`: mostrar "Volver a Mis Pedidos"
+- En `/ride/:id`: mostrar "Volver a [contexto]"
+- NO crear páginas huerfanas sin forma de navegacion
+
+```tsx
+// Ejemplo: boton volver en cualquier pagina
+<Link to="/pagina-anterior" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+  <span className="material-symbols-rounded">arrow_back</span>
+  Volver
+</Link>
+
+// Ejemplo: logo clickeable en paginas sin Layout
+<Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+  <span className="material-symbols-rounded">local_shipping</span>
+  Plataforma de Acarreos
+</Link>
+```
 
 ---
 

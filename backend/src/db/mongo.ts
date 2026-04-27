@@ -30,3 +30,6 @@ export async function disconnectDB() {
 }
 
 export { mongoose }
+
+// DB instance for direct access
+export const db = mongoose.connection

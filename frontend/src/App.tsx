@@ -2,24 +2,21 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import Layout from './components/Layout'
 import Home from './pages/Home'
+import AuthPage from './pages/AuthPage'
 import CreateRide from './pages/CreateRide'
 import MyRides from './pages/MyRides'
 import RideDetails from './pages/RideDetails'
 import DriverDashboard from './pages/DriverDashboard'
 import Chat from './pages/Chat'
+import RegisterDriver from './pages/RegisterDriver'
 
 // Protected route wrapper
-function ProtectedRoute({ children, allowedRole }: { children: React.ReactNode; allowedRole?: string }) {
-  const { isSignedIn, user } = useAuth()
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isSignedIn } = useAuth()
   
   if (!isSignedIn) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/sign-in" replace />
   }
-  
-  // TODO: Check user role from metadata
-  // if (allowedRole && userRole !== allowedRole) {
-  //   return <Navigate to="/" replace />
-  // }
   
   return <>{children}</>
 }
@@ -27,17 +24,21 @@ function ProtectedRoute({ children, allowedRole }: { children: React.ReactNode; 
 function App() {
   return (
     <Routes>
+      {/* Ruta publica de autenticacion - SIN Layout */}
+      <Route path="/sign-in" element={<AuthPage />} />
+      
+      {/* Rutas protegidas con Layout */}
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         
         {/* Client routes */}
         <Route path="create-ride" element={
-          <ProtectedRoute allowedRole="client">
+          <ProtectedRoute>
             <CreateRide />
           </ProtectedRoute>
         } />
         <Route path="my-rides" element={
-          <ProtectedRoute allowedRole="client">
+          <ProtectedRoute>
             <MyRides />
           </ProtectedRoute>
         } />
@@ -54,8 +55,13 @@ function App() {
         
         {/* Driver routes */}
         <Route path="driver" element={
-          <ProtectedRoute allowedRole="driver">
+          <ProtectedRoute>
             <DriverDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="register-driver" element={
+          <ProtectedRoute>
+            <RegisterDriver />
           </ProtectedRoute>
         } />
         

@@ -91,8 +91,9 @@ function Chat() {
         }}
       >
         {messages.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-            No hay mensajes todavía. ¡Escribe el primero!
+          <p style={{ textAlign: 'center', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+            <span className="material-symbols-rounded">chat_bubble</span>
+            No hay mensajes. Escribe el primero!
           </p>
         ) : (
           messages.map((msg) => (

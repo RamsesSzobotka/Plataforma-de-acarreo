@@ -65,8 +65,12 @@ function MyRides() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1>Mis Pedidos</h1>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span className="material-symbols-rounded">local_shipping</span>
+          Mis Pedidos
+        </h1>
         <Link to="/create-ride" className="btn btn-primary">
+          <span className="material-symbols-rounded">add</span>
           Nuevo Pedido
         </Link>
       </div>
@@ -87,8 +91,11 @@ function MyRides() {
       {/* Rides list */}
       {rides.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#64748B', marginBottom: '1rem', display: 'block' }}>
+            inventory_2
+          </span>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            No tienes pedidos todavía
+            No tienes pedidos
           </p>
           <Link to="/create-ride" className="btn btn-primary">
             Crear tu primer pedido
@@ -105,9 +112,16 @@ function MyRides() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                 <div>
-                  <h3 style={{ marginBottom: '0.5rem' }}>{ride.title}</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                    {ride.pickupLocation.address} → {ride.dropoffLocation.address}
+                  <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
+                    {ride.title}
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
+                    {ride.pickupLocation.address}
+                    <span style={{ margin: '0 0.5rem' }}>→</span>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
+                    {ride.dropoffLocation.address}
                   </p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -123,7 +137,7 @@ function MyRides() {
                   >
                     {statusLabels[ride.status] || ride.status}
                   </span>
-                  <p style={{ marginTop: '0.5rem', fontWeight: 500 }}>
+                  <p style={{ marginTop: '0.5rem', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
                     ${ride.estimatedPrice}
                   </p>
                 </div>

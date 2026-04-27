@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 
 interface RideFormData {
@@ -64,12 +64,31 @@ function CreateRide() {
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-      <h1 style={{ marginBottom: '1.5rem' }}>Crear Nuevo Pedido</h1>
+      {/* Boton volver */}
+      <Link 
+        to="/my-rides" 
+        style={{ 
+          display: 'inline-flex', 
+          alignItems: 'center', 
+          gap: '0.5rem',
+          marginBottom: '1.5rem',
+          color: '#64748B',
+          textDecoration: 'none',
+        }}
+      >
+        <span className="material-symbols-rounded">arrow_back</span>
+        Volver a Mis Pedidos
+      </Link>
+
+      <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span className="material-symbols-rounded">add_circle</span>
+        Crear Nuevo Pedido
+      </h1>
       
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Título *
+            Titulo *
           </label>
           <input
             type="text"
@@ -93,7 +112,7 @@ function CreateRide() {
           >
             <option value="">Seleccionar tipo</option>
             <option value="mudanza">Mudanza</option>
-            <option value="electrodomésticos">Electrodomésticos</option>
+            <option value="electrodomesticos">Electrodomesticos</option>
             <option value="muebles">Muebles</option>
             <option value="productos">Productos</option>
             <option value="otros">Otros</option>
@@ -102,12 +121,12 @@ function CreateRide() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Descripción *
+            Descripcion *
           </label>
           <textarea
             className="input"
             rows={4}
-            placeholder="Describe qué necesitas transportar..."
+            placeholder="Describe que necesitas transportar..."
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             required
@@ -116,12 +135,12 @@ function CreateRide() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Dirección de Recogida *
+            Direccion de Recogida *
           </label>
           <input
             type="text"
             className="input"
-            placeholder="Dirección donde recogida"
+            placeholder="Direccion donde recogida"
             value={formData.pickupAddress}
             onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
             required
@@ -130,12 +149,12 @@ function CreateRide() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Dirección de Entrega *
+            Direccion de Entrega *
           </label>
           <input
             type="text"
             className="input"
-            placeholder="Dirección de entrega"
+            placeholder="Direccion de entrega"
             value={formData.dropoffAddress}
             onChange={(e) => setFormData({ ...formData, dropoffAddress: e.target.value })}
             required
