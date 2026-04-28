@@ -72,7 +72,9 @@ const rideSchema = new mongoose.Schema({
 })
 
 // Índices
-rideSchema.index({ pickupLocation: '2dsphere' })
+// 2dsphere index for geospatial queries on both pickup and dropoff locations
+rideSchema.index({ 'pickupLocation.coordinates': '2dsphere' })
+rideSchema.index({ 'dropoffLocation.coordinates': '2dsphere' })
 rideSchema.index({ status: 1 })
 rideSchema.index({ clientId: 1 })
 rideSchema.index({ driverId: 1 })

@@ -1,6 +1,6 @@
-import type { Ride, Message, PaginatedResponse } from '../types'
+import type { Ride, PaginatedResponse, Message } from '../types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 let clerkTokenGetter: (() => Promise<string | null>) | null = null
 
@@ -33,7 +33,7 @@ async function fetchAPI<T>(
         headers['Authorization'] = `Bearer ${token}`
       }
     } catch (err) {
-      console.error('Error obteniendo token de Clerk:', err)
+      console.error('Error obtaining token from Clerk:', err)
       throw new Error('No se pudo obtener token de autenticación')
     }
   }
@@ -49,12 +49,10 @@ async function fetchAPI<T>(
       try {
         const errorData = await response.json()
         errorMessage = errorData.error || errorData.message || errorMessage
-        // Si es error de validación, incluir detalles
         if (errorData.details) {
           errorMessage = `${errorMessage}: ${JSON.stringify(errorData.details)}`
         }
       } catch {
-        // Si no hay JSON en la respuesta, usar el status text
         errorMessage = response.statusText || errorMessage
       }
       throw new Error(errorMessage)
@@ -104,9 +102,40 @@ export const ridesAPI = {
   },
 
   /**
+   * Geospatial search para drivers (requiere auth)
+   */
+  nearby: (params: {
+    lat: number
+    lng: number
+    radius: number
+    limit?: number
+    skip?: number
+  }) => {
+    const searchParams = new URLSearchParams()
+    searchParams.set('lat', String(params.lat))
+    searchParams.set('lng', String(params.lng))
+    searchParams.set('radius', String(params.radius))
+    if (params.limit) searchParams.set('limit', String(params.limit))
+    if (params.skip) searchParams.set('skip', String(params.skip))
+    return fetchAPI<any>(
+      `/api/rides?${searchParams.toString()}`,
+      { requiresAuth: true }
+    )
+  },
+
+  /**
    * Obtener un ride específico
    */
-  get: (id: string) => fetchAPI<Ride>(`/api/rides/${id}`, { requiresAuth: false }),
+  get: (id: string, params?: { driverLat?: number; driverLng?: number }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.driverLat) searchParams.set('driverLat', String(params.driverLat))
+    if (params?.driverLng) searchParams.set('driverLng', String(params.driverLng))
+    const query = searchParams.toString()
+    return fetchAPI<Ride>(
+      `/api/rides/${id}${query ? `?${query}` : ''}`,
+      { requiresAuth: false }
+    )
+  },
 
   /**
    * Crear un nuevo ride (requiere auth + cliente)

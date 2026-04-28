@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { SignInButton, SignUpButton, useUser } from '@clerk/clerk-react'
 
 function Home() {
@@ -498,32 +498,55 @@ function Home() {
                     {item}
                   </li>
                 ))}
-              </ul>
-              
-              <SignUpButton mode="modal">
-                <button
-                  style={{
-                    background: '#0D9488',
-                    color: 'white',
-                    padding: '1rem 2rem',
-                    borderRadius: '14px',
-                    fontFamily: '"Plus Jakarta Sans", sans-serif',
-                    fontWeight: '700',
-                    fontSize: '1rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    boxShadow: '0 4px 20px rgba(13, 148, 136, 0.4)',
-                  }}
-                >
-                  <span className="material-symbols-rounded">add_circle</span>
-                  Publicar mi Primer Pedido
-                </button>
-              </SignUpButton>
-            </div>
-            
+</ul>
+               
+                {isSignedIn ? (
+                  <Link
+                    to="/create-ride"
+                    style={{
+                      background: '#0D9488',
+                      color: 'white',
+                      padding: '1rem 2rem',
+                      borderRadius: '14px',
+                      fontFamily: '"Plus Jakarta Sans", sans-serif',
+                      fontWeight: '700',
+                      fontSize: '1rem',
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 20px rgba(13, 148, 136, 0.4)',
+                    }}
+                  >
+                    <span className="material-symbols-rounded">add_circle</span>
+                    Crear un Pedido
+                  </Link>
+                ) : (
+                  <SignUpButton mode="modal" signInFallbackRedirectUrl="/create-ride">
+                    <button
+                      style={{
+                        background: '#0D9488',
+                        color: 'white',
+                        padding: '1rem 2rem',
+                        borderRadius: '14px',
+                        fontFamily: '"Plus Jakarta Sans", sans-serif',
+                        fontWeight: '700',
+                        fontSize: '1rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        boxShadow: '0 4px 20px rgba(13, 148, 136, 0.4)',
+                      }}
+                    >
+                      <span className="material-symbols-rounded">add_circle</span>
+                      Publicar mi Primer Pedido
+</button>
+                  </SignUpButton>
+                )}
+              </div>
+             
             {/* Cards de ejemplo derecha */}
             <div style={{
               display: 'grid',
@@ -771,8 +794,9 @@ function Home() {
           }}>
             Empieza hoy mismo. Es rapido, seguro y sin compromisos.
           </p>
-          <SignUpButton mode="modal">
-            <button 
+          {isSignedIn ? (
+            <Link
+              to="/create-ride"
               style={{
                 background: '#0D9488',
                 color: 'white',
@@ -782,6 +806,7 @@ function Home() {
                 fontFamily: '"Plus Jakarta Sans", sans-serif',
                 fontWeight: '700',
                 fontSize: '1.125rem',
+                textDecoration: 'none',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -790,9 +815,32 @@ function Home() {
               }}
             >
               <span className="material-symbols-rounded">rocket_launch</span>
-              Comenzar Ahora
-            </button>
-          </SignUpButton>
+              Crear un Pedido
+            </Link>
+          ) : (
+            <SignUpButton mode="modal" signInFallbackRedirectUrl="/create-ride">
+              <button 
+                style={{
+                  background: '#0D9488',
+                  color: 'white',
+                  border: 'none',
+                  padding: '1.25rem 3rem',
+                  borderRadius: '14px',
+                  fontFamily: '"Plus Jakarta Sans", sans-serif',
+                  fontWeight: '700',
+                  fontSize: '1.125rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 10px 30px rgba(13, 148, 136, 0.4)',
+                }}
+              >
+                <span className="material-symbols-rounded">rocket_launch</span>
+                Comenzar Ahora
+              </button>
+            </SignUpButton>
+          )}
         </div>
       </div>
 

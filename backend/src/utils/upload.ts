@@ -2,6 +2,12 @@ import { v2 as cloudinary } from 'cloudinary'
 import { Readable } from 'stream'
 
 // Configure Cloudinary
+console.log('📢 [CLOUDINARY CONFIG] Intentando configurar con:', {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY ? 'SET' : 'MISSING',
+  api_secret: process.env.CLOUDINARY_API_SECRET ? 'SET' : 'MISSING',
+})
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -21,6 +27,12 @@ export interface UploadResult {
  */
 export async function uploadImage(file: Buffer, folder: string): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
+    console.log('📤 [CLOUDINARY] Configuración:', {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY ? '***' : 'FALTA',
+      api_secret: process.env.CLOUDINARY_API_SECRET ? '***' : 'FALTA',
+    })
+    
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: `plataforma-acarreo/${folder}`,
@@ -28,13 +40,16 @@ export async function uploadImage(file: Buffer, folder: string): Promise<UploadR
       },
       (error, result) => {
         if (error) {
+          console.error('❌ [CLOUDINARY] Error en upload:', error)
           reject(new Error(error.message))
           return
         }
         if (!result) {
+          console.error('❌ [CLOUDINARY] Sin resultado')
           reject(new Error('No result from Cloudinary'))
           return
         }
+        console.log('✅ [CLOUDINARY] Upload exitoso:', result.public_id)
         resolve({
           url: result.secure_url,
           publicId: result.public_id,

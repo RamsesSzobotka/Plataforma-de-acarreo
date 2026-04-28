@@ -515,21 +515,73 @@ bun run preview   # Preview producción
 10. Calificaciones mutuas
 11. Portal Admin
 
-## 15. Pendiente (TODO)
+## 15. Progreso Implementación
 
+### Phase 1A - Backend Infrastructure ✅ COMPLETADO
 | Módulo | Estado | Notas |
 |--------|--------|-------|
 | MongoDB Docker | ✅ Listo | `bun run db:up` |
 | Auth middleware | ✅ Listo | `backend/src/middleware/auth.ts` |
 | Role middleware | ✅ Listo | `backend/src/middleware/role.ts` |
 | Ownership middleware | ✅ Listo | `backend/src/middleware/index.ts` |
-| Register Driver | ✅ Listo | `frontend/pages/RegisterDriver.tsx` |
-| Client Profile | ✅ Listo | `frontend/components/ClientProfile.tsx` |
-|WebSockets | TODO | Chat real-time |
-| Upload imágenes | TODO | Cloudinary/S3 |
-| Google Maps | TODO | Maps API |
-| Rating/Reviews | TODO | Calificaciones mutuas |
-| Portal Admin | TODO | Back office |
+| Haversine utility | ✅ Listo | `backend/src/utils/haversine.ts` - Distance calc |
+| Verify-driver middleware | ✅ Listo | `backend/src/middleware/verify-driver.ts` - Gate |
+| MongoDB 2dsphere indexes | ✅ Listo | Geospatial search enabled |
+
+### Phase 1B - API Endpoints ✅ COMPLETADO
+| Endpoint | Status | Función |
+|----------|--------|---------|
+| `GET /api/rides` | ✅ | Geospatial search (lat, lng, radius, pagination) |
+| `GET /api/rides/:id` | ✅ | Ride details |
+| `POST /api/rides/:id/accept` | ✅ | Accept ride (verify-driver gate) |
+| `POST /api/rides/:id/cancel` | ✅ | Cancel ride (ownership + status gate) |
+
+### Phase 2A - Frontend Components ✅ COMPLETADO
+| Componente | Status | Ruta |
+|-----------|--------|------|
+| VerificationStatus | ✅ | `frontend/src/components/VerificationStatus.tsx` |
+| RideCard | ✅ | `frontend/src/components/RideCard.tsx` |
+| DistanceBadge | ✅ | `frontend/src/components/DistanceBadge.tsx` |
+| RadiusSelector | ✅ | `frontend/src/components/RadiusSelector.tsx` |
+| RideList | ✅ | `frontend/src/components/RideList.tsx` |
+| ImageCarousel | ✅ | `frontend/src/components/ImageCarousel.tsx` |
+| ClientProfile | ✅ | `frontend/src/components/ClientProfile.tsx` |
+| MapView | ✅ | `frontend/src/components/MapView.tsx` (placeholder Phase 1) |
+
+### Phase 2B - Frontend Hooks & Pages ✅ COMPLETADO
+| Item | Status | Ruta |
+|------|--------|------|
+| useGeolocation hook | ✅ | `frontend/src/hooks/useGeolocation.ts` |
+| useRideList hook | ✅ | `frontend/src/hooks/useRideList.ts` |
+| useVerification hook | ✅ | `frontend/src/hooks/useVerification.ts` + bypass mode |
+| DriverContext | ✅ | `frontend/src/context/DriverContext.tsx` |
+| DriverDashboard page | ✅ | `frontend/src/pages/DriverDashboard.tsx` |
+| DriverRideDetails page | ✅ | `frontend/src/pages/DriverRideDetails.tsx` |
+| Chat page | ✅ | `frontend/src/pages/Chat.tsx` (HTTP polling Phase 1) |
+
+### Phase 3 - Testing ✅ COMPLETADO
+| Test Type | Status | Coverage |
+|-----------|--------|----------|
+| Unit tests | ✅ | Haversine formula validation |
+| Integration tests | ✅ | API endpoints (geospatial, accept, cancel) |
+| E2E tests | ✅ | Playwright (dashboard flow, ride selection) |
+
+### Dev-Only Features ✅ IMPLEMENTADO
+| Feature | Status | Ubicación |
+|---------|--------|-----------|
+| Bypass verification button | ✅ | `frontend/src/pages/RegisterDriver.tsx` (pending state) |
+| Dev-only localStorage mode | ✅ | `frontend/src/hooks/useVerification.ts` |
+| Console warnings | ✅ | "⚡ DEVELOPMENT: Verification bypassed" |
+| CI/CD leak prevention | ✅ | Scan for bypassVerification in commits |
+
+### Próximas Fases (TODO)
+| Módulo | Estado | Notas |
+|--------|--------|-------|
+| WebSockets | TODO | Chat real-time (Phase 2) |
+| Upload imágenes | TODO | Cloudinary/S3 integration (Phase 2) |
+| Google Maps | TODO | Maps API (Phase 2) |
+| Rating/Reviews | TODO | Calificaciones mutuas (Phase 4) |
+| Portal Admin | TODO | Back office (Phase 5) |
 
 ## 15.1 Sistema de Verificación de Conductores
 
@@ -705,6 +757,35 @@ verified:
 │ Ya puede comenzar a aceptar pedidos.  │
 └─────────────────────────────────────────┘
 ```
+
+## 15.2 Testing del Driver Portal - Bypass Button (Dev-Only)
+
+### Acceso Rápido para Testing
+
+**Ubicación del botón**: `frontend/src/pages/RegisterDriver.tsx` (sección estado "pending")
+
+**Flujo de Testing**:
+1. Ir a `/register-driver`
+2. Completar formulario con todos los campos obligatorios
+3. Click "Enviar Solicitud" → Cambia a estado `pending`
+4. **Aparece botón rojo "⚡ Saltarse Verificación (DEV ONLY)"** ← Aquí está
+5. Click botón → `localStorage.bypassVerification = 'true'` → Redirige a `/driver/dashboard`
+6. ✅ Ya estás en el portal de conductor
+
+**Ubicaciones técnicas**:
+- Button: `frontend/src/pages/RegisterDriver.tsx` líneas 350-388
+- Hook: `frontend/src/hooks/useVerification.ts` (detecta bypass en localStorage + query param)
+- Gate: `DriverDashboard` usa `VerificationStatus` modal para bloquear acceso si no verificado
+
+**Variables de ambiente**:
+- Solo funciona en `NODE_ENV === 'development'`
+- Logs: Console muestra "⚡ DEVELOPMENT: Verification bypassed"
+- localStorage.bypassVerification = 'true' persiste entre reloads
+
+**Posterior a Testing**:
+- Remover lógica del bypass (lineas 303-328 en RegisterDriver.tsx)
+- Commit: `refactor: remove dev bypass button for verification`
+- CI/CD ya tiene scan para evitar merge de bypassVerification a main
 
 ## 16. Notas Importantes
 

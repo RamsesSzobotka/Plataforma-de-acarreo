@@ -6,7 +6,7 @@
       "name": "plataforma-de-acarreo-backend",
       "dependencies": {
         "@clerk/clerk-sdk-node": "^5.0.0",
-        "cloudinary": "^2.0.0",
+        "cloudinary": "^2.10.0",
         "cors": "^2.8.5",
         "dotenv": "^16.4.0",
         "hono": "^4.0.0",

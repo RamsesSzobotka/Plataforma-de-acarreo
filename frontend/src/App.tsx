@@ -7,6 +7,7 @@ import CreateRide from './pages/CreateRide'
 import MyRides from './pages/MyRides'
 import RideDetails from './pages/RideDetails'
 import DriverDashboard from './pages/DriverDashboard'
+import DriverRideDetails from './pages/DriverRideDetails'
 import DriverProfile from './pages/DriverProfile'
 // import Chat from './pages/Chat' // TODO: Desactivado por errores - activar cuando esté listo
 import RegisterDriver from './pages/RegisterDriver'
@@ -33,6 +34,7 @@ function App() {
         <Route index element={<Home />} />
         
         {/* Client routes */}
+        <Route path="client" element={<Navigate to="/my-rides" replace />} />
         <Route path="create-ride" element={
           <ProtectedRoute>
             <CreateRide />
@@ -55,6 +57,21 @@ function App() {
         } /> */}
         
         {/* Driver routes */}
+        <Route path="driver/dashboard" element={
+          <ProtectedRoute>
+            <DriverDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="driver/rides/:rideId" element={
+          <ProtectedRoute>
+            <DriverRideDetails />
+          </ProtectedRoute>
+        } />
+        <Route path="driver/rides/:rideId/chat" element={
+          <ProtectedRoute>
+            <Chat />
+          </ProtectedRoute>
+        } />
         <Route path="driver" element={
           <ProtectedRoute>
             <DriverDashboard />

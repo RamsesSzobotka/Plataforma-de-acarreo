@@ -1,16 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import FileUpload from '../components/FileUpload'
 
-// Types para el estado del conductor
-interface DriverProfile {
-  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
-  rejectionReason?: string
-  vehicleType?: string
-  plate?: string
-}
-
+// Tipos de vehículos disponibles
 const VEHICLE_TYPES = [
   { value: 'camioneta', label: 'Camioneta', icon: 'local_shipping' },
   { value: 'camion', label: 'Camión', icon: 'local_shipping' },
@@ -19,6 +12,7 @@ const VEHICLE_TYPES = [
   { value: 'otro', label: 'Otro', icon: 'commute' },
 ]
 
+// Tipos de licencia de conducir
 const LICENSE_TYPES = [
   { value: 'a', label: 'Tipo A' },
   { value: 'b', label: 'Tipo B' },
@@ -27,36 +21,11 @@ const LICENSE_TYPES = [
   { value: 'e', label: 'Tipo E' },
 ]
 
-interface FormData {
-  // Sección 1: Vehículo
-  vehicleType: string
-  plate: string
-  capacityKg: string
-  vehicleImages: string[]
-  
-  // Sección 2: Documentos personales
-  licenseType: string
-  licenseImage: string
-  cedulaFront: string
-  cedulaBack: string
-  
-  // Sección 3: Documentos del vehículo
-  ruvDocument: string
-  plateImage: string
-  insurancePolicy: string
-  
-  // Sección 4: Contacto
-  phone: string
-  
-  // Sección 5: Docs opcionales
-  carneBlanco: string
-  carneVerde: string
-  carneTransporteCarga: string
-  fumigationCertificate: string
-}
+// ... resto de imports y types
 
 export default function RegisterDriver() {
   const { user, isSignedIn } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -64,22 +33,38 @@ export default function RegisterDriver() {
   const [activeSection, setActiveSection] = useState(1)
   const [driverStatus, setDriverStatus] = useState<DriverProfile | null>(null)
   const [isLoadingStatus, setIsLoadingStatus] = useState(true)
+  
+  // Variable para evitar que el effect se ejecute múltiples veces
+  const hasCheckedStatus = useRef(false)
 
   // Obtener redirect URL si existe
   const redirectUrl = searchParams.get('redirect') || '/driver'
 
-  // Verificar estado del conductor al montar
+  // Verificar estado del conductor - SOLO UNA VEZ cuando isSignedIn cambia
   useEffect(() => {
-    const checkDriverStatus = async () => {
-      if (!isSignedIn) {
-        // No está logueado -> redirigir a sign-in con redirect
-        navigate(`/sign-in?redirect=/register-driver`)
-        return
-      }
+    if (!isSignedIn) {
+      // No está logueado -> redirigir a sign-in con redirect
+      navigate(`/sign-in?redirect=/register-driver`)
+      return
+    }
 
+    // Si ya fue verificado el driver status, no hacer nada
+    if (hasCheckedStatus.current) {
+      setIsLoadingStatus(false)
+      return
+    }
+
+    hasCheckedStatus.current = true
+
+    const checkDriverStatus = async () => {
       try {
+        const token = await getToken()
+        
         const response = await fetch('/api/users/driver/me', {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
         })
 
         if (response.ok) {
@@ -92,7 +77,7 @@ export default function RegisterDriver() {
             return
           }
 
-          // Si está en revisión o pendiente -> mostrar estado (no bloquear)
+          // Si está en revisión, pendiente o rechazado -> mostrar estado/formulario
           // Si está suspendido -> mostrar error
           if (data.verificationStatus === 'suspended') {
             setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
@@ -110,7 +95,7 @@ export default function RegisterDriver() {
     }
 
     checkDriverStatus()
-  }, [isSignedIn, navigate, redirectUrl])
+  }, [isSignedIn]) // Solo depende de isSignedIn - se ejecuta cuando cambia de no-logueado a logueado
   
   const [formData, setFormData] = useState<FormData>({
     vehicleType: '',
@@ -191,35 +176,47 @@ export default function RegisterDriver() {
     setError('')
     
     try {
+      const token = await getToken()
+      
+      const payload = {
+        vehicleType: formData.vehicleType,
+        plate: formData.plate,
+        capacityKg: parseInt(formData.capacityKg),
+        vehicleImages: formData.vehicleImages,
+        licenseType: formData.licenseType,
+        licenseImage: formData.licenseImage,
+        cedulaFront: formData.cedulaFront,
+        cedulaBack: formData.cedulaBack,
+        ruvDocument: formData.ruvDocument,
+        plateImage: formData.plateImage,
+        insurancePolicy: formData.insurancePolicy,
+        phone: formData.phone,
+        carneBlanco: formData.carneBlanco || undefined,
+        carneVerde: formData.carneVerde || undefined,
+        carneTransporteCarga: formData.carneTransporteCarga || undefined,
+        fumigationCertificate: formData.fumigationCertificate || undefined,
+      }
+      
+      console.log('📤 [REGISTER] Enviando payload:', payload)
+      
       const response = await fetch('/api/users/register-driver', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehicleType: formData.vehicleType,
-          plate: formData.plate,
-          capacityKg: parseInt(formData.capacityKg),
-          vehicleImages: formData.vehicleImages,
-          licenseType: formData.licenseType,
-          licenseImage: formData.licenseImage,
-          cedulaFront: formData.cedulaFront,
-          cedulaBack: formData.cedulaBack,
-          ruvDocument: formData.ruvDocument,
-          plateImage: formData.plateImage,
-          insurancePolicy: formData.insurancePolicy,
-          phone: formData.phone,
-          carneBlanco: formData.carneBlanco || undefined,
-          carneVerde: formData.carneVerde || undefined,
-          carneTransporteCarga: formData.carneTransporteCarga || undefined,
-          fumigationCertificate: formData.fumigationCertificate || undefined,
-        }),
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
+        body: JSON.stringify(payload),
       })
       
       const data = await response.json()
+      console.log('📥 [REGISTER] Respuesta:', { status: response.status, data })
       
       if (response.ok) {
         navigate('/driver')
       } else {
-        setError(data.error || data.missing ? `Faltan: ${data.missing?.join(', ')}` : 'Error al registrar conductor')
+        const errorMsg = data.missing ? `Faltan: ${data.missing.join(', ')}` : (data.error || 'Error al registrar conductor')
+        console.error('❌ [REGISTER] Error:', errorMsg)
+        setError(errorMsg)
       }
     } catch (err) {
       setError('Error de conexión')
@@ -351,21 +348,66 @@ export default function RegisterDriver() {
           )}
 
           {driverStatus.verificationStatus === 'pending' && (
-            <Link
-              to="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                marginTop: '1.5rem',
-                color: '#64748B',
-                textDecoration: 'none',
-                fontFamily: '"Inter", sans-serif',
-              }}
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>home</span>
-              Volver al inicio
-            </Link>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+              {/* Dev-only bypass button */}
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{
+                  background: '#FEE2E2',
+                  border: '2px solid #EF4444',
+                  borderRadius: '12px',
+                  padding: '1rem',
+                  marginBottom: '0.5rem',
+                }}>
+                  <p style={{ fontSize: '0.875rem', color: '#7F1D1D', marginBottom: '0.75rem', fontWeight: 600 }}>
+                    ⚡ MODO DESARROLLO - Para Testing
+                  </p>
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('bypassVerification', 'true')
+                      navigate('/driver/dashboard')
+                    }}
+                    style={{
+                      background: '#EF4444',
+                      color: 'white',
+                      padding: '0.875rem 1.5rem',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontFamily: '"Plus Jakarta Sans", sans-serif',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '1rem',
+                      width: '100%',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <span className="material-symbols-rounded">bolt</span>
+                    Saltarse Verificación (DEV ONLY)
+                  </button>
+                  <p style={{ fontSize: '0.75rem', color: '#991B1B', marginTop: '0.5rem' }}>
+                    Este botón solo está disponible en desarrollo y se eliminará antes de producción.
+                  </p>
+                </div>
+              )}
+              
+              <Link
+                to="/"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  color: '#64748B',
+                  textDecoration: 'none',
+                  fontFamily: '"Inter", sans-serif',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>home</span>
+                Volver al inicio
+              </Link>
+            </div>
           )}
         </div>
 
@@ -379,11 +421,16 @@ export default function RegisterDriver() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '1rem',
+            border: '1px solid #E2E8F0',
           }}>
             <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', color: '#0D9488' }}>
               directions_car
             </span>
-            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontWeight: 600 }}>
+            <span style={{ 
+              fontFamily: '"JetBrains Mono", monospace', 
+              fontWeight: 600,
+              color: '#0F172A' // ← AGREGADO: color texto oscuro
+            }}>
               {driverStatus.vehicleType} • {driverStatus.plate}
             </span>
           </div>
@@ -827,6 +874,65 @@ export default function RegisterDriver() {
               )}
             </button>
           )}
+        </div>
+
+        {/* DEV ONLY: Bypass Verification Button */}
+        <div style={{
+          marginTop: '3rem',
+          paddingTop: '2rem',
+          borderTop: '2px solid var(--error)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1rem'
+        }}>
+          <div style={{
+            padding: '1rem',
+            backgroundColor: '#FEE2E2',
+            borderRadius: '0.5rem',
+            textAlign: 'center',
+            fontSize: '0.875rem',
+            color: '#991B1B'
+          }}>
+            ⚠️ MODO DESARROLLO: Botón temporal para testing
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.setItem('bypassVerification', 'true')
+              console.warn('⚡ DEVELOPMENT: Verification bypassed - this is dev-only mode')
+              navigate('/driver/dashboard?bypassVerification=true')
+            }}
+            style={{
+              backgroundColor: '#EF4444',
+              color: 'white',
+              padding: '1rem 2rem',
+              borderRadius: '0.75rem',
+              border: 'none',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              transition: 'background-color 0.2s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#DC2626')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#EF4444')}
+          >
+            <span className="material-symbols-rounded">flash_on</span>
+            Saltarse Verificación (DEV ONLY)
+          </button>
+          <p style={{
+            fontSize: '0.75rem',
+            color: '#64748B',
+            maxWidth: '400px',
+            textAlign: 'center',
+            marginTop: '0.5rem'
+          }}>
+            Este botón te llevará al portal del conductor sin esperar la verificación del admin.
+            Se eliminará después de testing.
+          </p>
         </div>
       </form>
     </div>
