@@ -13,8 +13,8 @@ function AuthPage() {
     }}>
       {/* Header con boton volver */}
       <header style={{
-        background: '#FFFFFF',
-        borderBottom: '1px solid #E2E8F0',
+        background: '#0F172A',
+        borderBottom: '1px solid #334155',
         padding: '1rem 2rem',
       }}>
         <Link 
@@ -24,7 +24,7 @@ function AuthPage() {
             alignItems: 'center', 
             gap: '0.5rem',
             textDecoration: 'none',
-            color: '#0F172A',
+            color: '#F8FAFC',
             fontFamily: '"Plus Jakarta Sans", sans-serif',
             fontWeight: '600',
             fontSize: '1rem',
@@ -44,7 +44,7 @@ function AuthPage() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '2rem',
-        background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
       }}>
         <div style={{
           width: '100%',

@@ -3,13 +3,42 @@ import { mongoose } from '../db/mongo'
 const driverSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   
-  // Información del vehículo
-  vehicleType: { type: String, required: true }, // sedan, pickup, truck
+  // === INFO BÁSICA ===
+  vehicleType: { type: String, required: true },
   plate: { type: String, required: true },
   capacityKg: { type: Number, required: true },
   
-  // Disponibilidad
-  isAvailable: { type: Boolean, default: true },
+  // === DOCUMENTOS OBLIGATORIOS ===
+  vehicleImages: [{ type: String }],      // Fotos del vehículo (mín. 1)
+  licenseType: { type: String, required: true },          // Tipo de licencia
+  licenseImage: { type: String, required: true },        // Foto de licencia
+  cedulaFront: { type: String, required: true },          // Cédula - frente
+  cedulaBack: { type: String, required: true },          // Cédula - reverso
+  ruvDocument: { type: String, required: true },         // RUV del vehículo
+  plateImage: { type: String, required: true },          // Foto de placa vigente
+  insurancePolicy: { type: String, required: true },    // Póliza de seguro terceros
+  
+  // === DOCUMENTOS OPCIONALES ===
+  carneBlanco: { type: String },         // Carné blanco
+  carneVerde: { type: String },         // Carné verde
+  carneTransporteCarga: { type: String }, // Carné transporte
+  fumigationCertificate: { type: String }, // Fumigación
+  
+  // === DATOS DE CONTACTO ===
+  phone: { type: String, required: true },
+  
+  // === VERIFICACIÓN ===
+  verificationStatus: { 
+    type: String, 
+    enum: ['pending', 'in_review', 'verified', 'rejected', 'suspended'],
+    default: 'pending'
+  },
+  rejectionReason: { type: String },     // Por qué fue rechazado
+  reviewedBy: { type: String },         // clerkId del admin
+  reviewedAt: { type: Date },
+  
+  // === DISPONIBILIDAD ===
+  isAvailable: { type: Boolean, default: false },
   
   // Ubicación actual (GeoJSON)
   currentLocation: {
@@ -21,7 +50,7 @@ const driverSchema = new mongoose.Schema({
   rating: { type: Number, default: 0 },
   totalRides: { type: Number, default: 0 },
   
-  // Verificación
+  // Legacy - mantener por compatibilidad
   isVerified: { type: Boolean, default: false },
   
   createdAt: { type: Date, default: Date.now },
@@ -30,7 +59,9 @@ const driverSchema = new mongoose.Schema({
   timestamps: true
 })
 
+driverSchema.index({ userId: 1 }, { unique: true })
 driverSchema.index({ currentLocation: '2dsphere' })
 driverSchema.index({ isAvailable: 1 })
+driverSchema.index({ verificationStatus: 1 })
 
 export const Driver = mongoose.models.Driver || mongoose.model('Driver', driverSchema)
