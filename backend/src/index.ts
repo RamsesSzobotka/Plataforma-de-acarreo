@@ -31,6 +31,7 @@ app.route('/api/users', users)
 app.route('/api/messages', messages)
 app.route('/api/payments', payments)
 app.route('/api/upload', upload)
+app.route('/api/admin', admin)
 
 // Admin routes (sin seguridad por ahora)
 app.route('/admin/api', admin)

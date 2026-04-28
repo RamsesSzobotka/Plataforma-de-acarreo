@@ -34,17 +34,16 @@ function MyRides() {
     setLoading(true)
     setError('')
     try {
-      const response = await ridesAPI.myRides({
-        status: filter !== 'all' ? filter : undefined,
-        page,
-        limit: 10,
-      })
-      setRides(response.data)
-      setTotalPages(response.pagination.pages)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al cargar los pedidos'
-      setError(message)
-      console.error('Error loading rides:', err)
+      const queryParams = new URLSearchParams()
+      queryParams.append('clientId', user?.id || '')
+      if (filter !== 'all') {
+        queryParams.append('status', filter)
+      }
+      const response = await fetch(`/api/rides?${queryParams.toString()}`)
+      const data = await response.json()
+      setRides(data.data || [])
+    } catch (error) {
+      console.error('Error loading rides:', error)
     } finally {
       setLoading(false)
     }

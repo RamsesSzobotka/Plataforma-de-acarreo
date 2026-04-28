@@ -9,7 +9,7 @@ const rideSchema = new mongoose.Schema({
   description: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ['mudanza', 'electrodomésticos', 'muebles', 'productos', 'otros'],
+    enum: ['mudanza', 'electrodomesticos', 'muebles', 'productos', 'otros'],
     required: true 
   },
   
@@ -22,17 +22,13 @@ const rideSchema = new mongoose.Schema({
   // Locations con GeoJSON
   pickupLocation: {
     address: { type: String, required: true },
-    coordinates: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], required: true } // [lng, lat]
-    }
+    type: { type: String, enum: ['Point'], default: 'Point' },
+    coordinates: { type: [Number], required: true } // [lng, lat]
   },
   dropoffLocation: {
     address: { type: String, required: true },
-    coordinates: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], required: true }
-    }
+    type: { type: String, enum: ['Point'], default: 'Point' },
+    coordinates: { type: [Number], required: true }
   },
   
   // Precios
@@ -64,6 +60,11 @@ const rideSchema = new mongoose.Schema({
   // Cancelación
   cancellationReason: { type: String },
   
+  // Pago - Stripe
+  stripePaymentMethodId: { type: String }, // ID del método de pago guardado (obligatorio)
+  paymentIntentId: { type: String }, // ID del PaymentIntent cuando se procesa
+  paidAt: { type: Date }, // Fecha de pago automático
+  
   // Timestamps
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -71,10 +72,8 @@ const rideSchema = new mongoose.Schema({
   timestamps: true
 })
 
-// Índices
-// 2dsphere index for geospatial queries on both pickup and dropoff locations
-rideSchema.index({ 'pickupLocation.coordinates': '2dsphere' })
-rideSchema.index({ 'dropoffLocation.coordinates': '2dsphere' })
+// Índices - 2dsphere desactivado temporalmente
+// rideSchema.index({ 'pickupLocation.coordinates': '2dsphere' })
 rideSchema.index({ status: 1 })
 rideSchema.index({ clientId: 1 })
 rideSchema.index({ driverId: 1 })

@@ -8,6 +8,33 @@ export interface AuthUser {
   email: string
   firstName?: string
   lastName?: string
+  imageUrl?: string
+}
+
+async function getClerkUser(clerkId: string): Promise<{
+  email: string
+  firstName: string
+  lastName: string
+  imageUrl: string
+} | null> {
+  const response = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
+    headers: {
+      Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  })
+  
+  if (!response.ok) {
+    return null
+  }
+  
+  const data = await response.json()
+  return {
+    email: data.email_addresses?.[0]?.email_address || '',
+    firstName: data.first_name || '',
+    lastName: data.last_name || '',
+    imageUrl: data.image_url || '',
+  }
 }
 
 /**
@@ -17,10 +44,11 @@ export interface AuthUser {
  * 1. Extrae token del header Authorization: Bearer <token>
  * 2. Verifica el token con Clerk
  * 3. Busca el usuario en MongoDB
- * 4. Setea el usuario en el contexto de Hono
+ * 4. Si no existe, lo crea como cliente automáticamente
+ * 5. Setea el usuario en el contexto de Hono
  * 
  * Respuestas:
- * - 401: Sin token o usuario no registrado
+ * - 401: Sin token
  * - 403: Token inválido o expirado
  */
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
@@ -47,19 +75,30 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     // Buscar usuario en MongoDB
     let user = await db.collection('users').findOne({ clerkId })
     
-    // Si no existe, crear uno nuevo con rol por defecto 'client'
+    //Si no existe, crearlo como cliente automáticamente
     if (!user) {
-      const newUser = await db.collection('users').insertOne({
+      // Obtener datos de Clerk directamente
+      const clerkUser = await getClerkUser(clerkId)
+      
+      if (!clerkUser) {
+        return c.json({ error: 'User not found in Clerk' }, 403)
+      }
+      
+      const newUser = {
         clerkId,
-        email: session.email || '',
-        firstName: session.name?.first_name || '',
-        lastName: session.name?.last_name || '',
+        email: clerkUser.email,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
         role: 'client',
         isActive: true,
         createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      user = { _id: newUser.insertedId, clerkId, email: session.email || '', role: 'client' }
+        updatedAt: new Date()
+      }
+      
+      await db.collection('users').insertOne(newUser)
+      user = { _id: newUser.clerkId, ...newUser }
+      console.log(`Nuevo usuario creado: ${clerkId} como cliente`)
     }
     
     // Settear usuario en contexto
@@ -69,6 +108,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      imageUrl: user.imageUrl,
     })
     
     await next()

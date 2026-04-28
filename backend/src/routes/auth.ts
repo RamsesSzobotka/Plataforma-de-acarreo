@@ -1,22 +1,19 @@
 import { Hono } from 'hono/tiny'
+import { authMiddleware } from '../middleware/auth'
 
 const auth = new Hono()
 
-// Webhook de Clerk para sincronizar usuarios
+// Webhook de Clerk para sincronizar usuarios (opcional - el registro automático ya se hace en authMiddleware)
 auth.post('/webhook', async (c) => {
-  // TODO: Implementar webhook de Clerk
-  // 1. Verificar firma del webhook
-  // 2. Sincronizar usuario en MongoDB
-  // 3. Crear driver si es necesario
-  
-  return c.json({ message: 'Webhook endpoint - TODO' })
+  // Este webhook es para eventos de Clerk como user.deleted
+  // El registro automático de nuevos usuarios ya ocurre en authMiddleware
+  return c.json({ message: 'Webhook received' })
 })
 
 // Obtener usuario actual
-auth.get('/me', async (c) => {
-  // TODO: Obtener usuario desde Clerk y MongoDB
-  // const { userId } = c.get('userId')
-  return c.json({ message: 'Auth me endpoint - TODO' })
+auth.get('/me', authMiddleware, async (c) => {
+  const user = c.get('user')
+  return c.json({ data: user })
 })
 
 export default auth
