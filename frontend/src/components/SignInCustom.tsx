@@ -1,10 +1,14 @@
+import { useSearchParams } from 'react-router-dom'
 import { SignIn } from '@clerk/clerk-react'
 
 interface SignInCustomProps {
   userType?: 'client' | 'driver'
+  defaultRedirectUrl?: string
 }
 
-function SignInCustom({ userType = 'client' }: SignInCustomProps) {
+function SignInCustom({ userType = 'client', defaultRedirectUrl }: SignInCustomProps) {
+  const [searchParams] = useSearchParams()
+  const redirectUrl = searchParams.get('redirect') || defaultRedirectUrl || (userType === 'driver' ? '/register-driver' : '/my-rides')
   const primaryColor = userType === 'driver' ? '#F97316' : '#0D9488'
 
   return (
@@ -17,7 +21,7 @@ function SignInCustom({ userType = 'client' }: SignInCustomProps) {
       <SignIn
         routing="path"
         path="/sign-in"
-        afterSignInUrl="/my-rides"
+        afterSignInUrl={redirectUrl}
         signUpUrl="/sign-up"
         appearance={{
           variables: {

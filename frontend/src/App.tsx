@@ -7,6 +7,7 @@ import CreateRide from './pages/CreateRide'
 import MyRides from './pages/MyRides'
 import RideDetails from './pages/RideDetails'
 import DriverDashboard from './pages/DriverDashboard'
+import DriverProfile from './pages/DriverProfile'
 // import Chat from './pages/Chat' // TODO: Desactivado por errores - activar cuando esté listo
 import RegisterDriver from './pages/RegisterDriver'
 
@@ -57,6 +58,11 @@ function App() {
         <Route path="driver" element={
           <ProtectedRoute>
             <DriverDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="driver/profile" element={
+          <ProtectedRoute>
+            <DriverProfile />
           </ProtectedRoute>
         } />
         <Route path="register-driver" element={

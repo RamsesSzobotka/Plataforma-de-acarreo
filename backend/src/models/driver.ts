@@ -3,8 +3,8 @@ import { mongoose } from '../db/mongo'
 const driverSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   
-  // Información del vehículo
-  vehicleType: { type: String, required: true }, // sedan, pickup, truck
+  // === INFO BÁSICA ===
+  vehicleType: { type: String, required: true },
   plate: { type: String, required: true },
   capacityKg: { type: Number, required: true },
   
@@ -63,7 +63,9 @@ const driverSchema = new mongoose.Schema({
   timestamps: true
 })
 
+driverSchema.index({ userId: 1 }, { unique: true })
 driverSchema.index({ currentLocation: '2dsphere' })
 driverSchema.index({ isAvailable: 1 })
+driverSchema.index({ verificationStatus: 1 })
 
 export const Driver = mongoose.models.Driver || mongoose.model('Driver', driverSchema)

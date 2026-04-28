@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ridesAPI, usersAPI } from '../services/api'
+
+interface Driver {
+  _id: string
+  verificationStatus: string
+  rejectionReason?: string
+  phone?: string
+  vehicleType?: string
+  plate?: string
+  rating?: number
+  isAvailable?: boolean
+}
 
 interface Ride {
   _id: string
@@ -27,6 +37,7 @@ interface Driver {
 
 function DriverDashboard() {
   const { user } = useUser()
+  const [driver, setDriver] = useState<Driver | null>(null)
   const [availableRides, setAvailableRides] = useState<Ride[]>([])
   const [myRides, setMyRides] = useState<Ride[]>([])
   const [driverProfile, setDriverProfile] = useState<Driver | null>(null)
@@ -44,20 +55,26 @@ function DriverDashboard() {
   }, [user])
 
   useEffect(() => {
-    if (user) {
+    loadDriver()
+  }, [user])
+
+  useEffect(() => {
+    if (driver?.verificationStatus === 'verified') {
       loadRides()
     }
-  }, [tab, user])
+  }, [tab, driver?.verificationStatus])
 
-  async function loadDriverProfile() {
+  async function loadDriver() {
     try {
-      const profile = await usersAPI.getMyDriver()
-      setDriverProfile(profile)
-      setIsAvailable(profile.isAvailable || false)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al cargar perfil'
-      setError(message)
-      console.error('Error loading driver profile:', err)
+      const response = await fetch('/api/users/driver/me')
+      if (response.ok) {
+        const data = await response.json()
+        setDriver(data)
+      }
+    } catch (error) {
+      console.error('Error loading driver:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -70,124 +87,224 @@ function DriverDashboard() {
         const response = await ridesAPI.myRides({ limit: 20 })
         setMyRides(response.data || [])
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al cargar pedidos'
-      setError(message)
-      console.error('Error loading rides:', err)
-    } finally {
-      setLoading(false)
+    } catch (error) {
+      console.error('Error loading rides:', error)
     }
   }
 
   async function handleAcceptRide(rideId: string, price: number) {
+    if (!user) return
+    
     try {
-      const updated = await ridesAPI.accept(rideId, price)
-      // Update myRides list
-      setAvailableRides(availableRides.filter(r => r._id !== rideId))
-      setMyRides([updated, ...myRides])
-      alert('¡Pedido aceptado exitosamente!')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al aceptar el pedido'
-      setError(message)
+      await fetch(`/api/rides/${rideId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: user.id, agreedPrice: price }),
+      })
+      loadRides()
+    } catch (error) {
+      console.error('Error accepting ride:', error)
     }
   }
 
-  async function handleToggleAvailability() {
-    if (!driverProfile) return
-    setUpdating(true)
-    setError('')
-    try {
-      const updated = await usersAPI.updateDriverAvailability(!isAvailable)
-      setIsAvailable(!isAvailable)
-      setDriverProfile(updated)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al actualizar disponibilidad'
-      setError(message)
-    } finally {
-      setUpdating(false)
-    }
-  }
+  // Estado de verificación
+  const verificationStatus = driver?.verificationStatus
 
-  const statusColors: Record<string, string> = {
-    requested: '#f59e0b',
-    negotiating: '#8b5cf6',
-    accepted: '#22c55e',
-    in_progress: '#3b82f6',
-    completed: '#22c55e',
-    paid: '#22c55e',
-    cancelled: '#ef4444',
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+  // No está registrado como driver
+  if (!driver && !loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem' }}>
+        <h1 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span className="material-symbols-rounded">directions_car</span>
           Panel del Conductor
         </h1>
-        <Link to="/driver-profile" className="btn btn-outline">
-          <span className="material-symbols-rounded">person</span>
-          Mi Perfil
-        </Link>
-      </div>
-
-      {error && (
-        <div style={{
-          padding: '1rem',
-          marginBottom: '1rem',
-          background: '#fee2e2',
-          border: '1px solid #fca5a5',
-          borderRadius: 'var(--radius)',
-          color: '#991b1b'
-        }}>
-          {error}
+        <div className="card" style={{ maxWidth: '500px', margin: '0 auto', padding: '2rem' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#64748B', marginBottom: '1rem', display: 'block' }}>
+            how_to_reg
+          </span>
+          <h2 style={{ marginBottom: '1rem' }}>Regístrate como Conductor</h2>
+          <p style={{ color: '#64748B', marginBottom: '1.5rem' }}>
+            Para comenzar a aceptar acarreos, necesitas completar tu registro y verificación.
+          </p>
+          <Link to="/register-driver" className="btn btn-primary" style={{ padding: '1rem 2rem' }}>
+            <span className="material-symbols-rounded">add</span>
+            Registrarse como Conductor
+          </Link>
         </div>
-      )}
+      </div>
+    )
+  }
 
-      {/* Driver status card */}
-      {driverProfile && (
-        <div className="card" style={{ marginBottom: '1.5rem', background: 'var(--bg-secondary)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                <strong>{driverProfile.vehicleType}</strong> • {driverProfile.plate}
-              </p>
-              <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="material-symbols-rounded" style={{ color: '#F97316' }}>star</span>
-                <strong>{driverProfile.rating.toFixed(1)}</strong>
-                <span style={{ color: 'var(--text-muted)' }}>({driverProfile.totalRides} viajes)</span>
-              </p>
-              <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                Estado: 
-                <span style={{
-                  marginLeft: '0.5rem',
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '999px',
-                  background: driverProfile.verificationStatus === 'verified' ? '#22c55e' : '#f59e0b',
-                  color: 'white',
-                  fontSize: '0.8rem',
-                  display: 'inline-block'
-                }}>
-                  {driverProfile.verificationStatus}
-                </span>
-              </p>
+  // Loading
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem' }}>
+        <span className="material-symbols-rounded" style={{ fontSize: '3rem', animation: 'spin 1s linear infinite' }}>
+          sync
+        </span>
+        <p style={{ marginTop: '1rem', color: '#64748B' }}>Cargando...</p>
+      </div>
+    )
+  }
+
+  // Mostrar estado de verificación
+  if (verificationStatus !== 'verified') {
+    return (
+      <div>
+        <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span className="material-symbols-rounded">directions_car</span>
+          Panel del Conductor
+        </h1>
+
+        {/* Estado: pending */}
+        {verificationStatus === 'pending' && (
+          <div className="card" style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem', borderLeft: '4px solid #F59E0B' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#F59E0B' }}>hourglass_empty</span>
+              <div>
+                <h2 style={{ color: '#F59E0B', marginBottom: '0' }}>Verificación Pendiente</h2>
+                <p style={{ color: '#64748B', marginTop: '0.25rem' }}>Estado: En revisión</p>
+              </div>
             </div>
-            <div>
-              <button
-                className={`btn ${isAvailable ? 'btn-primary' : 'btn-outline'}`}
-                onClick={handleToggleAvailability}
-                disabled={updating}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-              >
-                <span className="material-symbols-rounded">
-                  {isAvailable ? 'check_circle' : 'radio_button_unchecked'}
-                </span>
-                {isAvailable ? 'Disponible' : 'No disponible'}
-              </button>
+            <p style={{ color: '#334155', marginBottom: '1rem' }}>
+              Tus documentos están en revisión. No podrás aceptar encargos hasta que un admin apruebe tu perfil.
+            </p>
+            <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+              Tiempo estimado: 24-48 horas.
+            </p>
+            <Link 
+              to="/driver/profile" 
+              className="btn btn-outline" 
+              style={{ marginTop: '1.5rem' }}
+            >
+              <span className="material-symbols-rounded">edit</span>
+              Ver mi perfil
+            </Link>
+          </div>
+        )}
+
+        {/* Estado: in_review */}
+        {verificationStatus === 'in_review' && (
+          <div className="card" style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem', borderLeft: '4px solid #3B82F6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#3B82F6' }}>search</span>
+              <div>
+                <h2 style={{ color: '#3B82F6', marginBottom: '0' }}>En Revisión</h2>
+                <p style={{ color: '#64748B', marginTop: '0.25rem' }}>Estado: Siendo revisado</p>
+              </div>
             </div>
+            <p style={{ color: '#334155', marginBottom: '1rem' }}>
+              Un administrador está revisando tus documentos.
+            </p>
+            <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+              Te notificaremos cuando termine la revisión.
+            </p>
+            <Link 
+              to="/driver/profile" 
+              className="btn btn-outline" 
+              style={{ marginTop: '1.5rem' }}
+            >
+              <span className="material-symbols-rounded">edit</span>
+              Ver mi perfil
+            </Link>
+          </div>
+        )}
+
+        {/* Estado: rejected */}
+        {verificationStatus === 'rejected' && (
+          <div className="card" style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem', borderLeft: '4px solid #EF4444' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#EF4444' }}>cancel</span>
+              <div>
+                <h2 style={{ color: '#EF4444', marginBottom: '0' }}>Verificación Rechazada</h2>
+                <p style={{ color: '#64748B', marginTop: '0.25rem' }}>Estado: Rechazado</p>
+              </div>
+            </div>
+            
+            {driver?.rejectionReason && (
+              <div style={{ background: '#FEF2F2', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+                <p style={{ fontWeight: 600, color: '#EF4444', marginBottom: '0.5rem' }}>Motivo:</p>
+                <p style={{ color: '#334155' }}>{driver.rejectionReason}</p>
+              </div>
+            )}
+            
+            <p style={{ color: '#334155', marginBottom: '1.5rem' }}>
+              Por favor, corrige los documentos y vuelve a enviar para revisión.
+            </p>
+            
+            <Link 
+              to="/driver/profile" 
+              className="btn btn-primary"
+              style={{ padding: '1rem 1.5rem' }}
+            >
+              <span className="material-symbols-rounded">edit</span>
+              Corregir y Reenviar
+            </Link>
+          </div>
+        )}
+
+        {/* Estado: suspended */}
+        {verificationStatus === 'suspended' && (
+          <div className="card" style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem', borderLeft: '4px solid #EF4444' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#EF4444' }}>block</span>
+              <div>
+                <h2 style={{ color: '#EF4444', marginBottom: '0' }}>Cuenta Suspendida</h2>
+                <p style={{ color: '#64748B', marginTop: '0.25rem' }}>Estado: Suspendido</p>
+              </div>
+            </div>
+            <p style={{ color: '#334155', marginBottom: '1rem' }}>
+              Tu cuenta ha sido suspendida. Contacta al administrador para más información.
+            </p>
+          </div>
+        )}
+
+        {/* Tabs deshabilitadas */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '2rem', opacity: 0.5 }}>
+          <button className="btn btn-outline" disabled>
+            <span className="material-symbols-rounded">search</span>
+            Pedidos Disponibles
+          </button>
+          <button className="btn btn-outline" disabled>
+            <span className="material-symbols-rounded">work_history</span>
+            Mis Acarreos
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Ya está verificado - mostrar dashboard normal
+  return (
+    <div>
+      <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span className="material-symbols-rounded">directions_car</span>
+        Panel del Conductor
+      </h1>
+
+      {/* Info del driver */}
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontWeight: 600 }}>
+              {driver?.vehicleType} • {driver?.plate}
+            </p>
+            <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+              {driver?.phone}
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span className="material-symbols-rounded" style={{ color: '#F59E0B' }}>star</span>
+              <span style={{ fontWeight: 600 }}>{driver?.rating?.toFixed(1) || '0.0'}</span>
+            </div>
+            <Link to="/driver/profile" className="btn btn-outline">
+              <span className="material-symbols-rounded">edit</span>
+              Editar Perfil
+            </Link>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
