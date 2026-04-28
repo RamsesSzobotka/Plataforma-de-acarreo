@@ -52,7 +52,10 @@ const driverSchema = new mongoose.Schema({
   
   // Legacy - mantener por compatibilidad
   isVerified: { type: Boolean, default: false },
-  
+
+  // Stripe Connect
+  stripeAccountId: { type: String },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, {

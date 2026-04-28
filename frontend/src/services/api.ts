@@ -237,4 +237,20 @@ export const paymentsAPI = {
       method: 'POST',
       body: JSON.stringify({ stripePaymentMethodId }),
     }, token),
+
+  // Stripe Connect
+  createConnectAccount: (token?: string) =>
+    fetchAPI<{ success: boolean; onboardingUrl: string }>(
+      '/api/payments/create-connect-account',
+      { method: 'POST' },
+      token
+    ),
+
+  // Handle Stripe callback (if needed from frontend)
+  handleStripeCallback: (token?: string) =>
+    fetchAPI<{ success: boolean; stripeAccountId: string }>(
+      '/api/payments/stripe-callback',
+      {},
+      token
+    ),
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import { ridesAPI, usersAPI } from '../services/api'
+import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
 
 interface Driver {
   _id: string
@@ -12,6 +12,7 @@ interface Driver {
   plate?: string
   rating?: number
   isAvailable?: boolean
+  stripeAccountId?: string
 }
 
 interface Ride {
@@ -20,9 +21,15 @@ interface Ride {
   type: string
   status: string
   estimatedPrice: number
-  pickupLocation: { address: string }
-  dropoffLocation: { address: string }
+  finalPrice?: number
+  pickupLocation: { address: string; coordinates?: { type: string; coordinates: number[] } }
+  dropoffLocation: { address: string; coordinates?: { type: string; coordinates: number[] } }
   description: string
+  images?: { url: string; publicId?: string }[]
+  packages?: number
+  weight?: number
+  distance?: number
+  driverId?: string
 }
 
 function DriverDashboard() {
@@ -34,6 +41,13 @@ function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'available' | 'mine'>('available')
 
+  // NEW: Filters and pagination
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<string>('requested,negotiating')
+  const [typeFilter, setTypeFilter] = useState<string>('')
+  const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
+
   useEffect(() => {
     loadDriver()
   }, [user])
@@ -42,7 +56,23 @@ function DriverDashboard() {
     if (driver?.verificationStatus === 'verified') {
       loadRides()
     }
-  }, [tab, driver?.verificationStatus])
+  }, [tab, driver?.verificationStatus, page, statusFilter, typeFilter])
+
+  // Get driver's current location for proximity filtering
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setDriverLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          })
+        },
+        (error) => console.error('Error getting location:', error),
+        { enableHighAccuracy: true }
+      )
+    }
+  }, [])
 
   async function loadDriver() {
     try {
@@ -60,8 +90,18 @@ function DriverDashboard() {
     try {
       const token = await getToken()
       if (tab === 'available') {
-        const data = await ridesAPI.list({ status: 'requested' }, token || undefined)
-        setAvailableRides(data.data || [])
+        const params: any = { 
+          status: statusFilter,
+          page,
+          limit: 10
+        }
+        if (typeFilter) params.type = typeFilter
+        
+        const data = await ridesAPI.list(params, token || undefined)
+        // Filter out rides that already have a driverId
+        const available = (data.data || []).filter((ride: Ride) => !ride.driverId)
+        setAvailableRides(available)
+        setTotalPages(data.totalPages || 1)
       } else {
         const data = await ridesAPI.list({ driverId: user?.id }, token || undefined)
         setMyRides(data.data || [])
@@ -80,6 +120,18 @@ function DriverDashboard() {
       loadRides()
     } catch (error) {
       console.error('Error accepting ride:', error)
+    }
+  }
+
+  async function handleConnectStripe() {
+    try {
+      const token = await getToken()
+      const data = await paymentsAPI.createConnectAccount(token || undefined)
+      if (data.onboardingUrl) {
+        window.location.href = data.onboardingUrl
+      }
+    } catch (error) {
+      console.error('Error connecting Stripe:', error)
     }
   }
 
@@ -253,6 +305,12 @@ function DriverDashboard() {
   // Ya está verificado - mostrar dashboard normal
   return (
     <div>
+      {/* Back button per rule 16.1 */}
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+        <span className="material-symbols-rounded">arrow_back</span>
+        Volver al inicio
+      </Link>
+      
       <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <span className="material-symbols-rounded">directions_car</span>
         Panel del Conductor
@@ -278,6 +336,21 @@ function DriverDashboard() {
               <span className="material-symbols-rounded">edit</span>
               Editar Perfil
             </Link>
+            {!driver?.stripeAccountId ? (
+              <button 
+                className="btn btn-secondary"
+                onClick={handleConnectStripe}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <span className="material-symbols-rounded">payments</span>
+                Conectar Stripe
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
+                <span className="material-symbols-rounded">check_circle</span>
+                Stripe conectado
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -300,6 +373,49 @@ function DriverDashboard() {
         </button>
       </div>
 
+      {/* Filters for available rides */}
+      {tab === 'available' && (
+        <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div>
+              <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginRight: '0.5rem' }}>Estado:</label>
+              <select 
+                value={statusFilter} 
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+                style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border)' }}
+              >
+                <option value="requested,negotiating">Todos</option>
+                <option value="requested">Solicitado</option>
+                <option value="negotiating">Negociando</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginRight: '0.5rem' }}>Tipo:</label>
+              <select 
+                value={typeFilter} 
+                onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }}
+                style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border)' }}
+              >
+                <option value="">Todos</option>
+                <option value="mudanza">Mudanza</option>
+                <option value="electrodomésticos">Electrodomésticos</option>
+                <option value="muebles">Muebles</option>
+                <option value="productos">Productos</option>
+                <option value="otros">Otros</option>
+              </select>
+            </div>
+            
+            {driverLocation && (
+              <div style={{ fontSize: '0.875rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
+                Ubicación detectada
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Rides list */}
       {tab === 'available' ? (
         availableRides.length === 0 ? (
@@ -315,12 +431,27 @@ function DriverDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {availableRides.map((ride) => (
               <div key={ride._id} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ width: '100%' }}>
                     <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="material-symbols-rounded">local_shipping</span>
                       {ride.title}
                     </h3>
+                    
+                    {/* Images */}
+                    {ride.images && ride.images.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+                        {ride.images.map((img, idx) => (
+                          <img 
+                            key={idx} 
+                            src={img.url} 
+                            alt={`Ride ${idx + 1}`}
+                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
                       {ride.pickupLocation.address}
@@ -328,20 +459,53 @@ function DriverDashboard() {
                       <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
                       {ride.dropoffLocation.address}
                     </p>
-                    <p style={{ fontSize: '0.9rem' }}>{ride.description}</p>
+                    
+                    <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>{ride.description}</p>
+                    
+                    {/* Packages and Weight */}
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      {ride.packages && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>inventory_2</span>
+                          {ride.packages} bultos
+                        </span>
+                      )}
+                      {ride.weight && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>scale</span>
+                          {ride.weight} kg
+                        </span>
+                      )}
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>category</span>
+                        {ride.type}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
-                      ${ride.estimatedPrice}
-                    </p>
-                    <button
-                      className="btn btn-primary"
-                      style={{ marginTop: '0.5rem' }}
-                      onClick={() => handleAcceptRide(ride._id, ride.estimatedPrice)}
-                    >
-                      <span className="material-symbols-rounded">check</span>
-                      Aceptar
-                    </button>
+                  
+                  <div style={{ textAlign: 'right', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ 
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '999px',
+                      background: ride.status === 'requested' ? 'var(--warning)' : 'var(--secondary)',
+                      color: 'white',
+                      fontSize: '0.875rem'
+                    }}>
+                      {ride.status}
+                    </span>
+                    <div>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+                        ${ride.estimatedPrice}
+                      </p>
+                      <button
+                        className="btn btn-primary"
+                        style={{ marginTop: '0.5rem' }}
+                        onClick={() => handleAcceptRide(ride._id, ride.estimatedPrice)}
+                      >
+                        <span className="material-symbols-rounded">check</span>
+                        Aceptar
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

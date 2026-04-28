@@ -1,6 +1,7 @@
 import { Hono } from 'hono/tiny'
 import Stripe from 'stripe'
 import { Ride } from '../models/ride'
+import { Driver } from '../models/driver'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
@@ -127,6 +128,69 @@ payments.post('/confirm', async (c) => {
   } catch (err) {
     console.error('Error confirming payment:', err)
     return c.json({ error: 'Error confirmando pago' }, 500)
+  }
+})
+
+// Crear cuenta Stripe Connect para el conductor
+payments.post('/create-connect-account', async (c) => {
+  try {
+    const userId = c.get('clerkId') || c.req.header('x-user-id')
+
+    if (!userId) {
+      return c.json({ error: 'User not authenticated' }, 401)
+    }
+
+    const driver = await Driver.findOne({ userId })
+    if (!driver) {
+      return c.json({ error: 'Driver not found' }, 404)
+    }
+
+    const account = await stripe.accounts.create({
+      type: 'express',
+      capabilities: {
+        transfers: { requested: true },
+      },
+    })
+
+    driver.stripeAccountId = account.id
+    await driver.save()
+
+    const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: `${origin}/stripe-callback?refresh=true`,
+      return_url: `${origin}/stripe-callback?success=true`,
+      type: 'account_onboarding',
+    })
+
+    return c.json({
+      success: true,
+      onboardingUrl: accountLink.url,
+    })
+  } catch (err: any) {
+    console.error('Error creating Stripe Connect account:', err)
+    return c.json({ error: err.message || 'Error creating connect account' }, 500)
+  }
+})
+
+// Callback de Stripe Connect
+payments.get('/stripe-callback', async (c) => {
+  try {
+    const success = c.req.query('success')
+    const refresh = c.req.query('refresh')
+
+    if (refresh === 'true') {
+      return c.json({ success: false, message: 'Onboarding refresh required' })
+    }
+
+    if (success === 'true') {
+      return c.json({ success: true, message: 'Stripe account connected successfully' })
+    }
+
+    return c.json({ success: false, message: 'Unknown callback state' })
+  } catch (err: any) {
+    console.error('Error in Stripe callback:', err)
+    return c.json({ error: err.message }, 500)
   }
 })
 
