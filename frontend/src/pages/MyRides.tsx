@@ -27,8 +27,12 @@ function MyRides() {
 
   async function loadRides() {
     try {
-      const params = filter !== 'all' ? `?status=${filter}` : ''
-      const response = await fetch(`/api/rides${params}`)
+      const queryParams = new URLSearchParams()
+      queryParams.append('clientId', user?.id || '')
+      if (filter !== 'all') {
+        queryParams.append('status', filter)
+      }
+      const response = await fetch(`/api/rides?${queryParams.toString()}`)
       const data = await response.json()
       setRides(data.data || [])
     } catch (error) {
