@@ -9,7 +9,7 @@ import RideDetails from './pages/RideDetails'
 import DriverDashboard from './pages/DriverDashboard'
 import DriverRideDetails from './pages/DriverRideDetails'
 import DriverProfile from './pages/DriverProfile'
-import Chat from './pages/Chat'
+// import Chat from './pages/Chat' // TODO: Desactivado por errores - activar cuando esté listo
 import RegisterDriver from './pages/RegisterDriver'
 
 // Protected route wrapper
@@ -50,11 +50,11 @@ function App() {
             <RideDetails />
           </ProtectedRoute>
         } />
-        <Route path="chat/:rideId" element={
+        {/* <Route path="chat/:rideId" element={
           <ProtectedRoute>
             <Chat />
           </ProtectedRoute>
-        } />
+        } /> */}
         
         {/* Driver routes */}
         <Route path="driver/dashboard" element={

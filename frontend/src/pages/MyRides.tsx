@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import { ridesAPI } from '../services/api'
 
 interface Ride {
   _id: string
@@ -8,6 +9,7 @@ interface Ride {
   type: string
   status: string
   estimatedPrice: number
+  finalPrice?: number
   pickupLocation: { address: string }
   dropoffLocation: { address: string }
   createdAt: string
@@ -17,22 +19,32 @@ function MyRides() {
   const { user } = useUser()
   const [rides, setRides] = useState<Ride[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>('')
   const [filter, setFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
     if (user) {
       loadRides()
     }
-  }, [user, filter])
+  }, [user, filter, page])
 
   async function loadRides() {
+    setLoading(true)
+    setError('')
     try {
-      const params = filter !== 'all' ? `?status=${filter}` : ''
-      const response = await fetch(`/api/rides${params}`)
-      const data = await response.json()
-      setRides(data.data || [])
-    } catch (error) {
-      console.error('Error loading rides:', error)
+      const response = await ridesAPI.myRides({
+        status: filter !== 'all' ? filter : undefined,
+        page,
+        limit: 10,
+      })
+      setRides(response.data)
+      setTotalPages(response.pagination.pages)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cargar los pedidos'
+      setError(message)
+      console.error('Error loading rides:', err)
     } finally {
       setLoading(false)
     }
@@ -58,8 +70,8 @@ function MyRides() {
     cancelled: '#ef4444',
   }
 
-  if (loading) {
-    return <div>Cargando...</div>
+  if (loading && rides.length === 0) {
+    return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando pedidos...</div>
   }
 
   return (
@@ -75,13 +87,29 @@ function MyRides() {
         </Link>
       </div>
 
+      {error && (
+        <div style={{
+          padding: '1rem',
+          marginBottom: '1rem',
+          background: '#fee2e2',
+          border: '1px solid #fca5a5',
+          borderRadius: 'var(--radius)',
+          color: '#991b1b'
+        }}>
+          {error}
+        </div>
+      )}
+
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {['all', 'requested', 'negotiating', 'accepted', 'in_progress', 'completed'].map((s) => (
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {['all', 'requested', 'negotiating', 'accepted', 'in_progress', 'completed', 'paid'].map((s) => (
           <button
             key={s}
             className={`btn ${filter === s ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setFilter(s)}
+            onClick={() => {
+              setFilter(s)
+              setPage(1)
+            }}
           >
             {s === 'all' ? 'Todos' : statusLabels[s] || s}
           </button>
@@ -102,49 +130,74 @@ function MyRides() {
           </Link>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {rides.map((ride) => (
-            <Link
-              key={ride._id}
-              to={`/ride/${ride._id}`}
-              className="card"
-              style={{ display: 'block', textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                <div>
-                  <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
-                    {ride.title}
-                  </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
-                    {ride.pickupLocation.address}
-                    <span style={{ margin: '0 0.5rem' }}>→</span>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
-                    {ride.dropoffLocation.address}
-                  </p>
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+            {rides.map((ride) => (
+              <Link
+                key={ride._id}
+                to={`/ride/${ride._id}`}
+                className="card"
+                style={{ display: 'block', textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <div>
+                    <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
+                      {ride.title}
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
+                      {ride.pickupLocation.address}
+                      <span style={{ margin: '0 0.5rem' }}>→</span>
+                      <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
+                      {ride.dropoffLocation.address}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '999px',
+                        fontSize: '0.8rem',
+                        background: statusColors[ride.status] || '#64748b',
+                        color: 'white',
+                      }}
+                    >
+                      {statusLabels[ride.status] || ride.status}
+                    </span>
+                    <p style={{ marginTop: '0.5rem', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
+                      ${ride.finalPrice || ride.estimatedPrice}
+                    </p>
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '0.25rem 0.75rem',
-                      borderRadius: '999px',
-                      fontSize: '0.8rem',
-                      background: statusColors[ride.status] || '#64748b',
-                      color: 'white',
-                    }}
-                  >
-                    {statusLabels[ride.status] || ride.status}
-                  </span>
-                  <p style={{ marginTop: '0.5rem', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
-                    ${ride.estimatedPrice}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
+              <button
+                className="btn btn-outline"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+              >
+                Anterior
+              </button>
+              <span style={{ display: 'flex', alignItems: 'center', padding: '0 1rem' }}>
+                Página {page} de {totalPages}
+              </span>
+              <button
+                className="btn btn-outline"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || loading}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

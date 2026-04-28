@@ -4,76 +4,72 @@ import { Driver } from '../models/driver'
 import { User } from '../models/user'
 import { authMiddleware } from '../middleware/auth'
 import { roleMiddleware } from '../middleware/role'
+import { ownershipMiddleware } from '../middleware/ownership'
 import { verifyDriverMiddleware } from '../middleware/verify-driver'
 import { calculateDistanceToGeoJSON } from '../utils/haversine'
+import {
+  createRideSchema,
+  updateRideSchema,
+  acceptRideSchema,
+  updateStatusSchema,
+  cancelRideSchema,
+  deliveryPhotoSchema
+} from '../schemas/ride'
+import {
+  isValidTransition,
+  getTransitionRejectionReason,
+  isRideEditable,
+  isRideCancelable
+} from '../utils/rideStateMachine'
 
 const rides = new Hono()
 
 /**
- * GET /api/rides - Listar rides (filtrado por ubicación geoespacial para drivers)
+ * GET /api/rides - Listar rides
  * 
  * Soporta dos modos:
  * 1. Geospatial (para drivers): lat, lng, radius → retorna rides ordenados por distancia
- * 2. Filtrado simple (para clientes): status, clientId, driverId → retorna rides paginados
- * 
- * Query params (geospatial mode):
- * - lat (required): latitud del driver (-90 a 90)
- * - lng (required): longitud del driver (-180 a 180)
- * - radius (optional, default: 25): radio en km (5, 10, 25, 50)
- * - limit (optional, default: 20): máximo rides por página
- * - skip (optional, default: 0): offset para paginación
- * - status (optional, default: "requested,negotiating"): estados a filtrar
+ * 2. Filtrado simple: status, clientId, driverId con paginación estándar
  */
-rides.get('/', authMiddleware, async (c) => {
+rides.get('/', async (c) => {
   const lat = c.req.query('lat')
   const lng = c.req.query('lng')
-  const radius = c.req.query('radius') || '25'
-  const limit = parseInt(c.req.query('limit') || '20')
-  const skip = parseInt(c.req.query('skip') || '0')
-  const status = c.req.query('status') || 'requested,negotiating'
-
+  
   // MODE 1: Geospatial filtering (if lat/lng provided)
   if (lat && lng) {
+    const radius = c.req.query('radius') || '25'
+    const limit = parseInt(c.req.query('limit') || '20')
+    const skip = parseInt(c.req.query('skip') || '0')
+    const status = c.req.query('status') || 'requested,negotiating'
+
     // Validate coordinates
     const latNum = parseFloat(lat)
     const lngNum = parseFloat(lng)
 
     if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-      return c.json(
-        { error: 'Invalid coordinates provided' },
-        400,
-      )
+      return c.json({ error: 'Invalid coordinates provided' }, 400)
     }
 
     if (latNum < -90 || latNum > 90) {
-      return c.json(
-        { error: 'lat must be between -90 and 90' },
-        400,
-      )
+      return c.json({ error: 'lat must be between -90 and 90' }, 400)
     }
 
     if (lngNum < -180 || lngNum > 180) {
-      return c.json(
-        { error: 'lng must be between -180 and 180' },
-        400,
-      )
+      return c.json({ error: 'lng must be between -180 and 180' }, 400)
     }
 
     // Validate radius
     const validRadii = [5, 10, 25, 50]
     const radiusNum = parseInt(radius)
     if (!validRadii.includes(radiusNum)) {
-      return c.json(
-        { error: 'radius must be one of: 5, 10, 25, 50' },
-        400,
-      )
+      return c.json({ error: 'radius must be one of: 5, 10, 25, 50' }, 400)
     }
 
     // Parse status filter
     const statuses = status.split(',').map((s) => s.trim())
 
     try {
-      // Query rides: filter by status, then by distance using 2dsphere
+      // Query rides using 2dsphere
       const rides_docs = await Ride.find({
         status: { $in: statuses },
         'pickupLocation.coordinates': {
@@ -82,14 +78,14 @@ rides.get('/', authMiddleware, async (c) => {
               type: 'Point',
               coordinates: [lngNum, latNum],
             },
-            $maxDistance: radiusNum * 1000, // convert km to meters
+            $maxDistance: radiusNum * 1000,
           },
         },
       })
         .limit(limit)
         .skip(skip)
 
-      // Calculate distance for each ride (Haversine)
+      // Calculate distance for each ride
       const ridesWithDistance = rides_docs.map((ride) => {
         const distance = calculateDistanceToGeoJSON(
           latNum,
@@ -102,7 +98,6 @@ rides.get('/', authMiddleware, async (c) => {
         }
       })
 
-      // Get total count for pagination
       const total = await Ride.countDocuments({
         status: { $in: statuses },
         'pickupLocation.coordinates': {
@@ -137,31 +132,40 @@ rides.get('/', authMiddleware, async (c) => {
     }
   }
 
-  // MODE 2: Simple filtering (for clients listing their own rides, etc)
+  // MODE 2: Simple filtering with pagination
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = Math.min(parseInt(c.req.query('limit') || '10'), 100)
+  
+  if (page < 1) {
+    return c.json({ error: 'Page must be greater than 0' }, 400)
+  }
+
   const query: any = {}
+  const statusParam = c.req.query('status')
   const clientIdParam = c.req.query('clientId')
   const driverIdParam = c.req.query('driverId')
-  const statusParam = c.req.query('status')
 
   if (statusParam) query.status = statusParam
   if (clientIdParam) query.clientId = clientIdParam
   if (driverIdParam) query.driverId = driverIdParam
 
   try {
-    const ridesList = await Ride.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-
-    const total = await Ride.countDocuments(query)
+    const skip = (page - 1) * limit
+    const [ridesList, total] = await Promise.all([
+      Ride.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Ride.countDocuments(query)
+    ])
 
     return c.json({
       success: true,
       data: ridesList,
       pagination: {
-        total,
+        page,
         limit,
-        skip,
+        total,
         pages: Math.ceil(total / limit),
         hasMore: skip + limit < total,
       },
@@ -174,23 +178,14 @@ rides.get('/', authMiddleware, async (c) => {
 
 /**
  * GET /api/rides/:id - Obtener detalle completo del ride
- * 
- * Incluye:
- * - Todos los campos del ride
- * - Perfil completo del cliente
- * - Distancia calculada (si se pasan driverLat/driverLng)
- * - Mensajes de chat (solo si el driver es el asignado)
  */
-rides.get('/:id', authMiddleware, async (c) => {
-  const rideId = c.req.param('id')
-  const driverLat = c.req.query('driverLat')
-  const driverLng = c.req.query('driverLng')
-
+rides.get('/:id', async (c) => {
   try {
-    const ride = await Ride.findById(rideId)
+    const id = c.req.param('id')
+    const ride = await Ride.findById(id)
 
     if (!ride) {
-      return c.json({ error: 'Ride not found' }, 404)
+      return c.json({ error: 'Ride no encontrado' }, 404)
     }
 
     // Get client profile
@@ -198,6 +193,9 @@ rides.get('/:id', authMiddleware, async (c) => {
 
     // Calculate distance if driver location provided
     let distance: number | undefined
+    const driverLat = c.req.query('driverLat')
+    const driverLng = c.req.query('driverLng')
+    
     if (driverLat && driverLng) {
       const driverLatNum = parseFloat(driverLat)
       const driverLngNum = parseFloat(driverLng)
@@ -211,28 +209,23 @@ rides.get('/:id', authMiddleware, async (c) => {
       }
     }
 
-    const rideObj = ride.toObject()
-
     return c.json({
       success: true,
-      ride: {
-        ...rideObj,
-        distance,
-        client: clientUser
-          ? {
-              clerkId: clientUser.clerkId,
-              firstName: clientUser.firstName,
-              lastName: clientUser.lastName,
-              imageUrl: clientUser.imageUrl,
-              email: clientUser.email,
-              // TODO: fetch rating from ratings collection
-            }
-          : null,
-      },
+      ride: ride.toObject(),
+      distance,
+      client: clientUser
+        ? {
+            clerkId: clientUser.clerkId,
+            firstName: clientUser.firstName,
+            lastName: clientUser.lastName,
+            imageUrl: clientUser.imageUrl,
+            email: clientUser.email,
+          }
+        : null,
     })
   } catch (err) {
-    console.error('Ride detail fetch error:', err)
-    return c.json({ error: 'Failed to fetch ride details' }, 500)
+    console.error('Error obteniendo ride:', err)
+    return c.json({ error: 'Error al obtener el ride' }, 500)
   }
 })
 
@@ -240,43 +233,41 @@ rides.get('/:id', authMiddleware, async (c) => {
  * POST /api/rides - Crear nuevo ride (cliente)
  */
 rides.post('/', authMiddleware, roleMiddleware('client'), async (c) => {
-  const user = c.get('user')
-
   try {
+    const user = c.get('user')
     const body = await c.req.json()
 
+    // Validate with Zod
+    const result = createRideSchema.safeParse(body)
+    if (!result.success) {
+      const errors = result.error.flatten().fieldErrors
+      return c.json(
+        { error: 'Validación fallida', details: errors },
+        400,
+      )
+    }
+
     const ride = new Ride({
-      ...body,
+      ...result.data,
       clientId: user.clerkId,
       status: 'requested',
+      chatEnabled: false,
     })
 
     await ride.save()
 
     return c.json({
       success: true,
-      ride,
+      ride: ride.toObject(),
     }, 201)
   } catch (err) {
     console.error('Create ride error:', err)
-    return c.json({ error: 'Failed to create ride' }, 500)
+    return c.json({ error: 'Error al crear el ride' }, 500)
   }
 })
 
 /**
  * POST /api/rides/:id/accept - Aceptar ride (driver)
- * 
- * Validaciones:
- * - Driver debe estar verificado (verifyDriverMiddleware)
- * - Ride no debe tener driverId ya asignado
- * - Ride status debe ser "requested" o "negotiating"
- * 
- * Cambios:
- * - ride.status → "accepted"
- * - ride.driverId → clerkId del driver
- * - ride.finalPrice → precio negociado (o estimado si no se proporciona)
- * - ride.chatEnabled → true
- * - ride.updatedAt → ahora
  */
 rides.post(
   '/:id/accept',
@@ -284,21 +275,31 @@ rides.post(
   roleMiddleware('driver'),
   verifyDriverMiddleware,
   async (c) => {
-    const rideId = c.req.param('id')
-    const user = c.get('user')
-
     try {
+      const id = c.req.param('id')
+      const user = c.get('user')
       const body = await c.req.json()
-      const { finalPrice } = body
 
-      // Fetch ride
-      const ride = await Ride.findById(rideId)
-
-      if (!ride) {
-        return c.json({ error: 'Ride not found' }, 404)
+      // Validate with Zod
+      const result = acceptRideSchema.safeParse(body)
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors
+        return c.json(
+          { error: 'Validación fallida', details: errors },
+          400,
+        )
       }
 
-      // Validate ride is available (no driverId yet)
+      const { agreedPrice } = result.data
+
+      // Fetch ride
+      const ride = await Ride.findById(id)
+
+      if (!ride) {
+        return c.json({ error: 'Ride no encontrado' }, 404)
+      }
+
+      // Validate ride is available
       if (ride.driverId) {
         return c.json(
           { error: 'Ride already accepted by another driver' },
@@ -306,7 +307,7 @@ rides.post(
         )
       }
 
-      // Validate ride status
+      // Validate ride status allows accept
       if (!['requested', 'negotiating'].includes(ride.status)) {
         return c.json(
           {
@@ -316,18 +317,16 @@ rides.post(
         )
       }
 
-      // Validate finalPrice if provided
-      if (finalPrice !== undefined && finalPrice < 0) {
-        return c.json(
-          { error: 'finalPrice must be a positive number' },
-          400,
-        )
+      // Validate transition with state machine
+      if (!isValidTransition(ride.status, 'accepted', user.role)) {
+        const message = getTransitionRejectionReason(ride.status, 'accepted', user.role)
+        return c.json({ error: message }, 400)
       }
 
       // Update ride
       ride.driverId = user.clerkId
       ride.status = 'accepted'
-      ride.finalPrice = finalPrice || ride.estimatedPrice
+      ride.finalPrice = agreedPrice || ride.estimatedPrice
       ride.chatEnabled = true
       ride.updatedAt = new Date()
 
@@ -344,204 +343,539 @@ rides.post(
       })
     } catch (err) {
       console.error('Accept ride error:', err)
-      return c.json({ error: 'Failed to accept ride' }, 500)
+      return c.json({ error: 'Error al aceptar el ride' }, 500)
     }
   },
 )
 
 /**
- * POST /api/rides/:id/cancel - Cancelar ride aceptado (driver)
- * 
- * Solo un driver puede cancelar su propio ride, y solo en status "accepted"
- * 
- * Cambios:
- * - ride.status → "requested" (vuelve disponible para otros drivers)
- * - ride.driverId → null
- * - ride.finalPrice → null
- * - cancellationReason → logged
+ * POST /api/rides/:id/cancel - Cancelar ride
  */
 rides.post(
   '/:id/cancel',
   authMiddleware,
-  roleMiddleware('driver'),
   async (c) => {
-    const rideId = c.req.param('id')
-    const user = c.get('user')
-
     try {
-      const { reason } = await c.req.json()
+      const id = c.req.param('id')
+      const user = c.get('user')
+      const body = await c.req.json()
 
-      // Validate reason provided
-      if (!reason || typeof reason !== 'string') {
-        return c.json(
-          { error: 'Cancellation reason is required' },
-          400,
-        )
-      }
-
-      if (reason.length > 200) {
-        return c.json(
-          { error: 'Reason must be ≤200 characters' },
-          400,
-        )
-      }
-
-      // Fetch ride
-      const ride = await Ride.findById(rideId)
-
+      const ride = await Ride.findById(id)
       if (!ride) {
-        return c.json({ error: 'Ride not found' }, 404)
+        return c.json({ error: 'Ride no encontrado' }, 404)
       }
 
-      // Validate driver owns this ride
-      if (ride.driverId !== user.clerkId) {
+      // Validate with Zod
+      const result = cancelRideSchema.safeParse(body)
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors
         return c.json(
-          { error: 'You are not the assigned driver for this ride' },
+          { error: 'Validación fallida', details: errors },
+          400,
+        )
+      }
+
+      // Validate ride can be cancelled
+      if (!isRideCancelable(ride.status, user.role)) {
+        const message = getTransitionRejectionReason(ride.status, 'cancelled', user.role)
+        return c.json({ error: message }, 400)
+      }
+
+      // Verify user is the owner
+      const isClient = ride.clientId === user.clerkId
+      const isDriver = ride.driverId === user.clerkId
+      
+      if (!isClient && !isDriver) {
+        return c.json(
+          { error: 'You are not involved in this ride' },
           403,
         )
       }
 
-      // Validate ride is in accepted status
-      if (ride.status !== 'accepted') {
-        return c.json(
-          {
-            error: `Ride cannot be cancelled in status: ${ride.status}`,
-          },
-          400,
-        )
-      }
-
-      // Update ride (cancel and revert to available)
-      ride.status = 'requested'
-      ride.driverId = null
-      ride.finalPrice = undefined
-      ride.cancellationReason = reason
-      ride.updatedAt = new Date()
-
-      await ride.save()
+      const updated = await Ride.findByIdAndUpdate(
+        id,
+        {
+          status: 'cancelled',
+          cancellationReason: result.data.cancellationReason,
+          updatedAt: new Date(),
+        },
+        { new: true },
+      )
 
       return c.json({
         success: true,
-        ride: ride.toObject(),
-        message:
-          'Cancellation recorded. Ride is now available for other drivers.',
+        ride: updated,
+        message: 'Ride cancelled successfully',
       })
     } catch (err) {
       console.error('Cancel ride error:', err)
-      return c.json({ error: 'Failed to cancel ride' }, 500)
+      return c.json({ error: 'Error al cancelar el ride' }, 500)
     }
   },
 )
 
-// Actualizar ride (cliente)
-rides.patch('/:id', authMiddleware, async (c) => {
-  const id = c.req.param('id')
-  const user = c.get('user')
+export default rides
+=======
+import { authMiddleware } from '../middleware/auth'
+import { requireClient, requireDriver } from '../middleware/role'
+import {
+  checkRideOwnership,
+  checkClientOwnership,
+  checkDriverOwnership
+} from '../middleware/ownership'
+import {
+  createRideSchema,
+  updateRideSchema,
+  acceptRideSchema,
+  updateStatusSchema,
+  cancelRideSchema,
+  deliveryPhotoSchema
+} from '../schemas/ride'
+import {
+  isValidTransition,
+  getTransitionRejectionReason,
+  isRideEditable,
+  isRideCancelable
+} from '../utils/rideStateMachine'
 
+const rides = new Hono()
+
+// ============================================
+// GET /api/rides - Listar todos los rides
+// ============================================
+rides.get('/', async (c) => {
   try {
-    const ride = await Ride.findById(id)
-
-    if (!ride) {
-      return c.json({ error: 'Ride not found' }, 404)
+    const status = c.req.query('status')
+    const clientId = c.req.query('clientId')
+    const driverId = c.req.query('driverId')
+    const page = parseInt(c.req.query('page') || '1')
+    const limit = Math.min(parseInt(c.req.query('limit') || '10'), 100)
+    
+    // Validar página
+    if (page < 1) {
+      return c.json({ error: 'La página debe ser mayor a 0' }, 400)
     }
 
-    // Verify ownership (client only)
-    if (ride.clientId !== user.clerkId) {
-      return c.json(
-        { error: 'You do not own this ride' },
-        403,
-      )
-    }
+    const query: any = {}
+    if (status) query.status = status
+    if (clientId) query.clientId = clientId
+    if (driverId) query.driverId = driverId
+    
+    const skip = (page - 1) * limit
+    
+    const [ridesList, total] = await Promise.all([
+      Ride.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Ride.countDocuments(query)
+    ])
+    
+    return c.json({
+      data: ridesList,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    })
+  } catch (err) {
+    console.error('Error listando rides:', err)
+    return c.json({ error: 'Error al listar rides' }, 500)
+  }
+})
 
-    // Validate can edit (only in requested or negotiating status)
-    if (!['requested', 'negotiating'].includes(ride.status)) {
-      return c.json(
-        { error: `Cannot edit ride in status: ${ride.status}` },
-        400,
-      )
-    }
+// ============================================
+// GET /api/rides/user/me - Mis rides (requiere auth)
+// ============================================
+rides.get('/user/me', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user')
+    const page = parseInt(c.req.query('page') || '1')
+    const limit = Math.min(parseInt(c.req.query('limit') || '10'), 100)
+    const status = c.req.query('status')
 
+    const query: any = {}
+    
+    // Cliente ve sus pedidos, driver ve sus acarreos
+    if (user.role === 'client') {
+      query.clientId = user.clerkId
+    } else if (user.role === 'driver') {
+      query.driverId = user.clerkId
+    } else {
+      // Admin ve todos (sin filtro)
+    }
+    
+    if (status) query.status = status
+
+    const skip = (page - 1) * limit
+    
+    const [ridesList, total] = await Promise.all([
+      Ride.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Ride.countDocuments(query)
+    ])
+    
+    return c.json({
+      data: ridesList,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    })
+  } catch (err) {
+    console.error('Error en /user/me:', err)
+    return c.json({ error: 'Error al obtener tus rides' }, 500)
+  }
+})
+
+// ============================================
+// POST /api/rides - Crear nuevo ride
+// ============================================
+rides.post('/', authMiddleware, requireClient(), async (c) => {
+  try {
+    const user = c.get('user')
     const body = await c.req.json()
-    const updated = await Ride.findByIdAndUpdate(id, body, { new: true })
-
-    return c.json({ success: true, ride: updated })
-  } catch (err) {
-    console.error('Update ride error:', err)
-    return c.json({ error: 'Failed to update ride' }, 500)
-  }
-})
-
-// Cambiar estado del ride (admin/internal)
-rides.patch('/:id/status', authMiddleware, async (c) => {
-  const id = c.req.param('id')
-  const { status, reason } = await c.req.json()
-
-  // TODO: Agregar validación de permisos (admin only)
-
-  try {
-    const update: any = { status }
-    if (reason) update.cancellationReason = reason
-
-    const ride = await Ride.findByIdAndUpdate(id, update, { new: true })
-
-    if (!ride) {
-      return c.json({ error: 'Ride not found' }, 404)
+    
+    // Validar con Zod
+    const result = createRideSchema.safeParse(body)
+    if (!result.success) {
+      const errors = result.error.flatten().fieldErrors
+      return c.json(
+        { error: 'Validación fallida', details: errors },
+        400
+      )
     }
-
-    return c.json({ success: true, ride })
+    
+    // Crear ride con cliente autenticado
+    const ride = new Ride({
+      ...result.data,
+      clientId: user.clerkId,
+      status: 'requested',
+      chatEnabled: false
+    })
+    
+    await ride.save()
+    
+    return c.json(ride, 201)
   } catch (err) {
-    console.error('Update ride status error:', err)
-    return c.json({ error: 'Failed to update ride status' }, 500)
+    console.error('Error creando ride:', err)
+    return c.json({ error: 'Error al crear el ride' }, 500)
   }
 })
 
-// Iniciar trackeo (driver confirma carga)
-rides.post('/:id/start', authMiddleware, roleMiddleware('driver'), async (c) => {
-  const id = c.req.param('id')
-
+// ============================================
+// GET /api/rides/:id - Obtener ride por ID
+// ============================================
+rides.get('/:id', async (c) => {
   try {
-    const ride = await Ride.findByIdAndUpdate(
-      id,
-      { status: 'in_progress', updatedAt: new Date() },
-      { new: true },
-    )
-
+    const id = c.req.param('id')
+    const ride = await Ride.findById(id)
+    
     if (!ride) {
-      return c.json({ error: 'Ride not found' }, 404)
+      return c.json({ error: 'Ride no encontrado' }, 404)
     }
-
-    return c.json({ success: true, ride })
+    
+    return c.json(ride)
   } catch (err) {
-    console.error('Start ride error:', err)
-    return c.json({ error: 'Failed to start ride' }, 500)
+    console.error('Error obteniendo ride:', err)
+    return c.json({ error: 'Error al obtener el ride' }, 500)
   }
 })
 
-// Subir foto de entrega
-rides.post('/:id/delivery-photo', authMiddleware, async (c) => {
-  const id = c.req.param('id')
-
-  try {
-    const { url, publicId } = await c.req.json()
-
-    const ride = await Ride.findByIdAndUpdate(
-      id,
-      {
-        deliveryPhoto: { url, publicId },
-        updatedAt: new Date(),
-      },
-      { new: true },
-    )
-
-    if (!ride) {
-      return c.json({ error: 'Ride not found' }, 404)
+// ============================================
+// PATCH /api/rides/:id - Actualizar ride
+// ============================================
+rides.patch(
+  '/:id',
+  authMiddleware,
+  await checkRideOwnership(),
+  await checkClientOwnership(),
+  async (c) => {
+    try {
+      const id = c.req.param('id')
+      const ride = c.get('ride')
+      const body = await c.req.json()
+      
+      // Solo se puede editar en estado 'requested' o 'negotiating'
+      if (!isRideEditable(ride.status)) {
+        return c.json(
+          { error: `No puedes editar un ride en estado ${ride.status}` },
+          400
+        )
+      }
+      
+      // Validar con Zod
+      const result = updateRideSchema.safeParse(body)
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors
+        return c.json(
+          { error: 'Validación fallida', details: errors },
+          400
+        )
+      }
+      
+      // No permitir cambiar clientId
+      if ('clientId' in result.data) {
+        return c.json({ error: 'No puedes cambiar el propietario del ride' }, 400)
+      }
+      
+      const updated = await Ride.findByIdAndUpdate(
+        id,
+        {
+          ...result.data,
+          updatedAt: new Date()
+        },
+        { new: true }
+      )
+      
+      return c.json(updated)
+    } catch (err) {
+      console.error('Error actualizando ride:', err)
+      return c.json({ error: 'Error al actualizar el ride' }, 500)
     }
-
-    return c.json({ success: true, ride })
-  } catch (err) {
-    console.error('Upload delivery photo error:', err)
-    return c.json({ error: 'Failed to upload delivery photo' }, 500)
   }
-})
+)
+
+// ============================================
+// PATCH /api/rides/:id/status - Cambiar estado
+// ============================================
+rides.patch(
+  '/:id/status',
+  authMiddleware,
+  await checkRideOwnership(),
+  async (c) => {
+    try {
+      const id = c.req.param('id')
+      const user = c.get('user')
+      const ride = c.get('ride')
+      const body = await c.req.json()
+      
+      // Validar body
+      const result = updateStatusSchema.safeParse(body)
+      if (!result.success) {
+        return c.json({ error: 'Status inválido' }, 400)
+      }
+      
+      const { status, reason } = result.data
+      
+      // Validar transición
+      if (!isValidTransition(ride.status, status, user.role)) {
+        const message = getTransitionRejectionReason(ride.status, status, user.role)
+        return c.json({ error: message }, 400)
+      }
+      
+      const updateData: any = { status, updatedAt: new Date() }
+      if (reason) updateData.cancellationReason = reason
+      
+      const updated = await Ride.findByIdAndUpdate(id, updateData, { new: true })
+      
+      return c.json(updated)
+    } catch (err) {
+      console.error('Error cambiando status:', err)
+      return c.json({ error: 'Error al cambiar estado' }, 500)
+    }
+  }
+)
+
+// ============================================
+// POST /api/rides/:id/accept - Aceptar ride (driver)
+// ============================================
+rides.post(
+  '/:id/accept',
+  authMiddleware,
+  requireDriver(),
+  async (c) => {
+    try {
+      const id = c.req.param('id')
+      const user = c.get('user')
+      const body = await c.req.json()
+      
+      // Validar body
+      const result = acceptRideSchema.safeParse(body)
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors
+        return c.json({ error: 'Validación fallida', details: errors }, 400)
+      }
+      
+      const { agreedPrice } = result.data
+      
+      // Obtener ride
+      const ride = await Ride.findById(id)
+      if (!ride) {
+        return c.json({ error: 'Ride no encontrado' }, 404)
+      }
+      
+      // Validar que está en estado 'requested'
+      if (ride.status !== 'requested') {
+        return c.json(
+          { error: `Solo puedes aceptar rides en estado 'requested', este está en '${ride.status}'` },
+          400
+        )
+      }
+      
+      // Validar transición
+      if (!isValidTransition(ride.status, 'accepted', user.role)) {
+        return c.json({ error: 'No puedes aceptar este ride' }, 403)
+      }
+      
+      // Actualizar ride
+      const updated = await Ride.findByIdAndUpdate(
+        id,
+        {
+          driverId: user.clerkId,
+          status: 'accepted',
+          finalPrice: agreedPrice,
+          chatEnabled: true,
+          updatedAt: new Date()
+        },
+        { new: true }
+      )
+      
+      return c.json(updated, 200)
+    } catch (err) {
+      console.error('Error aceptando ride:', err)
+      return c.json({ error: 'Error al aceptar el ride' }, 500)
+    }
+  }
+)
+
+// ============================================
+// POST /api/rides/:id/start - Confirmar carga e iniciar viaje
+// ============================================
+rides.post(
+  '/:id/start',
+  authMiddleware,
+  requireDriver(),
+  await checkRideOwnership(),
+  await checkDriverOwnership(),
+  async (c) => {
+    try {
+      const id = c.req.param('id')
+      const ride = c.get('ride')
+      
+      // Validar que está en estado 'accepted'
+      if (ride.status !== 'accepted') {
+        return c.json(
+          { error: `Solo puedes iniciar viajes en estado 'accepted', este está en '${ride.status}'` },
+          400
+        )
+      }
+      
+      const updated = await Ride.findByIdAndUpdate(
+        id,
+        {
+          status: 'in_progress',
+          updatedAt: new Date()
+        },
+        { new: true }
+      )
+      
+      return c.json(updated)
+    } catch (err) {
+      console.error('Error iniciando viaje:', err)
+      return c.json({ error: 'Error al iniciar el viaje' }, 500)
+    }
+  }
+)
+
+// ============================================
+// POST /api/rides/:id/delivery-photo - Subir foto de entrega
+// ============================================
+rides.post(
+  '/:id/delivery-photo',
+  authMiddleware,
+  requireDriver(),
+  await checkRideOwnership(),
+  await checkDriverOwnership(),
+  async (c) => {
+    try {
+      const id = c.req.param('id')
+      const ride = c.get('ride')
+      const body = await c.req.json()
+      
+      // Validar body
+      const result = deliveryPhotoSchema.safeParse(body)
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors
+        return c.json({ error: 'Validación fallida', details: errors }, 400)
+      }
+      
+      // Validar que está en estado 'in_progress'
+      if (ride.status !== 'in_progress') {
+        return c.json(
+          { error: 'Solo puedes subir foto en estado "in_progress"' },
+          400
+        )
+      }
+      
+      const updated = await Ride.findByIdAndUpdate(
+        id,
+        {
+          deliveryPhoto: result.data,
+          status: 'completed',
+          updatedAt: new Date()
+        },
+        { new: true }
+      )
+      
+      return c.json(updated)
+    } catch (err) {
+      console.error('Error subiendo foto:', err)
+      return c.json({ error: 'Error al subir la foto' }, 500)
+    }
+  }
+)
+
+// ============================================
+// POST /api/rides/:id/cancel - Cancelar ride
+// ============================================
+rides.post(
+  '/:id/cancel',
+  authMiddleware,
+  await checkRideOwnership(),
+  async (c) => {
+    try {
+      const id = c.req.param('id')
+      const user = c.get('user')
+      const ride = c.get('ride')
+      const body = await c.req.json()
+      
+      // Validar body
+      const result = cancelRideSchema.safeParse(body)
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors
+        return c.json({ error: 'Validación fallida', details: errors }, 400)
+      }
+      
+      // Validar que se puede cancelar
+      if (!isRideCancelable(ride.status, user.role)) {
+        const message = getTransitionRejectionReason(ride.status, 'cancelled', user.role)
+        return c.json({ error: message }, 400)
+      }
+      
+      const updated = await Ride.findByIdAndUpdate(
+        id,
+        {
+          status: 'cancelled',
+          cancellationReason: result.data.cancellationReason,
+          updatedAt: new Date()
+        },
+        { new: true }
+      )
+      
+      return c.json(updated)
+    } catch (err) {
+      console.error('Error cancelando ride:', err)
+      return c.json({ error: 'Error al cancelar el ride' }, 500)
+    }
+  }
+)
 
 export default rides
+>>>>>>> origin/Main-Dev
