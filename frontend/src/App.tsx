@@ -34,6 +34,7 @@ function App() {
         <Route index element={<Home />} />
         
         {/* Client routes */}
+        <Route path="client" element={<Navigate to="/my-rides" replace />} />
         <Route path="create-ride" element={
           <ProtectedRoute>
             <CreateRide />

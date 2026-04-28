@@ -830,6 +830,65 @@ export default function RegisterDriver() {
             </button>
           )}
         </div>
+
+        {/* DEV ONLY: Bypass Verification Button */}
+        <div style={{
+          marginTop: '3rem',
+          paddingTop: '2rem',
+          borderTop: '2px solid var(--error)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1rem'
+        }}>
+          <div style={{
+            padding: '1rem',
+            backgroundColor: '#FEE2E2',
+            borderRadius: '0.5rem',
+            textAlign: 'center',
+            fontSize: '0.875rem',
+            color: '#991B1B'
+          }}>
+            ⚠️ MODO DESARROLLO: Botón temporal para testing
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.setItem('bypassVerification', 'true')
+              console.warn('⚡ DEVELOPMENT: Verification bypassed - this is dev-only mode')
+              navigate('/driver/dashboard?bypassVerification=true')
+            }}
+            style={{
+              backgroundColor: '#EF4444',
+              color: 'white',
+              padding: '1rem 2rem',
+              borderRadius: '0.75rem',
+              border: 'none',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              transition: 'background-color 0.2s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#DC2626')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#EF4444')}
+          >
+            <span className="material-symbols-rounded">flash_on</span>
+            Saltarse Verificación (DEV ONLY)
+          </button>
+          <p style={{
+            fontSize: '0.75rem',
+            color: '#64748B',
+            maxWidth: '400px',
+            textAlign: 'center',
+            marginTop: '0.5rem'
+          }}>
+            Este botón te llevará al portal del conductor sin esperar la verificación del admin.
+            Se eliminará después de testing.
+          </p>
+        </div>
       </form>
     </div>
   )

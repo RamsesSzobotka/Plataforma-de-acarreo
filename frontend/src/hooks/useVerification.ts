@@ -14,7 +14,7 @@ interface VerificationState {
  * 
  * Features:
  * - Fetches verification status from backend
- * - Supports dev bypass mode (?bypassVerification=true)
+ * - Supports dev bypass mode (?bypassVerification=true or localStorage)
  * - Caches for 5 minutes
  * 
  * @returns VerificationState
@@ -43,12 +43,14 @@ export const useVerification = (): VerificationState => {
           return
         }
 
-        // Check for dev bypass mode
+        // Check for dev bypass mode - query param OR localStorage
         const searchParams = new URLSearchParams(window.location.search)
-        const bypassMode = searchParams.get('bypassVerification') === 'true'
+        const bypassFromQuery = searchParams.get('bypassVerification') === 'true'
+        const bypassFromStorage = localStorage.getItem('bypassVerification') === 'true'
+        const bypassMode = bypassFromQuery || bypassFromStorage
 
         if (bypassMode && process.env.NODE_ENV === 'development') {
-          console.warn('⚠️ DEVELOPMENT: Verification bypassed')
+          console.warn('⚡ DEVELOPMENT: Verification bypassed (dev-only mode)')
           setState({
             status: 'verified',
             rejectionReason: undefined,
@@ -59,8 +61,7 @@ export const useVerification = (): VerificationState => {
           return
         }
 
-        // TODO: Fetch verification status from /api/users/driver/me endpoint
-        // For now, just mark as verified (adjust based on your user model)
+        // Fetch verification status from backend
         const response = await fetch('/api/users/driver/me', {
           headers: {
             Authorization: `Bearer ${token}`,
