@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { useAuth } from '@clerk/clerk-react'
 
 interface FileUploadProps {
   label: string
@@ -15,6 +16,7 @@ export default function FileUpload({
   onChange,
   folder = 'general' 
 }: FileUploadProps) {
+  const { getToken } = useAuth()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(value || '')
@@ -36,12 +38,17 @@ export default function FileUpload({
     setError('')
     
     try {
+      const token = await getToken()
+      
       const formData = new FormData()
       formData.append('file', file)
       formData.append('folder', folder)
       
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
         body: formData,
       })
       

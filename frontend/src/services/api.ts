@@ -1,104 +1,50 @@
-import type { Ride, Message, PaginatedResponse } from '../types'
+import type { Ride, PaginatedResponse } from '../types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-
-async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${endpoint}`, {
+/**
+ * Helper para fetch con Clerk token. Usa dentro de componentes con useAuth() hook
+ * @param token - El token de Clerk (obtenido con getToken())
+ */
+export async function fetchWithClerk<T>(
+  endpoint: string, 
+  token: string | null | Promise<string>,
+  options?: RequestInit
+): Promise<T> {
+  const resolvedToken = token instanceof Promise ? await token : token
+  
+  // El proxy de Vite reenvía /api/* a localhost:3000
+  const response = await fetch(`/api${endpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(resolvedToken && { Authorization: `Bearer ${resolvedToken}` }),
       ...options?.headers,
     },
   })
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || 'Request failed')
+    throw new Error(error.error || error.message || 'Request failed')
   }
 
   return response.json()
 }
 
-// Rides API
+// Rides API - pasar token como segundo argumento
 export const ridesAPI = {
-  list: (params?: { status?: string; page?: number; limit?: number }) => {
+  list: (token: string, params?: { status?: string; page?: number; limit?: number }) => {
     const searchParams = new URLSearchParams()
     if (params?.status) searchParams.set('status', params.status)
     if (params?.page) searchParams.set('page', String(params.page))
     if (params?.limit) searchParams.set('limit', String(params.limit))
     const query = searchParams.toString()
-    return fetchAPI<PaginatedResponse<Ride>>(`/api/rides${query ? `?${query}` : ''}`)
+    return fetchWithClerk<PaginatedResponse<Ride>>(`/api/rides${query ? `?${query}` : ''}`, token)
   },
 
-  get: (id: string) => fetchAPI<Ride>(`/api/rides/${id}`),
+  get: (token: string, id: string) => fetchWithClerk<Ride>(`/api/rides/${id}`, token),
 
-  create: (data: Partial<Ride>) =>
-    fetchAPI<Ride>('/api/rides', {
+  create: (token: string, data: Partial<Ride>) =>
+    fetchWithClerk<Ride>('/api/rides', token, {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
-
-  update: (id: string, data: Partial<Ride>) =>
-    fetchAPI<Ride>(`/api/rides/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  updateStatus: (id: string, status: string, reason?: string) =>
-    fetchAPI<Ride>(`/api/rides/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status, reason }),
-    }),
-
-  accept: (id: string, driverId: string, agreedPrice: number) =>
-    fetchAPI<Ride>(`/api/rides/${id}/accept`, {
-      method: 'POST',
-      body: JSON.stringify({ driverId, agreedPrice }),
-    }),
-
-  cancel: (id: string, reason: string) =>
-    fetchAPI<Ride>(`/api/rides/${id}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-}
-
-// Messages API
-export const messagesAPI = {
-  getByRide: (rideId: string, params?: { page?: number; limit?: number }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.page) searchParams.set('page', String(params.page))
-    if (params?.limit) searchParams.set('limit', String(params.limit))
-    const query = searchParams.toString()
-    return fetchAPI<PaginatedResponse<Message>>(`/api/messages/ride/${rideId}${query ? `?${query}` : ''}`)
-  },
-
-  send: (rideId: string, senderId: string, content: string) =>
-    fetchAPI<Message>('/api/messages', {
-      method: 'POST',
-      body: JSON.stringify({ rideId, senderId, content }),
-    }),
-
-  markAsRead: (rideId: string, userId: string) =>
-    fetchAPI<{ success: boolean }>(`/api/messages/ride/${rideId}/read`, {
-      method: 'PATCH',
-      body: JSON.stringify({ userId }),
-    }),
-}
-
-// Users API
-export const usersAPI = {
-  getDriver: (userId: string) => fetchAPI<any>(`/api/users/driver/${userId}`),
-
-  updateDriverAvailability: (userId: string, isAvailable: boolean) =>
-    fetchAPI<any>(`/api/users/driver/${userId}/availability`, {
-      method: 'PATCH',
-      body: JSON.stringify({ isAvailable }),
-    }),
-
-  updateDriverLocation: (userId: string, coordinates: [number, number]) =>
-    fetchAPI<any>(`/api/users/driver/${userId}/location`, {
-      method: 'PATCH',
-      body: JSON.stringify({ coordinates }),
     }),
 }

@@ -45,16 +45,27 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     const clerkId = session.sub
     
     // Buscar usuario en MongoDB
-    const user = await db.collection('users').findOne({ clerkId })
+    let user = await db.collection('users').findOne({ clerkId })
     
+    // Si no existe, crear uno nuevo con rol por defecto 'client'
     if (!user) {
-      return c.json({ error: 'User not registered' }, 401)
+      const newUser = await db.collection('users').insertOne({
+        clerkId,
+        email: session.email || '',
+        firstName: session.name?.first_name || '',
+        lastName: session.name?.last_name || '',
+        role: 'client',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      user = { _id: newUser.insertedId, clerkId, email: session.email || '', role: 'client' }
     }
     
     // Settear usuario en contexto
     c.set('user', {
       clerkId: user.clerkId,
-      role: user.role,
+      role: user.role || 'client',
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,

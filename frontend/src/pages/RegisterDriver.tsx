@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import FileUpload from '../components/FileUpload'
 
 // Types para el estado del conductor
@@ -57,6 +57,7 @@ interface FormData {
 
 export default function RegisterDriver() {
   const { user, isSignedIn } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -78,8 +79,13 @@ export default function RegisterDriver() {
       }
 
       try {
+        const token = await getToken()
+        
         const response = await fetch('/api/users/driver/me', {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` })
+          }
         })
 
         if (response.ok) {
@@ -191,9 +197,14 @@ export default function RegisterDriver() {
     setError('')
     
     try {
+      const token = await getToken()
+      
       const response = await fetch('/api/users/register-driver', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
         body: JSON.stringify({
           vehicleType: formData.vehicleType,
           plate: formData.plate,
