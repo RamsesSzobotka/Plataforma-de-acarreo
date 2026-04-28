@@ -101,6 +101,8 @@ function RideDetails() {
   }
 
   async function handleConfirmDelivery() {
+    if (!user) return
+    
     const confirmMessage = ride.stripePaymentMethodId 
       ? '¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.'
       : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
@@ -110,10 +112,11 @@ function RideDetails() {
     }
 
     try {
-      const response = await fetch(`/api/rides/${id}/status`, {
-        method: 'PATCH',
+      // Usar el nuevo endpoint confirm-delivery
+      const response = await fetch(`/api/rides/${id}/confirm-delivery`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
+        body: JSON.stringify({ clientId: user.id }),
       })
 
       if (!response.ok) {
@@ -121,6 +124,15 @@ function RideDetails() {
         throw new Error(error.error || 'Error al confirmar entrega')
       }
 
+      const result = await response.json()
+      
+      // Mostrar mensaje según el resultado
+      if (result.message?.includes('pagado')) {
+        alert('✅ Entrega confirmada y pago procesado exitosamente')
+      } else {
+        alert('✅ Entrega confirmada. Puedes proceder con el pago.')
+      }
+      
       loadRide()
     } catch (error) {
       console.error('Error confirming delivery:', error)
@@ -167,6 +179,28 @@ function RideDetails() {
 
   const isOwner = user?.id === ride.clientId
   const canCancel = ride.status === 'requested' || ride.status === 'negotiating' || ride.status === 'accepted'
+  
+  // Badge de estado con colores
+  const statusColors: Record<string, string> = {
+    requested: '#F59E0B',
+    negotiating: '#F59E0B',
+    accepted: '#F97316',
+    in_progress: '#0D9488',
+    completed: '#22C55E',
+    paid: '#22C55E',
+    cancelled: '#EF4444',
+  }
+  const statusColor = statusColors[ride.status] || '#64748B'
+  
+  const statusLabels: Record<string, string> = {
+    requested: 'Pendiente',
+    negotiating: 'En negociación',
+    accepted: 'Aceptado',
+    in_progress: 'En camino',
+    completed: 'Completado',
+    paid: 'Pagado',
+    cancelled: 'Cancelado',
+  }
 
   return (
     <div>
@@ -180,11 +214,13 @@ function RideDetails() {
           <h1>{ride.title}</h1>
           <span style={{
             padding: '0.5rem 1rem',
-            borderRadius: 'var(--radius)',
-            background: 'var(--primary)',
+            borderRadius: '999px',
+            background: statusColor,
             color: 'white',
+            fontWeight: 600,
+            fontSize: '0.875rem',
           }}>
-            {ride.status}
+            {statusLabels[ride.status] || ride.status}
           </span>
         </div>
 

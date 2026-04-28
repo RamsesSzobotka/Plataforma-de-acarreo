@@ -1,10 +1,18 @@
+// Usar ruta relativa para el proxy de Vite
 const API_URL = '/api/admin'
+
+function getAuthHeader() {
+  const token = localStorage.getItem('adminToken')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 async function request(endpoint: string, options?: RequestInit) {
   const res = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeader(),
       ...options?.headers,
     },
   })

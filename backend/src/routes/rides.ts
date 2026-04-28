@@ -243,6 +243,83 @@ rides.post('/:id/delivery-photo', async (c) => {
   return c.json(ride)
 })
 
+// Confirmar entrega (cliente confirma que recibió la mercancía)
+rides.post('/:id/confirm-delivery', async (c) => {
+  const id = c.req.param('id')
+  const { clientId } = await c.req.json()
+  
+  // Buscar el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+  
+  // Validar que el usuario es el cliente
+  if (ride.clientId !== clientId) {
+    return c.json({ error: 'No tienes permiso para confirmar este ride' }, 403)
+  }
+  
+  // Validar estado: solo se puede confirmar cuando está en progreso
+  if (ride.status !== 'in_progress') {
+    return c.json({ 
+      error: 'No puedes confirmar la entrega en este momento',
+      currentStatus: ride.status,
+      message: 'Solo se puede confirmar cuando el ride está en estado "in_progress"'
+    }, 400)
+  }
+  
+  // Validar que hay foto de entrega
+  if (!ride.deliveryPhoto) {
+    return c.json({ error: 'El conductor debe subir una foto de entrega primero' }, 400)
+  }
+  
+  // Cobro automático si hay método de pago guardado
+  const update: any = { status: 'completed' }
+  
+  if (ride.stripePaymentMethodId && !ride.paymentIntentId) {
+    try {
+      console.log(`💳 Cobrando automáticamente al confirmar entrega ${id}...`)
+      
+      const amount = ride.finalPrice || ride.estimatedPrice
+      const amountCents = Math.round(amount * 100)
+      
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: 'usd',
+        payment_method: ride.stripePaymentMethodId,
+        off_session: true,
+        confirm: true,
+        metadata: {
+          rideId: id,
+          clientId: ride.clientId,
+          conductorAmount: Math.round(amount * (1 - PLATFORM_COMMISSION) * 100).toString(),
+          platformAmount: Math.round(amount * PLATFORM_COMMISSION * 100).toString(),
+        },
+      })
+      
+      if (paymentIntent.status === 'succeeded') {
+        console.log(`✅ Pago exitoso al confirmar entrega ${id}`)
+        update.paymentIntentId = paymentIntent.id
+        update.paidAt = new Date()
+        update.status = 'paid'
+      } else if (paymentIntent.status === 'requires_action') {
+        console.warn(`⚠️ Pago requiere acción adicional para ride ${id}`)
+        update.paymentIntentId = paymentIntent.id
+      }
+    } catch (err) {
+      console.error(`❌ Error intentando cobrar automáticamente:`, err)
+    }
+  }
+  
+  const updatedRide = await Ride.findByIdAndUpdate(id, update, { new: true })
+  
+  return c.json({
+    success: true,
+    message: update.status === 'paid' ? 'Entrega confirmada y pago procesado' : 'Entrega confirmada',
+    ride: updatedRide
+  })
+})
+
 // Cancelar ride
 rides.post('/:id/cancel', async (c) => {
   const id = c.req.param('id')

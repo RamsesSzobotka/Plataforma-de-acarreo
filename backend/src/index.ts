@@ -14,11 +14,13 @@ import admin from './routes/admin'
 
 const app = new Hono()
 
-// Middleware global
+// CORS config con headers para preflight
 app.use('*', poweredBy({ serverName: 'PlataformaAcarreos' }))
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
   credentials: true,
+  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))
 app.use('*', logger())
 
@@ -48,11 +50,26 @@ export default {
   fetch: app.fetch,
 }
 
-if (process.env.NODE_ENV !== 'test') {
+async function initServer() {
   console.log(`🚀 Servidor iniciando en puerto ${PORT}...`)
 
-  // Conectar a MongoDB
-  connectDB()
-    .then(() => console.log('✅ MongoDB conectado'))
-    .catch((err) => console.error('❌ Error conectando a MongoDB:', err))
+  try {
+    await connectDB()
+    console.log('✅ MongoDB conectado')
+    
+    // Crear usuario admin inicial
+    const { User } = await import('./models/user')
+    const ADMIN_EMAIL = 'admin@gmail.com'
+    const ADMIN_PASSWORD = 'Hola123!'
+    
+    await User.createAdmin(ADMIN_EMAIL, ADMIN_PASSWORD)
+    console.log('✅ Usuario admin creado:', ADMIN_EMAIL)
+    
+  } catch (err) {
+    console.error('❌ Error:', err)
+  }
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  initServer()
 }

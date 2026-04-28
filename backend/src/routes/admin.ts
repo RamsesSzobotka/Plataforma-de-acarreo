@@ -5,6 +5,116 @@ import { Ride } from '../models/ride'
 
 const admin = new Hono()
 
+// === AUTH ===
+
+// Login de admin (desde base de datos)
+admin.post('/login', async (c) => {
+  const { email, password } = await c.req.json()
+  
+  if (!email || !password) {
+    return c.json({ error: 'Email y contraseña son requeridos' }, 400)
+  }
+  
+  // Buscar usuario en MongoDB
+  const user = await User.findOne({ email: email.toLowerCase() })
+  
+  if (!user) {
+    return c.json({ error: 'Credenciales inválidas' }, 401)
+  }
+  
+  // Verificar rol de admin
+  if (user.role !== 'admin') {
+    return c.json({ error: 'No tienes acceso de administrador' }, 403)
+  }
+  
+  // Verificar contraseña
+  const isValid = await user.comparePassword(password)
+  
+  if (!isValid) {
+    return c.json({ error: 'Credenciales inválidas' }, 401)
+  }
+  
+  if (!user.isActive) {
+    return c.json({ error: 'Cuenta desactivada' }, 403)
+  }
+  
+  // Devolver info del admin (sin contraseña)
+  return c.json({
+    success: true,
+    user: {
+      _id: user._id,
+      clerkId: user.clerkId,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    }
+  })
+})
+
+// Verificar sesión
+admin.get('/me', async (c) => {
+  const authHeader = c.req.header('Authorization')
+  
+  if (!authHeader) {
+    return c.json({ error: 'No autorizado' }, 401)
+  }
+  
+  try {
+    const userId = authHeader.replace('Bearer ', '')
+    const user = await User.findById(userId)
+    
+    if (!user || user.role !== 'admin') {
+      return c.json({ error: 'No autorizado' }, 403)
+    }
+    
+    return c.json({
+      _id: user._id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    })
+  } catch (err) {
+    return c.json({ error: 'Token inválido' }, 401)
+  }
+})
+
+// === MIDDLEWARE DE PROTECCIÓN ===
+// Este middleware se aplica a todas las rutas POST, PATCH, DELETE que vienen después
+const adminAuth = async (c: any, next: any) => {
+  const path = c.req.path
+  
+  // Rutas públicas (no requieren auth)
+  if (path === '/login' || path === '/me') {
+    return next()
+  }
+  
+  const authHeader = c.req.header('Authorization')
+  
+  if (!authHeader) {
+    return c.json({ error: 'No autorizado - se requiere token' }, 401)
+  }
+  
+  try {
+    const userId = authHeader.replace('Bearer ', '')
+    const user = await User.findById(userId)
+    
+    if (!user || user.role !== 'admin') {
+      return c.json({ error: 'No autorizado - solo administradores' }, 403)
+    }
+    
+    // Adjuntar usuario al contexto
+    c.set('adminUser', user)
+    await next()
+  } catch (err) {
+    return c.json({ error: 'Token inválido' }, 401)
+  }
+}
+
+// Aplicar middleware a todas las rutas
+admin.use('*', adminAuth)
+
 // === ESTADÍSTICAS ===
 
 admin.get('/stats', async (c) => {
