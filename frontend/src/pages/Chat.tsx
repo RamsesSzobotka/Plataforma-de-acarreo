@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import { messagesAPI } from '../services/api'
 
 interface Message {
   _id: string
   senderId: string
   content: string
+  read: boolean
   createdAt: string
 }
 
@@ -13,15 +15,17 @@ function Chat() {
   const { rideId } = useParams<{ rideId: string }>()
   const { user } = useUser()
   const [messages, setMessages] = useState<Message[]>([])
-  const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>('')
+  const [content, setContent] = useState('')
+  const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (rideId) {
       loadMessages()
-      // Poll for new messages (simple approach)
-      const interval = setInterval(loadMessages, 5000)
+      // Auto-refresh messages every 2 seconds (polling until WebSocket is implemented)
+      const interval = setInterval(loadMessages, 2000)
       return () => clearInterval(interval)
     }
   }, [rideId])
@@ -32,69 +36,92 @@ function Chat() {
 
   async function loadMessages() {
     try {
-      const response = await fetch(`/api/messages/ride/${rideId}`)
-      const data = await response.json()
-      setMessages(data.data || [])
-    } catch (error) {
-      console.error('Error loading messages:', error)
+      if (!rideId) return
+      const data = await messagesAPI.getByRide(rideId)
+      setMessages(data)
+      
+      // Mark messages as read
+      await messagesAPI.markAsRead(rideId)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cargar mensajes'
+      setError(message)
+      console.error('Error loading messages:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleSendMessage(e: React.FormEvent) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault()
-    if (!newMessage.trim() || !user) return
+    if (!content.trim() || !rideId || !user) return
 
+    setSending(true)
+    setError('')
     try {
-      await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rideId,
-          senderId: user.id,
-          content: newMessage,
-        }),
-      })
-      setNewMessage('')
-      loadMessages()
-    } catch (error) {
-      console.error('Error sending message:', error)
+      const newMessage = await messagesAPI.send(rideId, content)
+      setMessages([...messages, newMessage])
+      setContent('')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al enviar mensaje'
+      setError(message)
+      console.error('Error sending message:', err)
+    } finally {
+      setSending(false)
     }
   }
 
-  function formatTime(dateStr: string) {
-    return new Date(dateStr).toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        Cargando chat...
+      </div>
+    )
   }
 
-  if (loading) return <div>Cargando chat...</div>
-
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <h2 style={{ marginBottom: '1rem' }}>Chat</h2>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+        <Link to={`/ride/${rideId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span className="material-symbols-rounded">arrow_back</span>
+          Volver al Pedido
+        </Link>
+        <h2 style={{ marginTop: '0.5rem' }}>
+          <span className="material-symbols-rounded" style={{ display: 'inline-block', marginRight: '0.5rem' }}>chat</span>
+          Chat
+        </h2>
+      </div>
 
-      {/* Messages */}
+      {error && (
+        <div style={{
+          padding: '0.75rem 1rem',
+          background: '#fee2e2',
+          border: '1px solid #fca5a5',
+          color: '#991b1b',
+          fontSize: '0.9rem',
+        }}>
+          {error}
+        </div>
+      )}
+
+      {/* Messages area */}
       <div
         style={{
-          height: '400px',
+          flex: 1,
           overflowY: 'auto',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
           padding: '1rem',
-          marginBottom: '1rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.75rem',
+          gap: '1rem',
         }}
       >
         {messages.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            <span className="material-symbols-rounded">chat_bubble</span>
-            No hay mensajes. Escribe el primero!
-          </p>
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '3rem', display: 'block', marginBottom: '0.5rem' }}>
+              chat_bubble_outline
+            </span>
+            No hay mensajes aún. ¡Sé el primero en escribir!
+          </div>
         ) : (
           messages.map((msg) => (
             <div
@@ -106,26 +133,21 @@ function Chat() {
             >
               <div
                 style={{
-                  maxWidth: '70%',
+                  maxWidth: '60%',
                   padding: '0.75rem 1rem',
                   borderRadius: 'var(--radius)',
-                  background:
-                    msg.senderId === user?.id
-                      ? 'var(--primary)'
-                      : 'var(--bg-tertiary)',
+                  background: msg.senderId === user?.id ? 'var(--primary)' : 'var(--bg-tertiary)',
                   color: msg.senderId === user?.id ? 'white' : 'var(--text-primary)',
+                  wordBreak: 'break-word',
                 }}
               >
                 <p>{msg.content}</p>
-                <p
-                  style={{
-                    fontSize: '0.75rem',
-                    marginTop: '0.25rem',
-                    opacity: 0.7,
-                  }}
-                >
-                  {formatTime(msg.createdAt)}
-                </p>
+                <small style={{ opacity: 0.7, display: 'block', marginTop: '0.25rem' }}>
+                  {new Date(msg.createdAt).toLocaleTimeString('es-PA', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </small>
               </div>
             </div>
           ))
@@ -133,21 +155,33 @@ function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.5rem' }}>
-        <input
-          type="text"
-          className="input"
-          placeholder="Escribe un mensaje..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          style={{ flex: 1 }}
-        />
-        <button type="submit" className="btn btn-primary">
-          Enviar
-        </button>
-      </form>
+      {/* Input area */}
+      <div style={{ padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+        <form onSubmit={handleSend} style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            type="text"
+            className="input"
+            placeholder="Escribe un mensaje..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            disabled={sending}
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={sending || !content.trim()}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {sending ? 'Enviando...' : 'Enviar'}
+          </button>
+        </form>
+      </div>
     </div>
+  )
+}
+
+export default Chat
   )
 }
 

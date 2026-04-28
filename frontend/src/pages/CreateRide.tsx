@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import { ridesAPI } from '../services/api'
 
 interface RideFormData {
   title: string
   description: string
   type: string
-  images: File[]
   pickupAddress: string
   dropoffAddress: string
   estimatedPrice: number
@@ -18,11 +18,11 @@ function CreateRide() {
   const { user } = useUser()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string>('')
   const [formData, setFormData] = useState<RideFormData>({
     title: '',
     description: '',
     type: '',
-    images: [],
     pickupAddress: '',
     dropoffAddress: '',
     estimatedPrice: 0,
@@ -33,30 +33,39 @@ function CreateRide() {
     if (!user) return
     
     setLoading(true)
+    setError('')
     
     try {
-      // TODO: Upload images first
-      
-      const response = await fetch('/api/rides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: user.id,
-          title: formData.title,
-          description: formData.description,
-          type: formData.type,
-          pickupLocation: { address: formData.pickupAddress, coordinates: [0, 0] },
-          dropoffLocation: { address: formData.dropoffAddress, coordinates: [0, 0] },
-          estimatedPrice: formData.estimatedPrice,
-          images: [],
-        }),
+      // Validación básica en frontend
+      if (formData.title.length < 10) {
+        throw new Error('El título debe tener al menos 10 caracteres')
+      }
+      if (formData.description.length < 20) {
+        throw new Error('La descripción debe tener al menos 20 caracteres')
+      }
+      if (!formData.type) {
+        throw new Error('Selecciona un tipo de acarreo')
+      }
+      if (formData.estimatedPrice <= 0) {
+        throw new Error('El precio debe ser mayor a 0')
+      }
+
+      const response = await ridesAPI.create({
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        pickupLocation: { address: formData.pickupAddress, coordinates: [0, 0] },
+        dropoffLocation: { address: formData.dropoffAddress, coordinates: [0, 0] },
+        estimatedPrice: formData.estimatedPrice,
+        packages: formData.packages,
+        notes: formData.notes,
       })
       
-      if (response.ok) {
-        navigate('/my-rides')
-      }
-    } catch (error) {
-      console.error('Error creating ride:', error)
+      navigate(`/ride/${response._id}`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al crear el pedido'
+      setError(message)
+      console.error('Error creando ride:', err)
     } finally {
       setLoading(false)
     }
@@ -84,6 +93,19 @@ function CreateRide() {
         <span className="material-symbols-rounded">add_circle</span>
         Crear Nuevo Pedido
       </h1>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          marginBottom: '1rem',
+          background: '#fee2e2',
+          border: '1px solid #fca5a5',
+          borderRadius: 'var(--radius)',
+          color: '#991b1b'
+        }}>
+          {error}
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div>
@@ -98,6 +120,9 @@ function CreateRide() {
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             required
           />
+          {formData.title && formData.title.length < 10 && (
+            <small style={{ color: '#ef4444' }}>Mínimo 10 caracteres ({formData.title.length}/10)</small>
+          )}
         </div>
 
         <div>
@@ -112,7 +137,7 @@ function CreateRide() {
           >
             <option value="">Seleccionar tipo</option>
             <option value="mudanza">Mudanza</option>
-            <option value="electrodomesticos">Electrodomesticos</option>
+            <option value="electrodomesticos">Electrodomésticos</option>
             <option value="muebles">Muebles</option>
             <option value="productos">Productos</option>
             <option value="otros">Otros</option>
@@ -121,7 +146,7 @@ function CreateRide() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Descripcion *
+            Descripción *
           </label>
           <textarea
             className="input"
@@ -131,16 +156,19 @@ function CreateRide() {
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             required
           />
+          {formData.description && formData.description.length < 20 && (
+            <small style={{ color: '#ef4444' }}>Mínimo 20 caracteres ({formData.description.length}/20)</small>
+          )}
         </div>
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Direccion de Recogida *
+            Dirección de Recogida *
           </label>
           <input
             type="text"
             className="input"
-            placeholder="Direccion donde recogida"
+            placeholder="Dirección donde recoger"
             value={formData.pickupAddress}
             onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
             required
@@ -149,12 +177,12 @@ function CreateRide() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Direccion de Entrega *
+            Dirección de Entrega *
           </label>
           <input
             type="text"
             className="input"
-            placeholder="Direccion de entrega"
+            placeholder="Dirección de entrega"
             value={formData.dropoffAddress}
             onChange={(e) => setFormData({ ...formData, dropoffAddress: e.target.value })}
             required
@@ -169,9 +197,38 @@ function CreateRide() {
             type="number"
             className="input"
             placeholder="0.00"
+            step="0.01"
+            min="0.01"
             value={formData.estimatedPrice}
             onChange={(e) => setFormData({ ...formData, estimatedPrice: Number(e.target.value) })}
             required
+          />
+        </div>
+
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Cantidad de Bultos (opcional)
+          </label>
+          <input
+            type="number"
+            className="input"
+            placeholder="0"
+            min="0"
+            value={formData.packages || ''}
+            onChange={(e) => setFormData({ ...formData, packages: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Notas Especiales (opcional)
+          </label>
+          <textarea
+            className="input"
+            rows={2}
+            placeholder="Ej: Requiere ayuda para cargar, objetos frágiles..."
+            value={formData.notes || ''}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
           />
         </div>
 

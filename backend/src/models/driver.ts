@@ -8,6 +8,31 @@ const driverSchema = new mongoose.Schema({
   plate: { type: String, required: true },
   capacityKg: { type: Number, required: true },
   
+  // Fotos del vehículo
+  vehicleImages: [{ type: String }],
+  
+  // Licencia
+  licenseType: { type: String },
+  licenseImage: { type: String },
+  
+  // Cédula
+  cedulaFront: { type: String },
+  cedulaBack: { type: String },
+  
+  // Documentos del vehículo
+  ruvDocument: { type: String },
+  plateImage: { type: String },
+  insurancePolicy: { type: String },
+  
+  // Documentos opcionales
+  carneBlanco: { type: String },
+  carneVerde: { type: String },
+  carneTransporteCarga: { type: String },
+  fumigationCertificate: { type: String },
+  
+  // Teléfono
+  phone: { type: String },
+  
   // Disponibilidad
   isAvailable: { type: Boolean, default: true },
   
@@ -22,6 +47,14 @@ const driverSchema = new mongoose.Schema({
   totalRides: { type: Number, default: 0 },
   
   // Verificación
+  verificationStatus: {
+    type: String,
+    enum: ['pending', 'in_review', 'verified', 'rejected', 'suspended'],
+    default: 'pending'
+  },
+  rejectionReason: { type: String },
+  reviewedBy: { type: String },
+  reviewedAt: { type: Date },
   isVerified: { type: Boolean, default: false },
   
   createdAt: { type: Date, default: Date.now },
