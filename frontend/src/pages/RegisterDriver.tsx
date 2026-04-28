@@ -3,6 +3,24 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import FileUpload from '../components/FileUpload'
 
+// Tipos de vehículos disponibles
+const VEHICLE_TYPES = [
+  { value: 'camioneta', label: 'Camioneta', icon: 'local_shipping' },
+  { value: 'camion', label: 'Camión', icon: 'local_shipping' },
+  { value: 'furgon', label: 'Furgón', icon: 'warehouse' },
+  { value: 'grua', label: 'Grúa', icon: 'construction' },
+  { value: 'otro', label: 'Otro', icon: 'commute' },
+]
+
+// Tipos de licencia de conducir
+const LICENSE_TYPES = [
+  { value: 'a', label: 'Tipo A' },
+  { value: 'b', label: 'Tipo B' },
+  { value: 'c', label: 'Tipo C' },
+  { value: 'd', label: 'Tipo D' },
+  { value: 'e', label: 'Tipo E' },
+]
+
 // ... resto de imports y types
 
 export default function RegisterDriver() {
