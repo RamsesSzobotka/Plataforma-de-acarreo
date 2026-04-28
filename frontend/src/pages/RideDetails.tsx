@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import { PaymentForm } from '../components/PaymentForm'
 
 interface Ride {
   _id: string
@@ -17,6 +18,8 @@ interface Ride {
   status: string
   deliveryPhoto?: { url: string }
   createdAt: string
+  paymentIntentId?: string
+  paidAt?: string
 }
 
 interface Driver {
@@ -43,6 +46,8 @@ function RideDetails() {
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
 
@@ -90,27 +95,38 @@ function RideDetails() {
   }
 
   async function handleConfirmDelivery() {
+    if (!confirm('¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.')) {
+      return
+    }
+
     try {
-      await fetch(`/api/rides/${id}/status`, {
+      const response = await fetch(`/api/rides/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' }),
       })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al confirmar entrega')
+      }
+
       loadRide()
     } catch (error) {
       console.error('Error confirming delivery:', error)
+      alert(`Error: ${error instanceof Error ? error.message : 'Error al confirmar entrega'}`)
     }
   }
 
-  async function handlePay() {
-    if (!ride) return
-    try {
-      // Redirigir a pantalla de pago (F1-10)
-      // Por ahora mostrar mensaje
-      alert(`Pagar $${ride.finalPrice || ride.estimatedPrice}`)
-    } catch (error) {
-      console.error('Error paying:', error)
-    }
+  async function handlePaymentSuccess(updatedRide: Ride) {
+    setRide(updatedRide)
+    setShowPaymentForm(false)
+    // Recargar después de un momento para asegurar que el webhook procesó
+    setTimeout(() => loadRide(), 2000)
+  }
+
+  async function handlePaymentError(error: string) {
+    setPaymentError(error)
   }
 
   async function handleRate() {
@@ -239,7 +255,7 @@ function RideDetails() {
         </div>
 
         {/* Price */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
             <p>Tipo: {ride.type}</p>
             <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
@@ -261,14 +277,79 @@ function RideDetails() {
                 Confirmar Entrega
               </button>
             )}
-            {ride.status === 'completed' && isOwner && (
-              <button className="btn btn-primary" onClick={handlePay}>
+            {ride.status === 'completed' && isOwner && !showPaymentForm && (
+              <button className="btn btn-primary" onClick={() => setShowPaymentForm(true)}>
                 <span className="material-symbols-rounded">payment</span>
                 Pagar ${ride.finalPrice || ride.estimatedPrice}
               </button>
             )}
+            {(ride.status === 'paid' || (ride.status === 'completed' && ride.paidAt)) && isOwner && (
+              <div style={{ padding: '0.5rem 1rem', backgroundColor: '#DCFCE7', borderRadius: '6px', textAlign: 'center', color: '#166534', fontWeight: 600 }}>
+                ✅ Pagado
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Info: Auto-charge notification */}
+        {ride.status === 'completed' && isOwner && !ride.paidAt && (
+          <div
+            style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#DBEAFE',
+              borderRadius: '8px',
+              border: '1px solid #93C5FD',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+            }}
+          >
+            <span style={{ color: '#1E40AF', fontSize: '20px' }}>ℹ️</span>
+            <div>
+              <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600, color: '#1E40AF' }}>
+                Pago Automático
+              </p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#1E40AF' }}>
+                Se cobró automáticamente ${ride.finalPrice || ride.estimatedPrice} a la forma de pago que guardaste al crear el pedido.
+                Si hubo algún problema, puedes hacer clic en "Pagar" arriba para intentar nuevamente.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Form */}
+        {showPaymentForm && ride.status === 'completed' && isOwner && (
+          <div style={{ marginTop: '1.5rem' }}>
+            {paymentError && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '6px', border: '1px solid #FECACA' }}>
+                {paymentError}
+              </div>
+            )}
+            <PaymentForm 
+              ride={ride}
+              onPaymentSuccess={handlePaymentSuccess}
+              onPaymentError={handlePaymentError}
+            />
+            <button 
+              onClick={() => {
+                setShowPaymentForm(false)
+                setPaymentError(null)
+              }}
+              style={{
+                marginTop: '1rem',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#E2E8F0',
+                color: '#0F172A',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
 
         {/* Chat */}
         {(ride.status === 'negotiating' || ride.status === 'accepted' || ride.status === 'in_progress') && (

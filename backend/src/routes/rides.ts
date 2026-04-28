@@ -1,6 +1,10 @@
 import { Hono } from 'hono/tiny'
+import Stripe from 'stripe'
 import { Ride } from '../models/ride'
 import { Rating } from '../models/rating'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
 
 const rides = new Hono()
 
@@ -37,8 +41,8 @@ rides.get('/', async (c) => {
 rides.post('/', async (c) => {
   const body = await c.req.json()
 
-  // Validar campos requeridos
-  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images']
+  // Validar campos requeridos (ahora incluye stripePaymentMethodId)
+  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images', 'stripePaymentMethodId']
   const missing = required.filter(field => !body[field])
   
   if (missing.length > 0) {
@@ -95,6 +99,7 @@ rides.post('/', async (c) => {
       estimatedPrice: body.estimatedPrice,
       packages: body.packages,
       notes: body.notes,
+      stripePaymentMethodId: body.stripePaymentMethodId, // NUEVO: Guardar Payment Method
       status: 'requested',
       chatEnabled: false,
     })
@@ -139,15 +144,68 @@ rides.patch('/:id', async (c) => {
 rides.patch('/:id/status', async (c) => {
   const id = c.req.param('id')
   const { status, reason } = await c.req.json()
-  // TODO: Validar transición de estado
-  // TODO: Verificar permisos según estado
   
+  // Obtener el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
   const update: any = { status }
   if (reason) update.cancellationReason = reason
   
-  const ride = await Ride.findByIdAndUpdate(id, update, { new: true })
+  // LÓGICA: Si el estado cambia a 'completed', automáticamente cobrar
+  if (status === 'completed' && ride.stripePaymentMethodId && !ride.paymentIntentId) {
+    try {
+      console.log(`💳 Cobrando automáticamente al completar ride ${id}...`)
+      
+      // Obtener el monto a cobrar
+      const amount = ride.finalPrice || ride.estimatedPrice
+      const amountCents = Math.round(amount * 100) // Stripe usa centavos
+      
+      // Crear PaymentIntent con el Payment Method guardado
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: 'usd',
+        customer: undefined, // Sin customer para simplificar
+        payment_method: ride.stripePaymentMethodId,
+        off_session: true, // Pago sin confirmación del usuario
+        confirm: true, // Confirmar inmediatamente
+        metadata: {
+          rideId: id,
+          clientId: ride.clientId,
+          conductorAmount: Math.round(amount * (1 - PLATFORM_COMMISSION) * 100).toString(),
+          platformAmount: Math.round(amount * PLATFORM_COMMISSION * 100).toString(),
+        },
+      })
+      
+      if (paymentIntent.status === 'succeeded') {
+        console.log(`✅ Pago exitoso al completar ride ${id}`)
+        update.paymentIntentId = paymentIntent.id
+        update.paidAt = new Date()
+        update.status = 'paid' // Cambiar status directamente a 'paid'
+      } else if (paymentIntent.status === 'requires_action') {
+        console.warn(`⚠️ Pago requiere acción adicional para ride ${id}`)
+        // El pago se quedará en 'completed' esperando acción
+      } else if (paymentIntent.status === 'processing') {
+        console.log(`⏳ Pago en procesamiento para ride ${id}`)
+        update.paymentIntentId = paymentIntent.id
+      } else {
+        console.error(`❌ Pago fallido al completar ride ${id}: ${paymentIntent.last_payment_error?.message}`)
+        return c.json({ 
+          error: `Error al procesar el pago automático: ${paymentIntent.last_payment_error?.message || 'Error desconocido'}` 
+        }, 402)
+      }
+    } catch (err) {
+      console.error(`❌ Error intentando cobrar automáticamente:`, err)
+      // NO retornar error, dejar que el cliente intente pagar manualmente
+      console.log(`ℹ️ Ride ${id} se completará, pero requiere pago manual`)
+    }
+  }
+
+  const updatedRide = await Ride.findByIdAndUpdate(id, update, { new: true })
   
-  return c.json(ride)
+  return c.json(updatedRide)
 })
 
 // Aceptar ride (driver)

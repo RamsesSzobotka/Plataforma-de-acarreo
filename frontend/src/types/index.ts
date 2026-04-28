@@ -19,6 +19,9 @@ export interface Ride {
   chatEnabled: boolean
   deliveryPhoto?: RideImage
   cancellationReason?: string
+  stripePaymentMethodId?: string  // NUEVO: Payment Method guardado
+  paymentIntentId?: string         // NUEVO: PaymentIntent de Stripe
+  paidAt?: string                  // NUEVO: Fecha de pago automático
   createdAt: string
   updatedAt: string
 }

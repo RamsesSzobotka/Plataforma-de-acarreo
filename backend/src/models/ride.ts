@@ -60,6 +60,11 @@ const rideSchema = new mongoose.Schema({
   // Cancelación
   cancellationReason: { type: String },
   
+  // Pago - Stripe
+  stripePaymentMethodId: { type: String }, // ID del método de pago guardado (obligatorio)
+  paymentIntentId: { type: String }, // ID del PaymentIntent cuando se procesa
+  paidAt: { type: Date }, // Fecha de pago automático
+  
   // Timestamps
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

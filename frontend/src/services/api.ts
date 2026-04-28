@@ -102,3 +102,24 @@ export const usersAPI = {
       body: JSON.stringify({ coordinates }),
     }),
 }
+
+// Payments API
+export const paymentsAPI = {
+  createPaymentIntent: (rideId: string, amount: number) =>
+    fetchAPI<{ clientSecret: string; paymentIntentId: string }>(
+      '/api/payments/create-intent',
+      {
+        method: 'POST',
+        body: JSON.stringify({ rideId, amount }),
+      }
+    ),
+
+  confirmPayment: (rideId: string, paymentIntentId: string) =>
+    fetchAPI<{ success: boolean; paymentIntentId: string; status: string }>(
+      '/api/payments/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify({ rideId, paymentIntentId }),
+      }
+    ),
+}
