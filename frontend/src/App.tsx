@@ -10,6 +10,7 @@ import DriverDashboard from './pages/DriverDashboard'
 import DriverProfile from './pages/DriverProfile'
 import Chat from './pages/Chat'
 import RegisterDriver from './pages/RegisterDriver'
+import AddPaymentMethodPage from './pages/AddPaymentMethod'
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -68,6 +69,13 @@ function App() {
         <Route path="register-driver" element={
           <ProtectedRoute>
             <RegisterDriver />
+          </ProtectedRoute>
+        } />
+        
+        {/* Payment routes */}
+        <Route path="add-payment-method" element={
+          <ProtectedRoute>
+            <AddPaymentMethodPage />
           </ProtectedRoute>
         } />
         

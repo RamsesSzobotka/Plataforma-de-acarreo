@@ -41,8 +41,8 @@ rides.get('/', async (c) => {
 rides.post('/', async (c) => {
   const body = await c.req.json()
 
-  // Validar campos requeridos (ahora incluye stripePaymentMethodId)
-  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images', 'stripePaymentMethodId']
+  // Validar campos requeridos (stripePaymentMethodId ahora opcional para pruebas)
+  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images']
   const missing = required.filter(field => !body[field])
   
   if (missing.length > 0) {
@@ -99,7 +99,7 @@ rides.post('/', async (c) => {
       estimatedPrice: body.estimatedPrice,
       packages: body.packages,
       notes: body.notes,
-      stripePaymentMethodId: body.stripePaymentMethodId, // NUEVO: Guardar Payment Method
+      stripePaymentMethodId: body.stripePaymentMethodId || null, // Opcional para pruebas
       status: 'requested',
       chatEnabled: false,
     })
@@ -300,6 +300,28 @@ rides.post('/:id/rate', async (c) => {
   )
   
   return c.json(ratingRecord)
+})
+
+// Guardar método de pago en el ride
+rides.post('/:id/payment-method', async (c) => {
+  const id = c.req.param('id')
+  const { stripePaymentMethodId } = await c.req.json()
+  
+  if (!stripePaymentMethodId) {
+    return c.json({ error: 'stripePaymentMethodId es requerido' }, 400)
+  }
+  
+  const ride = await Ride.findByIdAndUpdate(
+    id,
+    { stripePaymentMethodId },
+    { new: true }
+  )
+  
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+  
+  return c.json(ride)
 })
 
 export default rides

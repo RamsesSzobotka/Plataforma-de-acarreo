@@ -122,4 +122,10 @@ export const paymentsAPI = {
         body: JSON.stringify({ rideId, paymentIntentId }),
       }
     ),
+
+  savePaymentMethod: (rideId: string, stripePaymentMethodId: string) =>
+    fetchAPI<Ride>(`/api/rides/${rideId}/payment-method`, {
+      method: 'POST',
+      body: JSON.stringify({ stripePaymentMethodId }),
+    }),
 }

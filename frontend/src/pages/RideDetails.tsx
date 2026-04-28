@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import { Elements } from '@stripe/react-stripe-js'
+import { loadStripe } from '@stripe/stripe-js'
 import { PaymentForm } from '../components/PaymentForm'
+import { AddPaymentMethod } from '../components/AddPaymentMethod'
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
 
 interface Ride {
   _id: string
@@ -20,6 +25,7 @@ interface Ride {
   createdAt: string
   paymentIntentId?: string
   paidAt?: string
+  stripePaymentMethodId?: string
 }
 
 interface Driver {
@@ -95,7 +101,11 @@ function RideDetails() {
   }
 
   async function handleConfirmDelivery() {
-    if (!confirm('¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.')) {
+    const confirmMessage = ride.stripePaymentMethodId 
+      ? '¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.'
+      : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
+    
+    if (!confirm(confirmMessage)) {
       return
     }
 
@@ -277,7 +287,13 @@ function RideDetails() {
                 Confirmar Entrega
               </button>
             )}
-            {ride.status === 'completed' && isOwner && !showPaymentForm && (
+            {ride.status === 'completed' && isOwner && !ride.stripePaymentMethodId && !showPaymentForm && (
+              <Link to={`/add-payment-method?rideId=${ride._id}`} className="btn btn-secondary" style={{ textAlign: 'center' }}>
+                <span className="material-symbols-rounded">credit_card</span>
+                Agregar Método de Pago
+              </Link>
+            )}
+            {ride.status === 'completed' && isOwner && ride.stripePaymentMethodId && !showPaymentForm && (
               <button className="btn btn-primary" onClick={() => setShowPaymentForm(true)}>
                 <span className="material-symbols-rounded">payment</span>
                 Pagar ${ride.finalPrice || ride.estimatedPrice}
@@ -292,7 +308,7 @@ function RideDetails() {
         </div>
 
         {/* Info: Auto-charge notification */}
-        {ride.status === 'completed' && isOwner && !ride.paidAt && (
+        {ride.status === 'completed' && isOwner && ride.stripePaymentMethodId && !ride.paidAt && (
           <div
             style={{
               marginTop: '1.5rem',
@@ -311,8 +327,33 @@ function RideDetails() {
                 Pago Automático
               </p>
               <p style={{ margin: 0, fontSize: '14px', color: '#1E40AF' }}>
-                Se cobró automáticamente ${ride.finalPrice || ride.estimatedPrice} a la forma de pago que guardaste al crear el pedido.
+                Se cobró automáticamente ${ride.finalPrice || ride.estimatedPrice} a tu forma de pago guardada.
                 Si hubo algún problema, puedes hacer clic en "Pagar" arriba para intentar nuevamente.
+              </p>
+            </div>
+          </div>
+        )}
+        
+        {ride.status === 'completed' && isOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
+          <div
+            style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#FEF3C7',
+              borderRadius: '8px',
+              border: '1px solid #FCD34D',
+              display: 'flex',
+              gap: '1rem',
+              alignItems: 'flex-start',
+            }}
+          >
+            <span style={{ color: '#92400E', fontSize: '20px' }}>⚠️</span>
+            <div>
+              <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600, color: '#92400E' }}>
+                Método de Pago Requerido
+              </p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#92400E' }}>
+                Debes agregar un método de pago para completar el pedido.
               </p>
             </div>
           </div>
