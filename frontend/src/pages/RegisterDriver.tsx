@@ -1,7 +1,15 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import FileUpload from '../components/FileUpload'
+
+// Types para el estado del conductor
+interface DriverProfile {
+  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
+  rejectionReason?: string
+  vehicleType?: string
+  plate?: string
+}
 
 const VEHICLE_TYPES = [
   { value: 'camioneta', label: 'Camioneta', icon: 'local_shipping' },
@@ -48,11 +56,61 @@ interface FormData {
 }
 
 export default function RegisterDriver() {
-  const { user } = useUser()
+  const { user, isSignedIn } = useUser()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [activeSection, setActiveSection] = useState(1)
+  const [driverStatus, setDriverStatus] = useState<DriverProfile | null>(null)
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true)
+
+  // Obtener redirect URL si existe
+  const redirectUrl = searchParams.get('redirect') || '/driver'
+
+  // Verificar estado del conductor al montar
+  useEffect(() => {
+    const checkDriverStatus = async () => {
+      if (!isSignedIn) {
+        // No está logueado -> redirigir a sign-in con redirect
+        navigate(`/sign-in?redirect=/register-driver`)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/users/driver/me', {
+          headers: { 'Content-Type': 'application/json' }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setDriverStatus(data)
+
+          // Si ya está verificado -> ir directo al dashboard
+          if (data.verificationStatus === 'verified') {
+            navigate(redirectUrl)
+            return
+          }
+
+          // Si está en revisión o pendiente -> mostrar estado (no bloquear)
+          // Si está suspendido -> mostrar error
+          if (data.verificationStatus === 'suspended') {
+            setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
+            return
+          }
+        } else if (response.status === 404) {
+          // No existe -> es nuevo, mostrar formulario
+          setDriverStatus(null)
+        }
+      } catch (err) {
+        console.error('Error checking driver status:', err)
+      } finally {
+        setIsLoadingStatus(false)
+      }
+    }
+
+    checkDriverStatus()
+  }, [isSignedIn, navigate, redirectUrl])
   
   const [formData, setFormData] = useState<FormData>({
     vehicleType: '',
@@ -165,11 +223,175 @@ export default function RegisterDriver() {
       }
     } catch (err) {
       setError('Error de conexión')
-    } finally {
+} finally {
       setLoading(false)
     }
   }
-  
+
+  // Mostrar estado si ya tiene solicitud pendiente o fue rechazado
+  const showStatus = driverStatus && (driverStatus.verificationStatus === 'pending' || driverStatus.verificationStatus === 'in_review' || driverStatus.verificationStatus === 'rejected')
+
+  // Loading inicial mientras verifica estado
+  if (isLoadingStatus) {
+    return (
+      <div style={{ maxWidth: '700px', margin: '0 auto', paddingBottom: '4rem', textAlign: 'center', paddingTop: '4rem' }}>
+        <div style={{ color: '#64748B' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '3rem', display: 'block', margin: '0 auto 1rem' }}>
+            hourglass_empty
+          </span>
+          <p>Verificando tu estado...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Mostrar mensajes de estado existente (pendiente, en revisión, rechazado)
+  if (showStatus) {
+    const statusConfig = {
+      pending: { color: '#F59E0B', icon: 'schedule', title: 'Verificación Pendiente', description: 'Tus documentos están en revisión. No podrás aceptar pedidos hasta que un admin apruebe tu perfil.' },
+      in_review: { color: '#3B82F6', icon: 'fact_check', title: 'En Revisión', description: 'Un admin está revisando tus documentos actualmente.' },
+      rejected: { color: '#EF4444', icon: 'cancel', title: 'Verificación Rechazada', description: driverStatus.rejectionReason || 'Tu solicitud fue rechazada.' },
+    } as const
+    const currentStatus = driverStatus.verificationStatus as keyof typeof statusConfig
+    const status = statusConfig[currentStatus] || statusConfig.pending
+
+    return (
+      <div style={{ maxWidth: '700px', margin: '0 auto', paddingBottom: '4rem' }}>
+        <Link 
+          to="/" 
+          style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.5rem',
+            marginBottom: '1.5rem',
+            color: '#64748B',
+            textDecoration: 'none',
+          }}
+        >
+          <span className="material-symbols-rounded">arrow_back</span>
+          Volver al inicio
+        </Link>
+
+        {/* State Card */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '20px',
+          padding: '2.5rem',
+          border: '1px solid #E2E8F0',
+          textAlign: 'center',
+          marginBottom: '1.5rem',
+        }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            background: `${status.color}15`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+          }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '2.5rem', color: status.color }}>
+              {status.icon}
+            </span>
+          </div>
+          
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+            {status.title}
+          </h2>
+          <p style={{ color: '#64748B', marginBottom: '1.5rem', fontFamily: '"Inter", sans-serif' }}>
+            {status.description}
+          </p>
+
+          {driverStatus.verificationStatus === 'pending' && (
+            <p style={{ color: '#94A3B8', fontSize: '0.875rem' }}>
+              Tiempo estimado: 24-48 horas
+            </p>
+          )}
+
+          {driverStatus.verificationStatus === 'rejected' && (
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1.5rem' }}>
+              <Link
+                to="/driver/profile"
+                style={{
+                  background: '#0D9488',
+                  color: 'white',
+                  padding: '0.875rem 1.5rem',
+                  borderRadius: '12px',
+                  fontFamily: '"Plus Jakarta Sans", sans-serif',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <span className="material-symbols-rounded">edit</span>
+                Corregir documentos
+              </Link>
+              <Link
+                to="/"
+                style={{
+                  background: '#F1F5F9',
+                  color: '#334155',
+                  padding: '0.875rem 1.5rem',
+                  borderRadius: '12px',
+                  fontFamily: '"Plus Jakarta Sans", sans-serif',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <span className="material-symbols-rounded">home</span>
+                Volver al inicio
+              </Link>
+            </div>
+          )}
+
+          {driverStatus.verificationStatus === 'pending' && (
+            <Link
+              to="/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                marginTop: '1.5rem',
+                color: '#64748B',
+                textDecoration: 'none',
+                fontFamily: '"Inter", sans-serif',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>home</span>
+              Volver al inicio
+            </Link>
+          )}
+        </div>
+
+        {/* Info del vehículos si existe */}
+        {driverStatus.vehicleType && driverStatus.plate && (
+          <div style={{
+            background: '#F8FAFC',
+            borderRadius: '16px',
+            padding: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1rem',
+          }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', color: '#0D9488' }}>
+              directions_car
+            </span>
+            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontWeight: 600 }}>
+              {driverStatus.vehicleType} • {driverStatus.plate}
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', paddingBottom: '4rem' }}>
       {/* Botón volver */}

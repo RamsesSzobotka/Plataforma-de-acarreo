@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 
 interface Driver {
@@ -26,7 +26,6 @@ interface Ride {
 
 function DriverDashboard() {
   const { user } = useUser()
-  const navigate = useNavigate()
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableRides, setAvailableRides] = useState<Ride[]>([])
   const [myRides, setMyRides] = useState<Ride[]>([])
