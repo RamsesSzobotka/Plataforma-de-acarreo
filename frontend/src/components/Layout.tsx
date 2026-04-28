@@ -21,11 +21,23 @@ function Layout() {
           <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             {isSignedIn ? (
               <>
+                <Link 
+                  to="/driver" 
+                  style={{ 
+                    color: 'rgba(255,255,255,0.8)', 
+                    textDecoration: 'none', 
+                    fontFamily: '"Inter", sans-serif', 
+                    fontSize: '0.9rem' 
+                  }}
+                >
+                  Panel Conductor
+                </Link>
                 <Link to="/my-rides" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontFamily: '"Inter", sans-serif', fontSize: '0.9rem' }}>Mis Pedidos</Link>
                 <Link to="/create-ride" style={{ background: '#0D9488', color: 'white', padding: '0.625rem 1.25rem', borderRadius: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: '"Plus Jakarta Sans", sans-serif', fontWeight: '600', fontSize: '0.9rem' }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
                   Nuevo Pedido
                 </Link>
+                
                 <UserButton 
                   afterSignOutUrl="/"
                   appearance={{
