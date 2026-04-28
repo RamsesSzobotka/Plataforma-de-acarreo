@@ -190,46 +190,49 @@ export default function RegisterDriver() {
     setLoading(true)
     setError('')
     
-    try {
-      const token = await getToken()
-      const headers: HeadersInit = { 'Content-Type': 'application/json' }
-      if (token) {
-        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
-      }
+     try {
+       const token = await getToken()
 
-      const response = await fetch('/api/users/register-driver', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          vehicleType: formData.vehicleType,
-          plate: formData.plate,
-          capacityKg: parseInt(formData.capacityKg),
-          vehicleImages: formData.vehicleImages,
-          licenseType: formData.licenseType,
-          licenseImage: formData.licenseImage,
-          cedulaFront: formData.cedulaFront,
-          cedulaBack: formData.cedulaBack,
-          ruvDocument: formData.ruvDocument,
-          plateImage: formData.plateImage,
-          insurancePolicy: formData.insurancePolicy,
-          phone: formData.phone,
-          carneBlanco: formData.carneBlanco || undefined,
-          carneVerde: formData.carneVerde || undefined,
-          carneTransporteCarga: formData.carneTransporteCarga || undefined,
-          fumigationCertificate: formData.fumigationCertificate || undefined,
-        }),
-      })
-      
-      const data = await response.json()
-      
-      if (response.ok) {
-        navigate('/driver')
-      } else {
-        setError(data.error || data.missing ? `Faltan: ${data.missing?.join(', ')}` : 'Error al registrar conductor')
-      }
-    } catch (err) {
-      setError('Error de conexión')
-} finally {
+       const response = await fetch('/api/users/register-driver', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+         },
+         body: JSON.stringify({
+           vehicleType: formData.vehicleType,
+           plate: formData.plate,
+           capacityKg: parseInt(formData.capacityKg),
+           vehicleImages: formData.vehicleImages,
+           licenseType: formData.licenseType,
+           licenseImage: formData.licenseImage,
+           cedulaFront: formData.cedulaFront,
+           cedulaBack: formData.cedulaBack,
+           ruvDocument: formData.ruvDocument,
+           plateImage: formData.plateImage,
+           insurancePolicy: formData.insurancePolicy,
+           phone: formData.phone,
+           carneBlanco: formData.carneBlanco || undefined,
+           carneVerde: formData.carneVerde || undefined,
+           carneTransporteCarga: formData.carneTransporteCarga || undefined,
+           fumigationCertificate: formData.fumigationCertificate || undefined,
+         }),
+       })
+       
+       const data = await response.json()
+       
+       if (response.ok) {
+         navigate('/driver')
+       } else {
+         if (data.missing && Array.isArray(data.missing) && data.missing.length > 0) {
+           setError(`Faltan: ${data.missing.join(', ')}`)
+         } else {
+           setError(data.error || 'Error al registrar conductor')
+         }
+       }
+     } catch (err) {
+       setError('Error de conexión')
+ } finally {
       setLoading(false)
     }
   }
