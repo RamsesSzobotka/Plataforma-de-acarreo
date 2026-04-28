@@ -40,17 +40,17 @@ const driverSchema = new mongoose.Schema({
   // === DISPONIBILIDAD ===
   isAvailable: { type: Boolean, default: false },
   
-  // Ubicación actual (GeoJSON)
+  // === UBICACIÓN ACTUAL (SIMPLE - se actualiza cuando está en línea) ===
   currentLocation: {
-    type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: { type: [Number] } // [lng, lat]
+    latitude: { type: Number },
+    longitude: { type: Number },
   },
   
-  // Calificación promedio
+  // === CALIFICACIÓN ===
   rating: { type: Number, default: 0 },
   totalRides: { type: Number, default: 0 },
   
-  // Legacy - mantener por compatibilidad
+  // === LEGACY ===
   isVerified: { type: Boolean, default: false },
   
   createdAt: { type: Date, default: Date.now },
@@ -59,9 +59,10 @@ const driverSchema = new mongoose.Schema({
   timestamps: true
 })
 
+// === ÍNDICES ===
 driverSchema.index({ userId: 1 }, { unique: true })
-driverSchema.index({ currentLocation: '2dsphere' })
 driverSchema.index({ isAvailable: 1 })
 driverSchema.index({ verificationStatus: 1 })
+// Índice geoespacial se puede agregar después cuando sea necesario
 
 export const Driver = mongoose.models.Driver || mongoose.model('Driver', driverSchema)

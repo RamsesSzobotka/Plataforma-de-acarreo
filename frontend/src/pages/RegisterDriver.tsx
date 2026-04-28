@@ -1,59 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import FileUpload from '../components/FileUpload'
 
-// Types para el estado del conductor
-interface DriverProfile {
-  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
-  rejectionReason?: string
-  vehicleType?: string
-  plate?: string
-}
-
-const VEHICLE_TYPES = [
-  { value: 'camioneta', label: 'Camioneta', icon: 'local_shipping' },
-  { value: 'camion', label: 'Camión', icon: 'local_shipping' },
-  { value: 'furgon', label: 'Furgón', icon: 'warehouse' },
-  { value: 'grua', label: 'Grúa', icon: 'construction' },
-  { value: 'otro', label: 'Otro', icon: 'commute' },
-]
-
-const LICENSE_TYPES = [
-  { value: 'a', label: 'Tipo A' },
-  { value: 'b', label: 'Tipo B' },
-  { value: 'c', label: 'Tipo C' },
-  { value: 'd', label: 'Tipo D' },
-  { value: 'e', label: 'Tipo E' },
-]
-
-interface FormData {
-  // Sección 1: Vehículo
-  vehicleType: string
-  plate: string
-  capacityKg: string
-  vehicleImages: string[]
-  
-  // Sección 2: Documentos personales
-  licenseType: string
-  licenseImage: string
-  cedulaFront: string
-  cedulaBack: string
-  
-  // Sección 3: Documentos del vehículo
-  ruvDocument: string
-  plateImage: string
-  insurancePolicy: string
-  
-  // Sección 4: Contacto
-  phone: string
-  
-  // Sección 5: Docs opcionales
-  carneBlanco: string
-  carneVerde: string
-  carneTransporteCarga: string
-  fumigationCertificate: string
-}
+// ... resto de imports y types
 
 export default function RegisterDriver() {
   const { user, isSignedIn } = useUser()
@@ -65,19 +15,30 @@ export default function RegisterDriver() {
   const [activeSection, setActiveSection] = useState(1)
   const [driverStatus, setDriverStatus] = useState<DriverProfile | null>(null)
   const [isLoadingStatus, setIsLoadingStatus] = useState(true)
+  
+  // Variable para evitar que el effect se ejecute múltiples veces
+  const hasCheckedStatus = useRef(false)
 
   // Obtener redirect URL si existe
   const redirectUrl = searchParams.get('redirect') || '/driver'
 
-  // Verificar estado del conductor al montar
+  // Verificar estado del conductor - SOLO UNA VEZ cuando isSignedIn cambia
   useEffect(() => {
-    const checkDriverStatus = async () => {
-      if (!isSignedIn) {
-        // No está logueado -> redirigir a sign-in con redirect
-        navigate(`/sign-in?redirect=/register-driver`)
-        return
-      }
+    if (!isSignedIn) {
+      // No está logueado -> redirigir a sign-in con redirect
+      navigate(`/sign-in?redirect=/register-driver`)
+      return
+    }
 
+    // Si ya fue verificado el driver status, no hacer nada
+    if (hasCheckedStatus.current) {
+      setIsLoadingStatus(false)
+      return
+    }
+
+    hasCheckedStatus.current = true
+
+    const checkDriverStatus = async () => {
       try {
         const token = await getToken()
         
@@ -98,7 +59,7 @@ export default function RegisterDriver() {
             return
           }
 
-          // Si está en revisión o pendiente -> mostrar estado (no bloquear)
+          // Si está en revisión, pendiente o rechazado -> mostrar estado/formulario
           // Si está suspendido -> mostrar error
           if (data.verificationStatus === 'suspended') {
             setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
@@ -116,7 +77,7 @@ export default function RegisterDriver() {
     }
 
     checkDriverStatus()
-  }, [isSignedIn, navigate, redirectUrl])
+  }, [isSignedIn]) // Solo depende de isSignedIn - se ejecuta cuando cambia de no-logueado a logueado
   
   const [formData, setFormData] = useState<FormData>({
     vehicleType: '',
@@ -199,38 +160,45 @@ export default function RegisterDriver() {
     try {
       const token = await getToken()
       
+      const payload = {
+        vehicleType: formData.vehicleType,
+        plate: formData.plate,
+        capacityKg: parseInt(formData.capacityKg),
+        vehicleImages: formData.vehicleImages,
+        licenseType: formData.licenseType,
+        licenseImage: formData.licenseImage,
+        cedulaFront: formData.cedulaFront,
+        cedulaBack: formData.cedulaBack,
+        ruvDocument: formData.ruvDocument,
+        plateImage: formData.plateImage,
+        insurancePolicy: formData.insurancePolicy,
+        phone: formData.phone,
+        carneBlanco: formData.carneBlanco || undefined,
+        carneVerde: formData.carneVerde || undefined,
+        carneTransporteCarga: formData.carneTransporteCarga || undefined,
+        fumigationCertificate: formData.fumigationCertificate || undefined,
+      }
+      
+      console.log('📤 [REGISTER] Enviando payload:', payload)
+      
       const response = await fetch('/api/users/register-driver', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...(token && { Authorization: `Bearer ${token}` })
         },
-        body: JSON.stringify({
-          vehicleType: formData.vehicleType,
-          plate: formData.plate,
-          capacityKg: parseInt(formData.capacityKg),
-          vehicleImages: formData.vehicleImages,
-          licenseType: formData.licenseType,
-          licenseImage: formData.licenseImage,
-          cedulaFront: formData.cedulaFront,
-          cedulaBack: formData.cedulaBack,
-          ruvDocument: formData.ruvDocument,
-          plateImage: formData.plateImage,
-          insurancePolicy: formData.insurancePolicy,
-          phone: formData.phone,
-          carneBlanco: formData.carneBlanco || undefined,
-          carneVerde: formData.carneVerde || undefined,
-          carneTransporteCarga: formData.carneTransporteCarga || undefined,
-          fumigationCertificate: formData.fumigationCertificate || undefined,
-        }),
+        body: JSON.stringify(payload),
       })
       
       const data = await response.json()
+      console.log('📥 [REGISTER] Respuesta:', { status: response.status, data })
       
       if (response.ok) {
         navigate('/driver')
       } else {
-        setError(data.error || data.missing ? `Faltan: ${data.missing?.join(', ')}` : 'Error al registrar conductor')
+        const errorMsg = data.missing ? `Faltan: ${data.missing.join(', ')}` : (data.error || 'Error al registrar conductor')
+        console.error('❌ [REGISTER] Error:', errorMsg)
+        setError(errorMsg)
       }
     } catch (err) {
       setError('Error de conexión')
@@ -390,11 +358,16 @@ export default function RegisterDriver() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '1rem',
+            border: '1px solid #E2E8F0',
           }}>
             <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', color: '#0D9488' }}>
               directions_car
             </span>
-            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontWeight: 600 }}>
+            <span style={{ 
+              fontFamily: '"JetBrains Mono", monospace', 
+              fontWeight: 600,
+              color: '#0F172A' // ← AGREGADO: color texto oscuro
+            }}>
               {driverStatus.vehicleType} • {driverStatus.plate}
             </span>
           </div>

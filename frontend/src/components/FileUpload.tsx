@@ -44,7 +44,9 @@ export default function FileUpload({
       formData.append('file', file)
       formData.append('folder', folder)
       
-      const response = await fetch('/api/upload', {
+      // Usar URL absoluta en lugar de ruta relativa
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+      const response = await fetch(`${apiUrl}/api/upload`, {
         method: 'POST',
         headers: {
           ...(token && { Authorization: `Bearer ${token}` })
@@ -55,7 +57,8 @@ export default function FileUpload({
       const data = await response.json()
       
       if (!response.ok) {
-        throw new Error(data.error || 'Error al subir imagen')
+        console.error('Upload failed:', response.status, data)
+        throw new Error(data.error || data.details || 'Error al subir imagen')
       }
       
       setPreview(data.url)

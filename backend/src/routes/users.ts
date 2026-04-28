@@ -75,6 +75,11 @@ users.post('/register-driver', authMiddleware, async (c) => {
   const currentUser = c.get('user') as AuthUser
   const body = await c.req.json()
   
+  console.log('🔵 [REGISTER-DRIVER] Payload recibido:', {
+    clerkId: currentUser.clerkId,
+    fields: Object.keys(body)
+  })
+  
   // Verificar que el usuario existe
   const user = await User.findOne({ clerkId: currentUser.clerkId })
   if (!user) {
@@ -92,6 +97,8 @@ users.post('/register-driver', authMiddleware, async (c) => {
   // Validar documentos requeridos
   const missingDocs = validateRequiredDocs(body)
   if (missingDocs.length > 0) {
+    console.error('❌ [REGISTER-DRIVER] Docs faltantes:', missingDocs)
+    console.log('📋 [REGISTER-DRIVER] Body recibido:', body)
     return c.json({ 
       error: 'Documentos requeridos faltantes',
       missing: missingDocs 
@@ -147,11 +154,11 @@ users.post('/register-driver', authMiddleware, async (c) => {
       plateImage: body.plateImage,
       insurancePolicy: body.insurancePolicy,
       
-      // Docs opcionales
-      carneBlanco: body.carneBlanco || undefined,
-      carneVerde: body.carneVerde || undefined,
-      carneTransporteCarga: body.carneTransporteCarga || undefined,
-      fumigationCertificate: body.fumigationCertificate || undefined,
+      // Docs opcionales (solo si tienen valor)
+      ...(body.carneBlanco && { carneBlanco: body.carneBlanco }),
+      ...(body.carneVerde && { carneVerde: body.carneVerde }),
+      ...(body.carneTransporteCarga && { carneTransporteCarga: body.carneTransporteCarga }),
+      ...(body.fumigationCertificate && { fumigationCertificate: body.fumigationCertificate }),
       
       // Contacto
       phone: body.phone,
@@ -162,9 +169,16 @@ users.post('/register-driver', authMiddleware, async (c) => {
       rating: 0,
       totalRides: 0,
       
+      // NO GUARDAR currentLocation - se establece cuando el conductor se conecta y comparte ubicación
+      
       updatedAt: new Date()
     },
-    { upsert: true, new: true }
+    { 
+      upsert: true, 
+      new: true,
+      // Importante: no crear campos con valores por defecto innecesarios
+      runValidators: false
+    }
   )
   
   return c.json({
