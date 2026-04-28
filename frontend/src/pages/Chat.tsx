@@ -177,7 +177,7 @@ function Chat() {
           </button>
         </form>
       </div>
-    </div>
+</div>
   )
 }
 
