@@ -1,9 +1,21 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { SignInButton, SignUpButton, useUser } from '@clerk/clerk-react'
 
 function Home() {
   const { isSignedIn } = useUser()
+  const navigate = useNavigate()
   const [userType, setUserType] = useState<'client' | 'driver'>('client')
+
+  // Handler inteligente para "ser conductor"
+  const handleDriverCTA = () => {
+    if (isSignedIn) {
+      // Ya logueado -> ir directo al registro de conductor
+      navigate('/register-driver')
+    } else {
+      // No logueado -> el SignUp ya tiene el redirect configurado
+    }
+  }
 
   return (
     <div style={{ background: '#0F172A', minHeight: '100vh' }}>
@@ -706,8 +718,8 @@ function Home() {
                 ))}
               </ul>
               
-              <a 
-                href="/register-driver"
+              <button
+                onClick={handleDriverCTA}
                 style={{
                   background: '#F97316',
                   color: 'white',
@@ -721,11 +733,13 @@ function Home() {
                   alignItems: 'center',
                   gap: '0.5rem',
                   boxShadow: '0 4px 20px rgba(249, 115, 22, 0.4)',
+                  cursor: 'pointer',
+                  border: 'none',
                 }}
               >
                 <span className="material-symbols-rounded">directions_car</span>
                 Registrarme como Conductor
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -838,8 +852,8 @@ function Home() {
                   </p>
                 </div>
               </div>
-              <a 
-                href="/register-driver"
+              <button 
+                onClick={handleDriverCTA}
                 style={{
                   background: '#F97316',
                   color: 'white',
@@ -853,11 +867,13 @@ function Home() {
                   alignItems: 'center',
                   gap: '0.5rem',
                   boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)',
+                  border: 'none',
+                  cursor: 'pointer',
                 }}
               >
                 <span className="material-symbols-rounded">how_to_reg</span>
                 Registrarme como Conductor
-              </a>
+              </button>
             </div>
           </div>
         </div>

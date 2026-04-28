@@ -9,6 +9,8 @@ import users from './routes/users'
 import messages from './routes/messages'
 import payments from './routes/payments'
 import health from './routes/health'
+import upload from './routes/upload'
+import admin from './routes/admin'
 
 const app = new Hono()
 
@@ -28,6 +30,10 @@ app.route('/api/rides', rides)
 app.route('/api/users', users)
 app.route('/api/messages', messages)
 app.route('/api/payments', payments)
+app.route('/api/upload', upload)
+
+// Admin routes (sin seguridad por ahora)
+app.route('/admin/api', admin)
 
 // Error handler
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
