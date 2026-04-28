@@ -10,6 +10,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    include: ['react-leaflet', 'leaflet', '@react-leaflet/core'],
+  },
   server: {
     port: 5173,
     proxy: {

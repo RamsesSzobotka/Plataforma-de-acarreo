@@ -1,16 +1,9 @@
-import { useState, FormEvent } from 'react'
-import {
-  CardElement,
-  useStripe,
-  useElements,
-} from '@stripe/react-stripe-js'
-import type { Stripe, StripeElements } from '@stripe/stripe-js'
-import { paymentsAPI, ridesAPI } from '../services/api'
-import type { Ride } from '../types'
+import { useState } from 'react'
+import { paymentsAPI } from '../services/api'
 
 interface PaymentFormProps {
-  ride: Ride
-  onPaymentSuccess: (updatedRide: Ride) => void
+  ride: any
+  onPaymentSuccess: (updatedRide: any) => void
   onPaymentError: (error: string) => void
 }
 
@@ -19,9 +12,6 @@ export function PaymentForm({
   onPaymentSuccess,
   onPaymentError,
 }: PaymentFormProps) {
-  const stripe = useStripe()
-  const elements = useElements()
-
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -37,68 +27,23 @@ export function PaymentForm({
 
   const finalPrice = ride.finalPrice || ride.estimatedPrice
 
-  async function handlePaymentSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handlePaymentSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-
-    if (!stripe || !elements) {
-      setError('Stripe no está cargado correctamente')
-      return
-    }
 
     setLoading(true)
     setError(null)
 
     try {
-      // 1. Crear PaymentIntent en el backend
-      console.log('📱 Creating payment intent...')
-      const { clientSecret, paymentIntentId } =
-        await paymentsAPI.createPaymentIntent(ride._id, finalPrice)
-
-      console.log('✅ Payment intent created:', paymentIntentId)
-
-      // 2. Confirmar el pago con Stripe Elements
-      console.log('💳 Confirming payment with Stripe...')
-      const cardElement = elements.getElement(CardElement)
-      if (!cardElement) {
-        throw new Error('Card element no encontrado')
-      }
-
-      const { error: stripeError, paymentIntent } =
-        await stripe.confirmCardPayment(clientSecret, {
-          payment_method: {
-            card: cardElement,
-          },
-        })
-
-      if (stripeError) {
-        throw new Error(stripeError.message || 'Error al procesar el pago')
-      }
-
-      if (!paymentIntent || paymentIntent.status !== 'succeeded') {
-        throw new Error('El pago no fue completado correctamente')
-      }
-
-      console.log('✅ Payment succeeded:', paymentIntent.id)
-
-      // 3. Confirmar el pago en el backend
-      console.log('🔄 Confirming payment in backend...')
-      const confirmResult = await paymentsAPI.confirmPayment(
-        ride._id,
-        paymentIntentId
-      )
-
-      if (!confirmResult.success) {
-        throw new Error('Error confirmando el pago en el servidor')
-      }
-
-      console.log('✅ Payment confirmed in backend')
-
-      // 4. Actualizar la vista del ride para mostrar estado 'paid'
-      const updatedRide = await ridesAPI.get(ride._id)
+      console.log('📱 Processing payment...')
+      
+      // Usar pago simulado
+      const result = await paymentsAPI.confirmPaymentSimulated(ride._id)
+      
+      console.log('✅ Payment succeeded:', result)
+      
       setSuccess(true)
-      onPaymentSuccess(updatedRide)
+      onPaymentSuccess(result.ride)
 
-      // Limpiar mensaje de error y mostrar éxito
       setTimeout(() => {
         setSuccess(false)
       }, 5000)
@@ -176,32 +121,19 @@ export function PaymentForm({
       </div>
 
       <form onSubmit={handlePaymentSubmit}>
-        {/* Card Element */}
+        {/* Info message for demo */}
         <div
           style={{
             marginBottom: '1rem',
-            padding: '1rem',
-            border: '1px solid #E2E8F0',
-            borderRadius: '8px',
-            backgroundColor: '#FFFFFF',
+            padding: '0.75rem',
+            backgroundColor: '#FEF3C7',
+            color: '#92400E',
+            borderRadius: '6px',
+            fontSize: '13px',
+            border: '1px solid #FCD34D',
           }}
         >
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#0F172A',
-                  '::placeholder': {
-                    color: '#64748B',
-                  },
-                },
-                invalid: {
-                  color: '#EF4444',
-                },
-              },
-            }}
-          />
+          💡 Modo demo: Este pago es simulado. No se procesará con Stripe real.
         </div>
 
         {/* Error message */}
@@ -241,7 +173,7 @@ export function PaymentForm({
         {/* Submit button */}
         <button
           type="submit"
-          disabled={loading || !stripe || !elements}
+          disabled={loading}
           style={{
             width: '100%',
             padding: '0.875rem',
@@ -254,31 +186,9 @@ export function PaymentForm({
             cursor: loading ? 'not-allowed' : 'pointer',
             transition: 'background-color 0.2s',
           }}
-          onMouseEnter={(e) => {
-            if (!loading && e.currentTarget.disabled === false) {
-              e.currentTarget.style.backgroundColor = '#0F766E'
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!loading && e.currentTarget.disabled === false) {
-              e.currentTarget.style.backgroundColor = '#0D9488'
-            }
-          }}
         >
           {loading ? '🔄 Procesando...' : `💳 Pagar $${finalPrice.toFixed(2)}`}
         </button>
-
-        {/* Info message */}
-        <div
-          style={{
-            marginTop: '1rem',
-            fontSize: '12px',
-            color: '#64748B',
-            textAlign: 'center',
-          }}
-        >
-          💡 Tu información de pago es procesada de forma segura por Stripe
-        </div>
       </form>
     </div>
   )

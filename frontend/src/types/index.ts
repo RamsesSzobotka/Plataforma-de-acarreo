@@ -128,3 +128,40 @@ export interface GeospatialRidesResponse {
     radiusKm: number
   }
 }
+
+// Ride Details Response with driver info
+export interface RideDetailsResponse {
+  success: boolean
+  ride: Ride
+  distance?: number
+  client?: {
+    clerkId: string
+    firstName?: string
+    lastName?: string
+    imageUrl?: string
+    email?: string
+  } | null
+  driver?: {
+    userId: string
+    vehicleType: string
+    plate: string
+    capacityKg: number
+    rating: number
+    totalRides: number
+    isAvailable: boolean
+    verificationStatus?: string
+  } | null
+  driverUser?: {
+    clerkId: string
+    firstName?: string
+    lastName?: string
+    imageUrl?: string
+  } | null
+}
+
+// Payment API Response
+export interface PaymentResponse {
+  success: boolean
+  ride?: Ride
+  message?: string
+}

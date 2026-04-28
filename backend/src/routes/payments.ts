@@ -98,8 +98,34 @@ payments.post('/webhook', async (c) => {
 // Confirmar pago (endpoint para el cliente)
 payments.post('/confirm', async (c) => {
   try {
-    const { rideId, paymentIntentId } = await c.req.json()
-    
+    const { rideId, paymentIntentId, simulated } = await c.req.json()
+
+    // MODO SIMULADO para demo (sin Stripe real)
+    if (simulated) {
+      const ride = await Ride.findById(rideId)
+      if (!ride) {
+        return c.json({ error: 'Ride no encontrado' }, 404)
+      }
+
+      // Solo permitir pago si está en estado 'completed'
+      if (ride.status !== 'completed') {
+        return c.json({ error: 'Ride debe estar en estado completed para pagar' }, 400)
+      }
+
+      // SIMULADO: solo actualizar estado (luego validar con Stripe)
+      const updated = await Ride.findByIdAndUpdate(
+        rideId,
+        { status: 'paid', paidAt: new Date(), updatedAt: new Date() },
+        { new: true }
+      )
+
+      return c.json({
+        success: true,
+        ride: updated,
+        message: 'Pago simulado confirmado'
+      })
+    }
+
     if (!rideId || !paymentIntentId) {
       return c.json({ error: 'rideId y paymentIntentId son requeridos' }, 400)
     }

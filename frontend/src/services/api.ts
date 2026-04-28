@@ -1,4 +1,4 @@
-import type { Ride, PaginatedResponse, Message } from '../types'
+import type { Ride, PaginatedResponse, Message, RideDetailsResponse } from '../types'
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -131,7 +131,7 @@ export const ridesAPI = {
     if (params?.driverLat) searchParams.set('driverLat', String(params.driverLat))
     if (params?.driverLng) searchParams.set('driverLng', String(params.driverLng))
     const query = searchParams.toString()
-    return fetchAPI<Ride>(
+    return fetchAPI<RideDetailsResponse>(
       `/api/rides/${id}${query ? `?${query}` : ''}`,
       { requiresAuth: false }
     )
@@ -326,6 +326,17 @@ export const paymentsAPI = {
       {
         method: 'POST',
         body: JSON.stringify({ rideId, paymentIntentId }),
+      }
+    ),
+
+  // Pago simulado para demo (sin Stripe real)
+  confirmPaymentSimulated: (rideId: string) =>
+    fetchAPI<{ success: boolean; ride: any }>(
+      '/api/payments/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify({ rideId, simulated: true }),
+        requiresAuth: true,
       }
     ),
 }

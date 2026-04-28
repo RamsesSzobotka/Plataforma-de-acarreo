@@ -11,7 +11,7 @@ interface Message {
   createdAt: string
 }
 
-function Chat() {
+export default function Chat() {
   const { rideId } = useParams<{ rideId: string }>()
   const { user } = useUser()
   const [messages, setMessages] = useState<Message[]>([])
@@ -177,12 +177,6 @@ function Chat() {
           </button>
         </form>
       </div>
-</div>
+    </div>
   )
 }
-
-export default Chat
-  )
-}
-
-export default Chat

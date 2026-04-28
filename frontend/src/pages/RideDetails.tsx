@@ -1,54 +1,17 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
-import { ridesAPI } from '../services/api'
-
-interface Ride {
-  _id: string
-  clientId: string
-  driverId?: string
-  title: string
-  description: string
-  type: string
-  images: { url: string }[]
-  pickupLocation: { address: string }
-  dropoffLocation: { address: string }
-  estimatedPrice: number
-  finalPrice?: number
-  status: string
-  deliveryPhoto?: { url: string }
-  createdAt: string
-  paymentIntentId?: string
-  paidAt?: string
-}
-
-interface Driver {
-  _id: string
-  userId: string
-  vehicleType: string
-  plate: string
-  rating: number
-  totalRides: number
-}
-
-interface User {
-  _id: string
-  clerkId: string
-  firstName?: string
-  lastName?: string
-  imageUrl?: string
-}
+import { ridesAPI, paymentsAPI } from '../services/api'
+import type { RideDetailsResponse } from '../types'
 
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
-  const navigate = useNavigate()
-  const [ride, setRide] = useState<Ride | null>(null)
-  const [driver, setDriver] = useState<Driver | null>(null)
-  const [driverUser, setDriverUser] = useState<User | null>(null)
+  const [response, setResponse] = useState<RideDetailsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [paying, setPaying] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -63,25 +26,27 @@ function RideDetails() {
     try {
       if (!id) return
       const data = await ridesAPI.get(id)
-      setRide(data)
-
-      // Cargar info del conductor si existe
-      if (data.driverId) {
-        const driverResponse = await fetch(`/api/users/${data.driverId}`)
-        const driverData = await driverResponse.json()
-        setDriverUser(driverData)
-
-        // Cargar perfil del conductor
-        const driverProfileResponse = await fetch(`/api/users/driver/${data.driverId}`)
-        const driverProfile = await driverProfileResponse.json()
-        setDriver(driverProfile)
-      }
-    } catch (error) {
-      console.error('Error loading ride:', error)
+      setResponse(data)
+    } catch (err) {
+      console.error('Error loading ride:', err)
     } finally {
       setLoading(false)
     }
   }
+
+  // Polling cada 3 segundos cuando el ride está en requested o negotiating
+  useEffect(() => {
+    if (!response?.ride || !['requested', 'negotiating'].includes(response.ride.status)) return
+
+    const interval = setInterval(() => {
+      loadRide()
+    }, 3000)
+
+    return () => clearInterval(interval)
+  }, [response?.ride?.status])
+
+  // Get ride from response - after state is set
+  const ride = response?.ride
 
   async function handleAccept() {
     if (!ride || !user) return
@@ -90,7 +55,8 @@ function RideDetails() {
     try {
       const agreedPrice = ride.estimatedPrice
       const updated = await ridesAPI.accept(ride._id, agreedPrice)
-      setRide(updated)
+      // Recargar para obtener datos completos del driver
+      await loadRide()
       alert('¡Pedido aceptado! Ahora puedes chatear con el cliente.')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al aceptar el pedido'
@@ -106,7 +72,7 @@ function RideDetails() {
     setError('')
     try {
       const updated = await ridesAPI.start(ride._id)
-      setRide(updated)
+      await loadRide()
       alert('¡Viaje iniciado! Tu ubicación está siendo compartida.')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar el viaje'
@@ -122,39 +88,44 @@ function RideDetails() {
     }
 
     try {
-      const response = await fetch(`/api/rides/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Error al confirmar entrega')
-      }
-
-      loadRide()
-    } catch (error) {
-      console.error('Error confirming delivery:', error)
-      alert(`Error: ${error instanceof Error ? error.message : 'Error al confirmar entrega'}`)
+      await ridesAPI.updateStatus(ride!._id, 'completed')
+      await loadRide()
+    } catch (err) {
+      console.error('Error confirming delivery:', err)
+      alert(`Error: ${err instanceof Error ? err.message : 'Error al confirmar entrega'}`)
     }
   }
 
-  async function handlePaymentSuccess(updatedRide: Ride) {
-    setRide(updatedRide)
+  async function handlePaymentSuccess(updatedRide: any) {
+    await loadRide()
     setShowPaymentForm(false)
-    // Recargar después de un momento para asegurar que el webhook procesó
-    setTimeout(() => loadRide(), 2000)
   }
 
-  async function handlePaymentError(error: string) {
-    setPaymentError(error)
+  async function handlePaymentError(err: string) {
+    setPaymentError(err)
+  }
+
+  // Pago simulado (para demo sin Stripe real)
+  async function handleSimulatedPayment() {
+    if (!ride) return
+    setPaying(true)
+    setPaymentError('')
+    try {
+      await paymentsAPI.confirmPaymentSimulated(ride._id)
+      await loadRide()
+      alert('¡Pago confirmado! Gracias por usar Plataforma de Acarreos')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al procesar pago'
+      setPaymentError(message)
+    } finally {
+      setPaying(false)
+    }
   }
 
   async function handleRate() {
     if (!ride || rating === 0 || !user) return
     try {
-      const response = await fetch(`/api/rides/${id}/rate`, {
+      const res = await fetch(`/api/rides/${id}/rate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,14 +134,28 @@ function RideDetails() {
           raterId: user.id,
         }),
       })
-      if (response.ok) {
+      if (res.ok) {
         alert('Calificación enviada')
         setRating(0)
         setComment('')
         loadRide()
       }
-    } catch (error) {
-      console.error('Error rating:', error)
+    } catch (err) {
+      console.error('Error rating:', err)
+    }
+  }
+
+  async function handleCancel() {
+    if (!ride || !confirm('¿Estás seguro de que deseas cancelar este pedido?')) {
+      return
+    }
+
+    try {
+      const res = await ridesAPI.cancel(ride._id, 'Cancelado por el usuario')
+      setResponse({ ...response!, ride: res } as RideDetailsResponse)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al cancelar'
+      setError(message)
     }
   }
 
@@ -179,11 +164,8 @@ function RideDetails() {
 
   const isOwner = user?.id === ride.clientId
   const isDriver = user?.id === ride.driverId
-  const canAccept = ride.status === 'requested' && !isOwner
-  const canStart = ride.status === 'accepted' && isDriver
   const canConfirmDelivery = ride.status === 'in_progress' && isOwner
   const canCancel = ['requested', 'negotiating', 'accepted'].includes(ride.status)
-  const canChat = ['negotiating', 'accepted', 'in_progress'].includes(ride.status) && (isOwner || isDriver)
 
   const statusColors: Record<string, string> = {
     requested: '#f59e0b',
@@ -261,34 +243,49 @@ function RideDetails() {
         )}
 
         {/* Driver info */}
-        {ride.status === 'accepted' && driverUser && driver && (
+        {(ride.status === 'accepted' || ride.status === 'in_progress' || ride.status === 'completed') && response?.driver && response.driverUser && (
           <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <span className="material-symbols-rounded">person</span>
               Conductor Asignado
             </strong>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              {driverUser.imageUrl && (
+              {response.driverUser.imageUrl && (
                 <img 
-                  src={driverUser.imageUrl} 
-                  alt={driverUser.firstName}
+                  src={response.driverUser.imageUrl} 
+                  alt={response.driverUser.firstName}
                   style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover' }}
                 />
               )}
               <div>
                 <p style={{ fontWeight: 'bold' }}>
-                  {driverUser.firstName} {driverUser.lastName}
+                  {response.driverUser.firstName} {response.driverUser.lastName}
                 </p>
                 <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  ⭐ {driver.rating} ({driver.totalRides} viajes)
+                  ⭐ {response.driver.rating} ({response.driver.totalRides} viajes)
                 </p>
                 <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  🚗 {driver.vehicleType} - {driver.plate}
+                  🚗 {response.driver.vehicleType} - {response.driver.plate}
                 </p>
               </div>
             </div>
+            <Link 
+              to={`/driver/profile/${response.driverUser.clerkId}`}
+              style={{ 
+                marginTop: '0.75rem', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '0.25rem',
+                fontSize: '0.875rem',
+                color: 'var(--primary)'
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>visibility</span>
+              Ver perfil del conductor
+            </Link>
           </div>
         )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -334,15 +331,32 @@ function RideDetails() {
                 Confirmar Entrega
               </button>
             )}
+
+            {/* Botón Pagar (solo si no hay Stripe o para demo) */}
             {ride.status === 'completed' && isOwner && !showPaymentForm && (
-              <button className="btn btn-primary" onClick={() => setShowPaymentForm(true)}>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleSimulatedPayment}
+                disabled={paying}
+                style={{ backgroundColor: paying ? '#94a3b8' : undefined }}
+              >
                 <span className="material-symbols-rounded">payment</span>
-                Pagar ${ride.finalPrice || ride.estimatedPrice}
+                {paying ? 'Procesando...' : `Pagar $${ride.finalPrice || ride.estimatedPrice}`}
               </button>
             )}
-            {(ride.status === 'paid' || (ride.status === 'completed' && ride.paidAt)) && isOwner && (
-              <div style={{ padding: '0.5rem 1rem', backgroundColor: '#DCFCE7', borderRadius: '6px', textAlign: 'center', color: '#166534', fontWeight: 600 }}>
-                ✅ Pagado
+
+            {/* Estado pagado */}
+            {ride.status === 'paid' && isOwner && (
+              <div style={{ 
+                padding: '1rem', 
+                backgroundColor: '#DCFCE7', 
+                borderRadius: '6px', 
+                textAlign: 'center', 
+                color: '#166534', 
+                fontWeight: 600,
+                border: '1px solid #86efac'
+              }}>
+                ✅ Pago confirmado - Gracias por usar Plataforma de Acarreos
               </div>
             )}
           </div>
@@ -407,17 +421,6 @@ function RideDetails() {
             </button>
           </div>
         )}
-
-        {/* Chat */}
-        {(ride.status === 'negotiating' || ride.status === 'accepted' || ride.status === 'in_progress') && (
-          <div style={{ marginTop: '1.5rem' }}>
-            <Link to={`/chat/${ride._id}`} className="btn btn-secondary">
-              <span className="material-symbols-rounded">chat</span>
-              Abrir Chat
-            </Link>
-          </div>
-        )}
-        */}
 
         {/* Delivery photo */}
         {ride.deliveryPhoto && (

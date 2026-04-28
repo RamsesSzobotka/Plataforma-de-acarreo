@@ -29,7 +29,7 @@ function CreateRide() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
-  const [formData, setFormData] = useState<RideFormData>({
+const [formData, setFormData] = useState<RideFormData>({
     title: '',
     description: '',
     type: '',
@@ -38,7 +38,8 @@ function CreateRide() {
     pickupCoordinates: null,
     dropoffCoordinates: null,
     estimatedPrice: 0,
-  })
+    images: [],
+})
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
