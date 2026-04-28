@@ -15,7 +15,7 @@ function Layout() {
         <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 clamp(1rem, 4vw, 5rem)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Link to="/" style={{ fontSize: '1.25rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#FFFFFF' }}>
             <span className="material-symbols-rounded" style={{ color: '#0D9488' }}>local_shipping</span>
-            <span style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>Plataforma de Acarreos</span>
+            <span style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>Carglyn</span>
           </Link>
           
           <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -75,7 +75,7 @@ function Layout() {
         fontSize: '0.875rem'
       }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 clamp(1rem, 4vw, 5rem)' }}>
-          <p>2026 Plataforma de Acarreos</p>
+          <p>2026 Carglyn</p>
         </div>
       </footer>
     </div>

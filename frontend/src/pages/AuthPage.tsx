@@ -89,7 +89,7 @@ function AuthPage() {
                   margin: 0,
                   lineHeight: 1.2,
                 }}>
-                  Plataforma de Acarreos
+                  Carglyn
                 </h1>
                 <p style={{
                   fontFamily: '"Inter", sans-serif',
@@ -281,7 +281,7 @@ function AuthPage() {
             color: '#64748B',
             margin: 0,
           }}>
-            2026 Plataforma de Acarreos. Todos los derechos reservados.
+            2026 Carglyn. Todos los derechos reservados.
           </p>
           <div style={{
             display: 'flex',

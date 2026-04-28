@@ -41,7 +41,7 @@ app.use('*', cors({
 app.use('*', logger())
 
 // Rutas
-app.get('/', (c) => c.json({ message: 'Plataforma de Acarreos API', version: '1.0.0' }))
+app.get('/', (c) => c.json({ message: 'Carglyn API', version: '1.0.0' }))
 app.route('/health', health)
 app.route('/api/auth', auth)
 app.route('/api/rides', rides)

@@ -76,7 +76,7 @@ export default function Login() {
             Admin Portal
           </h1>
           <p style={{ color: '#64748B' }}>
-            Plataforma de Acarreos
+            Carglyn
           </p>
         </div>
 
