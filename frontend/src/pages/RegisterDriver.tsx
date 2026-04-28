@@ -191,9 +191,15 @@ export default function RegisterDriver() {
     setError('')
     
     try {
+      const token = await getToken()
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/users/register-driver', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           vehicleType: formData.vehicleType,
           plate: formData.plate,

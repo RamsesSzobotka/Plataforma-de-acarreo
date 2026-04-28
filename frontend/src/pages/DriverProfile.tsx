@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import FileUpload from '../components/FileUpload'
 
 interface Driver {
@@ -47,6 +47,7 @@ const LICENSE_TYPES = [
 
 export default function DriverProfile() {
   const { user } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const [driver, setDriver] = useState<Driver | null>(null)
   const [loading, setLoading] = useState(true)
@@ -88,7 +89,13 @@ export default function DriverProfile() {
   
   async function loadDriver() {
     try {
-      const response = await fetch('/api/users/driver/me')
+      const token = await getToken()
+      const headers: HeadersInit = {}
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+      }
+      
+      const response = await fetch('/api/users/driver/me', { headers })
       if (response.ok) {
         const data = await response.json()
         setDriver(data)
@@ -141,12 +148,18 @@ export default function DriverProfile() {
     setSuccess('')
     
     try {
+      const token = await getToken()
       const endpoint = isResubmit ? '/api/users/driver/resubmit' : '/api/users/driver/profile'
       const method = 'PATCH'
       
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+      }
+      
       const response = await fetch(endpoint, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           vehicleType: formData.vehicleType,
           plate: formData.plate,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
 
 interface Message {
@@ -13,6 +13,7 @@ interface Message {
 function Chat() {
   const { rideId } = useParams<{ rideId: string }>()
   const { user } = useUser()
+  const { getToken } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -26,21 +27,28 @@ function Chat() {
 
       try {
         // Load initial messages
-        const response = await fetch(`/api/messages/ride/${rideId}`)
+        const token = await getToken()
+        const headers: HeadersInit = {}
+        if (token) {
+          (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+        }
+        
+        const response = await fetch(`/api/messages/ride/${rideId}`, { headers })
         const data = await response.json()
         setMessages(data.data || [])
         setLoading(false)
 
         // Connect to WebSocket
-        const token = await user.getToken()
         if (token) {
           wsService.onMessage((data) => {
             if (data.type === 'new_message') {
               setMessages((prev) => [...prev, data.data])
               // Mark as read
+              const readHeaders: HeadersInit = { 'Content-Type': 'application/json' }
+              ;(readHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`
               fetch(`/api/messages/ride/${rideId}/read`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: readHeaders,
                 body: JSON.stringify({ userId: user.id }),
               }).catch(err => console.error('Error marking as read:', err))
             }
@@ -77,9 +85,15 @@ function Chat() {
     if (!newMessage.trim() || !user || !rideId) return
 
     try {
+      const token = await getToken()
+      const headers: HeadersInit = { 'Content-Type': 'application/json' }
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           rideId,
           senderId: user.id,

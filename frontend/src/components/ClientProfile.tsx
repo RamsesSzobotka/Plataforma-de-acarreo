@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '@clerk/clerk-react'
 
 interface ClientProfileProps {
   clerkId: string
@@ -15,6 +16,7 @@ interface ClientData {
 }
 
 function ClientProfile({ clerkId }: ClientProfileProps) {
+  const { getToken } = useAuth()
   const [client, setClient] = useState<ClientData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -25,7 +27,13 @@ function ClientProfile({ clerkId }: ClientProfileProps) {
 
   async function loadClientProfile() {
     try {
-      const response = await fetch(`/api/users/${clerkId}`)
+      const token = await getToken()
+      const headers: HeadersInit = {}
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+      }
+      
+      const response = await fetch(`/api/users/${clerkId}`, { headers })
       if (response.ok) {
         const data = await response.json()
         setClient(data)
