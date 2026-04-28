@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import { Elements } from '@stripe/react-stripe-js'
-import { loadStripe } from '@stripe/stripe-js'
 import { PaymentForm } from '../components/PaymentForm'
-import { AddPaymentMethod } from '../components/AddPaymentMethod'
 import { ridesAPI, usersAPI } from '../services/api'
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
 
 interface Ride {
   _id: string
@@ -15,15 +10,17 @@ interface Ride {
   driverId?: string
   title: string
   description: string
-  type: string
+  type: 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros'
   images: { url: string }[]
-  pickupLocation: { address: string }
-  dropoffLocation: { address: string }
+  pickupLocation: { address: string; type?: string; coordinates: [number, number] }
+  dropoffLocation: { address: string; type?: string; coordinates: [number, number] }
   estimatedPrice: number
   finalPrice?: number
-  status: string
+  status: 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
   deliveryPhoto?: { url: string }
   createdAt: string
+  updatedAt: string
+  chatEnabled: boolean
   paymentIntentId?: string
   paidAt?: string
   stripePaymentMethodId?: string
@@ -48,7 +45,8 @@ interface User {
 
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
-  const { user, getToken } = useAuth()
+  const { user } = useUser()
+  const { getToken } = useAuth()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
@@ -63,6 +61,11 @@ function RideDetails() {
   }, [id])
 
   async function loadRide() {
+    if (!id) {
+      setLoading(false)
+      return
+    }
+
     try {
       const token = await getToken()
       const data = await ridesAPI.get(id, token || undefined)
@@ -85,6 +88,7 @@ function RideDetails() {
   }
 
   async function handleCancel() {
+    if (!id) return
     if (!confirm('Estas seguro de cancelar este pedido?')) return
     
     try {
@@ -97,7 +101,7 @@ function RideDetails() {
   }
 
   async function handleConfirmDelivery() {
-    if (!user) return
+    if (!user || !ride || !id) return
     
     const confirmMessage = ride.stripePaymentMethodId 
       ? '¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.'
@@ -108,10 +112,16 @@ function RideDetails() {
     }
 
     try {
+      const token = await getToken()
+      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+
       // Usar el nuevo endpoint confirm-delivery
       const response = await fetch(`/api/rides/${id}/confirm-delivery`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ clientId: user.id }),
       })
 
@@ -148,11 +158,16 @@ function RideDetails() {
   }
 
   async function handleRate() {
-    if (!ride || rating === 0 || !user) return
+    if (!ride || rating === 0 || !user || !id) return
     try {
+      const token = await getToken()
+      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
       const response = await fetch(`/api/rides/${id}/rate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           rating,
           comment,
@@ -173,8 +188,11 @@ function RideDetails() {
   if (loading) return <div>Cargando...</div>
   if (!ride) return <div>Pedido no encontrado</div>
 
-  const isOwner = user?.id === ride.clientId
-  const canCancel = ride.status === 'requested' || ride.status === 'negotiating' || ride.status === 'accepted'
+  const isClientOwner = user?.id === ride.clientId
+  const isDriverOwner = user?.id === ride.driverId
+  const isOwner = isClientOwner
+  const canClientCancel = isClientOwner && (ride.status === 'requested' || ride.status === 'negotiating')
+  const canDriverCancel = isDriverOwner && ride.status === 'accepted'
   
   // Badge de estado con colores
   const statusColors: Record<string, string> = {
@@ -307,31 +325,31 @@ function RideDetails() {
           
           {/* Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {canCancel && isOwner && (
+            {(canClientCancel || canDriverCancel) && (
               <button className="btn btn-outline" onClick={handleCancel}>
                 <span className="material-symbols-rounded">cancel</span>
                 Cancelar
               </button>
             )}
-            {ride.status === 'in_progress' && isOwner && (
+            {ride.status === 'in_progress' && isClientOwner && (
               <button className="btn btn-primary" onClick={handleConfirmDelivery}>
                 <span className="material-symbols-rounded">check_circle</span>
                 Confirmar Entrega
               </button>
             )}
-            {ride.status === 'completed' && isOwner && !ride.stripePaymentMethodId && !showPaymentForm && (
+            {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !showPaymentForm && (
               <Link to={`/add-payment-method?rideId=${ride._id}`} className="btn btn-secondary" style={{ textAlign: 'center' }}>
                 <span className="material-symbols-rounded">credit_card</span>
                 Agregar Método de Pago
               </Link>
             )}
-            {ride.status === 'completed' && isOwner && ride.stripePaymentMethodId && !showPaymentForm && (
+            {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !showPaymentForm && (
               <button className="btn btn-primary" onClick={() => setShowPaymentForm(true)}>
                 <span className="material-symbols-rounded">payment</span>
                 Pagar ${ride.finalPrice || ride.estimatedPrice}
               </button>
             )}
-            {(ride.status === 'paid' || (ride.status === 'completed' && ride.paidAt)) && isOwner && (
+            {(ride.status === 'paid' || (ride.status === 'completed' && ride.paidAt)) && isClientOwner && (
               <div style={{ padding: '0.5rem 1rem', backgroundColor: '#DCFCE7', borderRadius: '6px', textAlign: 'center', color: '#166534', fontWeight: 600 }}>
                 ✅ Pagado
               </div>
@@ -340,7 +358,7 @@ function RideDetails() {
         </div>
 
         {/* Info: Auto-charge notification */}
-        {ride.status === 'completed' && isOwner && ride.stripePaymentMethodId && !ride.paidAt && (
+        {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !ride.paidAt && (
           <div
             style={{
               marginTop: '1.5rem',
@@ -366,7 +384,7 @@ function RideDetails() {
           </div>
         )}
         
-        {ride.status === 'completed' && isOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
+        {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
           <div
             style={{
               marginTop: '1.5rem',
@@ -392,7 +410,7 @@ function RideDetails() {
         )}
 
         {/* Payment Form */}
-        {showPaymentForm && ride.status === 'completed' && isOwner && (
+        {showPaymentForm && ride.status === 'completed' && isClientOwner && (
           <div style={{ marginTop: '1.5rem' }}>
             {paymentError && (
               <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '6px', border: '1px solid #FECACA' }}>

@@ -1,9 +1,9 @@
-import { useState, FormEvent, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import AddressInput from '../components/AddressInput'
 import MultiFileUpload from '../components/MultiFileUpload'
-import { usersAPI } from '../services/api'
+import { ridesAPI, usersAPI } from '../services/api'
 
 interface UploadedImage {
   url: string
@@ -13,7 +13,7 @@ interface UploadedImage {
 interface RideFormData {
   title: string
   description: string
-  type: string
+  type: '' | 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros'
   images: UploadedImage[]
   pickupAddress: string
   dropoffAddress: string
@@ -50,7 +50,13 @@ function CreateRide() {
   useEffect(() => {
     async function checkPaymentMethod() {
       try {
-        const result = await usersAPI.getPaymentMethod()
+        const token = await getToken()
+        if (!token) {
+          setHasSavedPaymentMethod(false)
+          return
+        }
+
+        const result = await usersAPI.getPaymentMethod(token || undefined)
         setHasSavedPaymentMethod(result.hasPaymentMethod)
         if (result.stripePaymentMethodId) {
           setPaymentMethodId(result.stripePaymentMethodId)
@@ -63,7 +69,7 @@ function CreateRide() {
       }
     }
     checkPaymentMethod()
-  }, [])
+  }, [getToken])
 
   // Check if returned from add-payment-method page with success
   useEffect(() => {
@@ -71,13 +77,17 @@ function CreateRide() {
     if (paymentAdded === 'true') {
       setHasSavedPaymentMethod(true)
       // Re-check to get the paymentMethodId
-      usersAPI.getPaymentMethod().then(result => {
-        if (result.stripePaymentMethodId) {
-          setPaymentMethodId(result.stripePaymentMethodId)
-        }
+      getToken().then((token) =>
+        usersAPI.getPaymentMethod(token || undefined).then(result => {
+          if (result.stripePaymentMethodId) {
+            setPaymentMethodId(result.stripePaymentMethodId)
+          }
+        })
+      ).catch((err) => {
+        console.error('Error re-checking payment method:', err)
       })
     }
-  }, [searchParams])
+  }, [searchParams, getToken])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,6 +105,13 @@ function CreateRide() {
       return
     }
 
+    if (!formData.type) {
+      alert('Selecciona un tipo de pedido')
+      return
+    }
+
+    const rideType = formData.type
+
     // Check payment method
     if (!paymentMethodId && !hasSavedPaymentMethod) {
       navigate('/add-payment-method?redirect=create-ride')
@@ -105,44 +122,37 @@ function CreateRide() {
     
     try {
       const token = await getToken()
-      const response = await fetch('/api/rides', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          clientId: user.id,
-          title: formData.title,
-          description: formData.description,
-          type: formData.type,
-          pickupLocation: { 
-            address: formData.pickupAddress,
-            type: 'Point',
-            coordinates: formData.pickupCoordinates
-          },
-          dropoffLocation: { 
-            address: formData.dropoffAddress,
-            type: 'Point',
-            coordinates: formData.dropoffCoordinates
-          },
-          estimatedPrice: formData.estimatedPrice,
-          images: formData.images,
-          packages: formData.packages,
-          notes: formData.notes,
-          stripePaymentMethodId: paymentMethodId,
-        }),
-      })
-      
-      if (response.ok) {
-        navigate('/my-rides')
-      } else {
-        const error = await response.json()
-        alert(error.message || 'Error al crear el pedido')
+      if (!token) {
+        throw new Error('Sesion no valida. Inicia sesion nuevamente.')
       }
+
+      await ridesAPI.create({
+        clientId: user.id,
+        title: formData.title,
+        description: formData.description,
+        type: rideType,
+        pickupLocation: {
+          address: formData.pickupAddress,
+          type: 'Point',
+          coordinates: formData.pickupCoordinates
+        },
+        dropoffLocation: {
+          address: formData.dropoffAddress,
+          type: 'Point',
+          coordinates: formData.dropoffCoordinates
+        },
+        estimatedPrice: formData.estimatedPrice,
+        images: formData.images,
+        packages: formData.packages,
+        notes: formData.notes,
+        stripePaymentMethodId: paymentMethodId || undefined,
+      }, token)
+
+      navigate('/my-rides')
     } catch (error) {
       console.error('Error creating ride:', error)
-      alert('Error al crear el pedido')
+      const message = error instanceof Error ? error.message : 'Error al crear el pedido'
+      alert(message)
     } finally {
       setLoading(false)
     }
@@ -220,7 +230,7 @@ function CreateRide() {
           <select
             className="input"
             value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value as RideFormData['type'] })}
             required
           >
             <option value="">Seleccionar tipo</option>

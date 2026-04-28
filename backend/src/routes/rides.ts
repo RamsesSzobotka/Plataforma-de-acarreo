@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { Ride } from '../models/ride'
 import { Rating } from '../models/rating'
 import { authMiddleware } from '../middleware'
+import type { AuthUser } from '../middleware'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
@@ -11,6 +12,7 @@ const rides = new Hono()
 
 // Listar rides (con filtros) - requiere autenticación
 rides.get('/', authMiddleware, async (c) => {
+  const currentUser = (c as any).get('user') as AuthUser
   const status = c.req.query('status')
   const clientId = c.req.query('clientId')
   const driverId = c.req.query('driverId')
@@ -19,8 +21,14 @@ rides.get('/', authMiddleware, async (c) => {
   
   const query: any = {}
   if (status) query.status = status
-  if (clientId) query.clientId = clientId
-  if (driverId) query.driverId = driverId
+
+  // Ownership: clientes solo pueden ver sus propios pedidos
+  if (currentUser.role === 'client') {
+    query.clientId = currentUser.clerkId
+  } else {
+    if (clientId) query.clientId = clientId
+    if (driverId) query.driverId = driverId
+  }
   
   const skip = (page - 1) * limit
   
@@ -40,6 +48,7 @@ rides.get('/', authMiddleware, async (c) => {
 
 // Crear ride - requiere autenticación
 rides.post('/', authMiddleware, async (c) => {
+  const currentUser = (c as any).get('user') as AuthUser
   const body = await c.req.json()
 
   // Validar campos requeridos (stripePaymentMethodId ahora opcional para pruebas)
@@ -80,6 +89,11 @@ rides.post('/', authMiddleware, async (c) => {
     return c.json({ error: 'Precio no puede ser negativo' }, 400)
   }
 
+  // Ownership: un cliente no puede crear rides para otro usuario
+  if (currentUser.role === 'client' && body.clientId !== currentUser.clerkId) {
+    return c.json({ error: 'No tienes permiso para crear pedidos para otro usuario' }, 403)
+  }
+
   try {
     const ride = new Ride({
       clientId: body.clientId,
@@ -114,20 +128,25 @@ rides.post('/', authMiddleware, async (c) => {
   }
 })
 
-// Obtener ride por ID
-rides.get('/:id', async (c) => {
+// Obtener ride por ID - requiere autenticación
+rides.get('/:id', authMiddleware, async (c) => {
+  const currentUser = (c as any).get('user') as AuthUser
   const id = c.req.param('id')
   const ride = await Ride.findById(id)
   
   if (!ride) {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
+
+  if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
+    return c.json({ error: 'No tienes permiso para ver este pedido' }, 403)
+  }
   
   return c.json(ride)
 })
 
-// Actualizar ride
-rides.patch('/:id', async (c) => {
+// Actualizar ride - requiere autenticación
+rides.patch('/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   // TODO: Verificar ownership del ride
@@ -141,8 +160,8 @@ rides.patch('/:id', async (c) => {
   return c.json(ride)
 })
 
-// Cambiar estado del ride
-rides.patch('/:id/status', async (c) => {
+// Cambiar estado del ride - requiere autenticación
+rides.patch('/:id/status', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { status, reason } = await c.req.json()
   
@@ -209,8 +228,8 @@ rides.patch('/:id/status', async (c) => {
   return c.json(updatedRide)
 })
 
-// Aceptar ride (driver)
-rides.post('/:id/accept', async (c) => {
+// Aceptar ride (driver) - requiere autenticación
+rides.post('/:id/accept', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { driverId, agreedPrice } = await c.req.json()
   // TODO: Verificar que el ride está en estado válido
@@ -225,15 +244,15 @@ rides.post('/:id/accept', async (c) => {
   return c.json(ride)
 })
 
-// Iniciar trackeo (driver confirma carga)
-rides.post('/:id/start', async (c) => {
+// Iniciar trackeo (driver confirma carga) - requiere autenticación
+rides.post('/:id/start', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const ride = await Ride.findByIdAndUpdate(id, { status: 'in_progress' }, { new: true })
   return c.json(ride)
 })
 
-// Subir foto de entrega
-rides.post('/:id/delivery-photo', async (c) => {
+// Subir foto de entrega - requiere autenticación
+rides.post('/:id/delivery-photo', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { url, publicId } = await c.req.json()
   
@@ -244,8 +263,8 @@ rides.post('/:id/delivery-photo', async (c) => {
   return c.json(ride)
 })
 
-// Confirmar entrega (cliente confirma que recibió la mercancía)
-rides.post('/:id/confirm-delivery', async (c) => {
+// Confirmar entrega (cliente confirma que recibió la mercancía) - requiere autenticación
+rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { clientId } = await c.req.json()
   
@@ -321,22 +340,55 @@ rides.post('/:id/confirm-delivery', async (c) => {
   })
 })
 
-// Cancelar ride
-rides.post('/:id/cancel', async (c) => {
+// Cancelar ride - requiere autenticación
+rides.post('/:id/cancel', authMiddleware, async (c) => {
+  const currentUser = (c as any).get('user') as AuthUser
   const id = c.req.param('id')
   const { reason } = await c.req.json()
-  // TODO: Verificar permisos según estado actual
+
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Reglas de AGENTS:
+  // - requested/negotiating: cliente puede cancelar
+  // - accepted: solo conductor puede cancelar
+  // - in_progress/completed/paid: solo admin (caso excepcional)
+  let canCancel = false
+
+  if (currentUser.role === 'admin') {
+    canCancel = true
+  } else if (ride.status === 'requested' || ride.status === 'negotiating') {
+    canCancel = currentUser.clerkId === ride.clientId
+  } else if (ride.status === 'accepted') {
+    canCancel = !!ride.driverId && currentUser.clerkId === ride.driverId
+  }
+
+  if (!canCancel) {
+    return c.json({
+      error: 'No tienes permiso para cancelar este pedido en su estado actual',
+      currentStatus: ride.status,
+    }, 403)
+  }
+
+  if (ride.status === 'in_progress' || ride.status === 'completed' || ride.status === 'paid') {
+    return c.json({
+      error: 'No se puede cancelar en este estado. Solo admin en casos excepcionales.',
+      currentStatus: ride.status,
+    }, 400)
+  }
   
-  const ride = await Ride.findByIdAndUpdate(id, {
+  const updatedRide = await Ride.findByIdAndUpdate(id, {
     status: 'cancelled',
-    cancellationReason: reason
+    cancellationReason: reason || 'Cancelado por usuario'
   }, { new: true })
   
-  return c.json(ride)
+  return c.json(updatedRide)
 })
 
-// Calificar conductor (cliente) o cliente (conductor)
-rides.post('/:id/rate', async (c) => {
+// Calificar conductor (cliente) o cliente (conductor) - requiere autenticación
+rides.post('/:id/rate', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { rating, comment, raterId } = await c.req.json()
   
@@ -380,8 +432,8 @@ rides.post('/:id/rate', async (c) => {
   return c.json(ratingRecord)
 })
 
-// Guardar método de pago en el ride
-rides.post('/:id/payment-method', async (c) => {
+// Guardar método de pago en el ride - requiere autenticación
+rides.post('/:id/payment-method', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { stripePaymentMethodId } = await c.req.json()
   

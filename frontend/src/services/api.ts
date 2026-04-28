@@ -99,7 +99,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: stri
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || 'Request failed')
+    throw new Error(error.error || error.message || 'Request failed')
   }
 
   return response.json()
@@ -174,6 +174,8 @@ export const messagesAPI = {
 
 // Users API
 export const usersAPI = {
+  get: (clerkId: string, token?: string) => fetchAPI<any>(`/api/users/${clerkId}`, {}, token),
+
   getDriver: (userId: string, token?: string) => fetchAPI<any>(`/api/users/driver/${userId}`, {}, token),
 
   updateDriverAvailability: (userId: string, isAvailable: boolean, token?: string) =>
@@ -187,6 +189,25 @@ export const usersAPI = {
       method: 'PATCH',
       body: JSON.stringify({ coordinates }),
     }, token),
+
+  // Get payment method status
+  getPaymentMethod: (token?: string) =>
+    fetchAPI<{ hasPaymentMethod: boolean; stripePaymentMethodId: string | null }>(
+      '/api/users/me/payment-method',
+      {},
+      token
+    ),
+
+  // Save payment method to user profile
+  savePaymentMethod: (stripePaymentMethodId: string, token?: string) =>
+    fetchAPI<{ success: boolean; stripePaymentMethodId: string }>(
+      '/api/users/payment-method',
+      {
+        method: 'POST',
+        body: JSON.stringify({ stripePaymentMethodId }),
+      },
+      token
+    ),
 }
 
 // Payments API

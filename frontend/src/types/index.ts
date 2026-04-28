@@ -26,7 +26,7 @@ export interface Ride {
   updatedAt: string
 }
 
-export type RideType = 'mudanza' | 'electrodomésticos' | 'muebles' | 'productos' | 'otros'
+export type RideType = 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros'
 
 export type RideStatus = 
   | 'requested' 
@@ -44,10 +44,8 @@ export interface RideImage {
 
 export interface Location {
   address: string
-  coordinates: {
-    type: string
-    coordinates: [number, number]
-  }
+  type?: string
+  coordinates: [number, number]
 }
 
 // User types

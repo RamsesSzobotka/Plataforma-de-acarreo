@@ -14,7 +14,11 @@ import AddPaymentMethodPage from './pages/AddPaymentMethod'
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isSignedIn } = useAuth()
+  const { isLoaded, isSignedIn } = useAuth()
+
+  if (!isLoaded) {
+    return <div>Cargando sesion...</div>
+  }
   
   if (!isSignedIn) {
     return <Navigate to="/sign-in" replace />
@@ -23,11 +27,33 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Public auth route: si ya hay sesion, evitar renderizar pantalla de login
+function PublicAuthRoute({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth()
+
+  if (!isLoaded) {
+    return <div>Cargando sesion...</div>
+  }
+
+  if (isSignedIn) {
+    return <Navigate to="/my-rides" replace />
+  }
+
+  return <>{children}</>
+}
+
 function App() {
   return (
     <Routes>
       {/* Ruta publica de autenticacion - SIN Layout */}
-      <Route path="/sign-in" element={<AuthPage />} />
+      <Route
+        path="/sign-in"
+        element={
+          <PublicAuthRoute>
+            <AuthPage />
+          </PublicAuthRoute>
+        }
+      />
       
       {/* Rutas protegidas con Layout */}
       <Route path="/" element={<Layout />}>

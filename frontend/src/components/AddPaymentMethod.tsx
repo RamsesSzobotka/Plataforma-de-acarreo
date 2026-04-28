@@ -5,7 +5,8 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
-import { paymentsAPI, ridesAPI, usersAPI } from '../services/api'
+import { useAuth } from '@clerk/clerk-react'
+import { usersAPI } from '../services/api'
 
 interface AddPaymentMethodProps {
   rideId?: string
@@ -16,6 +17,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
   const stripe = useStripe()
   const elements = useElements()
   const navigate = useNavigate()
+  const { getToken } = useAuth()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,35 +57,26 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
       console.log('✅ PaymentMethod created:', paymentMethod.id)
       setSavedMethodId(paymentMethod.id)
 
-      // Guardar en perfil de usuario
+      // Get token and save to user profile
+      const token = await getToken()
       console.log('💾 Saving payment method to user profile...')
-      await usersAPI.savePaymentMethod(paymentMethod.id)
+      await usersAPI.savePaymentMethod(paymentMethod.id, token || undefined)
       console.log('✅ Payment method saved to user profile')
-
-      if (rideId) {
-        console.log('💾 Saving payment method to ride...')
-        await paymentsAPI.savePaymentMethod(rideId, paymentMethod.id)
-        console.log('✅ Payment method saved to ride')
-      }
 
       setSuccess(true)
 
       if (onSuccess) {
         onSuccess(paymentMethod.id)
-      } else if (rideId) {
-        navigate(`/ride/${rideId}`)
       } else {
         // Check if there's a redirect parameter
         const params = new URLSearchParams(window.location.search)
         const redirect = params.get('redirect')
         if (redirect === 'create-ride') {
           navigate('/create-ride?payment_added=true')
+        } else if (rideId) {
+          navigate(`/ride/${rideId}`)
         }
       }
-
-      setTimeout(() => {
-        setSuccess(false)
-      }, 5000)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
       console.error('❌ Error:', message)
