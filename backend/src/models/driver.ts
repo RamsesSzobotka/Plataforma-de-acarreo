@@ -40,9 +40,9 @@ const driverSchema = new mongoose.Schema({
   // === DISPONIBILIDAD ===
   isAvailable: { type: Boolean, default: false },
   
-  // Ubicación actual (GeoJSON)
+  // Ubicación actual (GeoJSON) - solo se guarda cuando hay coordenadas válidas
   currentLocation: {
-    type: { type: String, enum: ['Point'], default: 'Point' },
+    type: { type: String, enum: ['Point'] },
     coordinates: { type: [Number] } // [lng, lat]
   },
   
@@ -59,8 +59,25 @@ const driverSchema = new mongoose.Schema({
   timestamps: true
 })
 
+// Pre-save hook: eliminar currentLocation si coordinates está vacío
+driverSchema.pre('save', function(next) {
+  if (this.currentLocation && Array.isArray(this.currentLocation.coordinates) && this.currentLocation.coordinates.length === 0) {
+    this.currentLocation = undefined
+  }
+  next()
+})
+
+// Pre-update hook: eliminar currentLocation si coordinates está vacío
+driverSchema.pre('findOneAndUpdate', function(next) {
+  const update = this.getUpdate() as any
+  if (update?.currentLocation?.coordinates?.length === 0) {
+    update.currentLocation = undefined
+  }
+  next()
+})
+
 driverSchema.index({ userId: 1 }, { unique: true })
-driverSchema.index({ currentLocation: '2dsphere' })
+driverSchema.index({ currentLocation: '2dsphere' }, { sparse: true })
 driverSchema.index({ isAvailable: 1 })
 driverSchema.index({ verificationStatus: 1 })
 

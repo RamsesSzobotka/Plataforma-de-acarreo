@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { usersAPI } from '../services/api'
 import FileUpload from '../components/FileUpload'
+import AddressInput from '../components/AddressInput'
 
 // Types para el estado del conductor
 interface DriverProfile {
@@ -48,6 +49,8 @@ interface FormData {
   
   // Sección 4: Contacto
   phone: string
+  locationAddress: string
+  locationCoordinates: [number, number] | null
   
   // Sección 5: Docs opcionales
   carneBlanco: string
@@ -125,6 +128,8 @@ export default function RegisterDriver() {
     plateImage: '',
     insurancePolicy: '',
     phone: '',
+    locationAddress: '',
+    locationCoordinates: null,
     carneBlanco: '',
     carneVerde: '',
     carneTransporteCarga: '',
@@ -135,7 +140,7 @@ export default function RegisterDriver() {
     { num: 1, title: 'Vehículo', icon: 'directions_car' },
     { num: 2, title: 'Documentos Personales', icon: 'badge' },
     { num: 3, title: 'Documentos del Vehículo', icon: 'description' },
-    { num: 4, title: 'Contacto', icon: 'phone' },
+    { num: 4, title: 'Contacto y Ubicación', icon: 'location_on' },
     { num: 5, title: 'Adicionales', icon: 'add_circle' },
   ]
   
@@ -149,7 +154,7 @@ export default function RegisterDriver() {
       case 3:
         return !!(formData.ruvDocument && formData.plateImage && formData.insurancePolicy)
       case 4:
-        return !!formData.phone
+        return !!(formData.phone && formData.locationCoordinates)
       case 5:
         return true // Opcional
       default:
@@ -182,7 +187,9 @@ export default function RegisterDriver() {
     // Validar todas las secciones obligatorias
     for (let i = 1; i <= 4; i++) {
       if (!isSectionValid(i)) {
-        setError(`Completa la sección ${i} antes de continuar`)
+        const sectionNames = ['', 'Vehículo', 'Documentos Personales', 'Documentos del Vehículo', 'Contacto y Ubicación']
+        setError(`Completa la sección "${sectionNames[i]}" antes de continuar`)
+        setActiveSection(i)
         return
       }
     }
@@ -199,24 +206,28 @@ export default function RegisterDriver() {
            'Content-Type': 'application/json',
            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
          },
-         body: JSON.stringify({
-           vehicleType: formData.vehicleType,
-           plate: formData.plate,
-           capacityKg: parseInt(formData.capacityKg),
-           vehicleImages: formData.vehicleImages,
-           licenseType: formData.licenseType,
-           licenseImage: formData.licenseImage,
-           cedulaFront: formData.cedulaFront,
-           cedulaBack: formData.cedulaBack,
-           ruvDocument: formData.ruvDocument,
-           plateImage: formData.plateImage,
-           insurancePolicy: formData.insurancePolicy,
-           phone: formData.phone,
-           carneBlanco: formData.carneBlanco || undefined,
-           carneVerde: formData.carneVerde || undefined,
-           carneTransporteCarga: formData.carneTransporteCarga || undefined,
-           fumigationCertificate: formData.fumigationCertificate || undefined,
-         }),
+        body: JSON.stringify({
+          vehicleType: formData.vehicleType,
+          plate: formData.plate,
+          capacityKg: parseInt(formData.capacityKg),
+          vehicleImages: formData.vehicleImages,
+          licenseType: formData.licenseType,
+          licenseImage: formData.licenseImage,
+          cedulaFront: formData.cedulaFront,
+          cedulaBack: formData.cedulaBack,
+          ruvDocument: formData.ruvDocument,
+          plateImage: formData.plateImage,
+          insurancePolicy: formData.insurancePolicy,
+          phone: formData.phone,
+          currentLocation: formData.locationCoordinates ? {
+            type: 'Point',
+            coordinates: formData.locationCoordinates
+          } : undefined,
+          carneBlanco: formData.carneBlanco || undefined,
+          carneVerde: formData.carneVerde || undefined,
+          carneTransporteCarga: formData.carneTransporteCarga || undefined,
+          fumigationCertificate: formData.fumigationCertificate || undefined,
+        }),
        })
        
        const data = await response.json()
@@ -725,7 +736,7 @@ export default function RegisterDriver() {
         {/* Sección 4: Contacto */}
         {activeSection === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Datos de Contacto</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Datos de Contacto y Ubicación</h2>
             
             {/* Teléfono */}
             <div>
@@ -741,6 +752,22 @@ export default function RegisterDriver() {
               />
               <p style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.25rem' }}>
                 Este número se mostrará a los clientes cuando aceptes un encargo.
+              </p>
+            </div>
+
+            {/* Ubicación actual */}
+            <div>
+              <AddressInput
+                label="Tu ubicación actual"
+                placeholder="Busca tu ubicación o seleccionala en el mapa"
+                value={formData.locationAddress}
+                coordinates={formData.locationCoordinates}
+                onAddressChange={(address) => updateField('locationAddress', address)}
+                onCoordinatesChange={(coords) => updateField('locationCoordinates', coords)}
+                required
+              />
+              <p style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.25rem' }}>
+                Esta ubicación se usará para mostrarte pedidos cercanos cuando estés disponible.
               </p>
             </div>
           </div>

@@ -170,6 +170,11 @@ users.post('/register-driver', authMiddleware, async (c) => {
     { role: 'driver', updatedAt: new Date() }
   )
   
+  // Preparar ubicación solo si hay coordenadas válidas
+  const locationUpdate = (body.currentLocation?.coordinates?.length === 2)
+    ? { type: 'Point', coordinates: body.currentLocation.coordinates }
+    : undefined
+
   // Crear driver con documents
   const driver = await Driver.findOneAndUpdate(
     { userId: currentUser.clerkId },
@@ -197,6 +202,9 @@ users.post('/register-driver', authMiddleware, async (c) => {
       
       // Contacto
       phone: body.phone,
+      
+      // Ubicación (solo si tiene coordenadas)
+      ...(locationUpdate ? { currentLocation: locationUpdate } : {}),
       
       // Verificación
       verificationStatus: 'pending',
@@ -303,6 +311,9 @@ users.patch('/driver/profile', authMiddleware, async (c) => {
   if (body.carneTransporteCarga !== undefined) updateData.carneTransporteCarga = body.carneTransporteCarga
   if (body.fumigationCertificate !== undefined) updateData.fumigationCertificate = body.fumigationCertificate
   if (body.phone) updateData.phone = body.phone
+  if (body.currentLocation?.coordinates?.length === 2) {
+    updateData.currentLocation = body.currentLocation
+  }
   
   // Actualizar
   const updated = await Driver.findOneAndUpdate(
