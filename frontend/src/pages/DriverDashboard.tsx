@@ -30,6 +30,8 @@ interface Ride {
   weight?: number
   distance?: number
   driverId?: string
+  clientId?: string
+  deliveryPhoto?: { url: string }
 }
 
 function DriverDashboard() {
@@ -433,10 +435,12 @@ function DriverDashboard() {
               <div key={ride._id} className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ width: '100%' }}>
-                    <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className="material-symbols-rounded">local_shipping</span>
-                      {ride.title}
-                    </h3>
+                    <Link to={`/ride/${ride._id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <span className="material-symbols-rounded">local_shipping</span>
+                        {ride.title}
+                      </h3>
+                    </Link>
                     
                     {/* Images */}
                     {ride.images && ride.images.length > 0 && (
@@ -484,22 +488,31 @@ function DriverDashboard() {
                   </div>
                   
                   <div style={{ textAlign: 'right', width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ 
-                      padding: '0.25rem 0.75rem',
-                      borderRadius: '999px',
-                      background: ride.status === 'requested' ? 'var(--warning)' : 'var(--secondary)',
-                      color: 'white',
-                      fontSize: '0.875rem'
-                    }}>
-                      {ride.status}
-                    </span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Link to={`/ride/${ride._id}`} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>visibility</span>
+                        Ver
+                      </Link>
+                      <Link to={`/chat/${ride._id}`} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chat</span>
+                        Chat
+                      </Link>
+                    </div>
                     <div>
-                      <p style={{ fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+                      <span style={{ 
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '999px',
+                        background: ride.status === 'requested' ? 'var(--warning)' : 'var(--secondary)',
+                        color: 'white',
+                        fontSize: '0.875rem'
+                      }}>
+                        {ride.status}
+                      </span>
+                      <p style={{ fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--primary)', marginTop: '0.5rem' }}>
                         ${ride.estimatedPrice}
                       </p>
                       <button
                         className="btn btn-primary"
-                        style={{ marginTop: '0.5rem' }}
                         onClick={() => handleAcceptRide(ride._id, ride.estimatedPrice)}
                       >
                         <span className="material-symbols-rounded">check</span>
@@ -524,36 +537,98 @@ function DriverDashboard() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {myRides.map((ride) => (
-            <Link
-              key={ride._id}
-              to={`/ride/${ride._id}`}
-              className="card"
-              style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                <div>
-                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-symbols-rounded">local_shipping</span>
-                    {ride.title}
-                  </h3>
-                  <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
-                    {ride.pickupLocation.address}
-                    <span style={{ margin: '0 0.5rem' }}>→</span>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
-                    {ride.dropoffLocation.address}
+            <div key={ride._id} className="card">
+              <Link
+                to={`/ride/${ride._id}`}
+                style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <div>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="material-symbols-rounded">local_shipping</span>
+                      {ride.title}
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
+                      {ride.pickupLocation.address}
+                      <span style={{ margin: '0 0.5rem' }}>→</span>
+                      <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
+                      {ride.dropoffLocation.address}
+                    </p>
+                  </div>
+                  <span style={{
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '999px',
+                    background: 'var(--primary)',
+                    color: 'white',
+                  }}>
+                    {ride.status}
+                  </span>
+                </div>
+              </Link>
+              
+              {/* Quick actions for driver */}
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Link to={`/ride/${ride._id}`} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>visibility</span>
+                  Ver Detalles
+                </Link>
+                <Link to={`/chat/${ride._id}`} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chat</span>
+                  Chat
+                </Link>
+                
+                {/* Estado: accepted - iniciar viaje */}
+                {ride.status === 'accepted' && (
+                  <button
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    onClick={async () => {
+                      if (!confirm('¿Confirmas que tienes la mercancía cargada?')) return
+                      try {
+                        const token = await getToken()
+                        await ridesAPI.start(ride._id, token || undefined)
+                        loadRides()
+                      } catch (error) {
+                        console.error('Error starting ride:', error)
+                      }
+                    }}
+                  >
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>play_arrow</span>
+                    Iniciar Viaje
+                  </button>
+                )}
+                
+                {/* Estado: in_progress - subir foto de entrega */}
+                {ride.status === 'in_progress' && (
+                  <button
+                    className="btn btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    onClick={async () => {
+                      const url = prompt('URL de la foto de entrega:')
+                      if (!url) return
+                      try {
+                        const token = await getToken()
+                        await ridesAPI.deliveryPhoto(ride._id, url, '', token || undefined)
+                        loadRides()
+                      } catch (error) {
+                        console.error('Error uploading photo:', error)
+                      }
+                    }}
+                  >
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>photo_camera</span>
+                    Subir Foto Entrega
+                  </button>
+                )}
+                
+                {/* Precio */}
+                <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                  <p style={{ fontSize: '1.25rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+                    ${ride.finalPrice || ride.estimatedPrice}
                   </p>
                 </div>
-                <span style={{
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '999px',
-                  background: 'var(--primary)',
-                  color: 'white',
-                }}>
-                  {ride.status}
-                </span>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}
