@@ -22,17 +22,13 @@ const rideSchema = new mongoose.Schema({
   // Locations con GeoJSON
   pickupLocation: {
     address: { type: String, required: true },
-    coordinates: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], required: true } // [lng, lat]
-    }
+    type: { type: String, enum: ['Point'], default: 'Point' },
+    coordinates: { type: [Number], required: true } // [lng, lat]
   },
   dropoffLocation: {
     address: { type: String, required: true },
-    coordinates: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], required: true }
-    }
+    type: { type: String, enum: ['Point'], default: 'Point' },
+    coordinates: { type: [Number], required: true }
   },
   
   // Precios
@@ -71,8 +67,8 @@ const rideSchema = new mongoose.Schema({
   timestamps: true
 })
 
-// Índices
-rideSchema.index({ pickupLocation: '2dsphere' })
+// Índices - 2dsphere desactivado temporalmente
+// rideSchema.index({ 'pickupLocation.coordinates': '2dsphere' })
 rideSchema.index({ status: 1 })
 rideSchema.index({ clientId: 1 })
 rideSchema.index({ driverId: 1 })

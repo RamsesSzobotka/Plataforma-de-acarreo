@@ -57,12 +57,14 @@ function CreateRide() {
           description: formData.description,
           type: formData.type,
           pickupLocation: { 
-            address: formData.pickupAddress, 
-            coordinates: { type: 'Point', coordinates: formData.pickupCoordinates }
+            address: formData.pickupAddress,
+            type: 'Point',
+            coordinates: formData.pickupCoordinates
           },
           dropoffLocation: { 
-            address: formData.dropoffAddress, 
-            coordinates: { type: 'Point', coordinates: formData.dropoffCoordinates }
+            address: formData.dropoffAddress,
+            type: 'Point',
+            coordinates: formData.dropoffCoordinates
           },
           estimatedPrice: formData.estimatedPrice,
           images: [],
