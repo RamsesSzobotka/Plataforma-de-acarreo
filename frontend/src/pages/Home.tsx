@@ -542,16 +542,11 @@ function Home() {
                     >
                       <span className="material-symbols-rounded">add_circle</span>
                       Publicar mi Primer Pedido
-                    </button>
+</button>
                   </SignUpButton>
                 )}
               </div>
-                >
-                  <span className="material-symbols-rounded">add_circle</span>
-                  {isSignedIn ? 'Crear un Pedido' : 'Publicar mi Primer Pedido'}
-                </button>
-              </div>
-            
+             
             {/* Cards de ejemplo derecha */}
             <div style={{
               display: 'grid',

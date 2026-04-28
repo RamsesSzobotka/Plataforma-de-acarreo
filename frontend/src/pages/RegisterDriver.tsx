@@ -348,21 +348,66 @@ export default function RegisterDriver() {
           )}
 
           {driverStatus.verificationStatus === 'pending' && (
-            <Link
-              to="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                marginTop: '1.5rem',
-                color: '#64748B',
-                textDecoration: 'none',
-                fontFamily: '"Inter", sans-serif',
-              }}
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>home</span>
-              Volver al inicio
-            </Link>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+              {/* Dev-only bypass button */}
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{
+                  background: '#FEE2E2',
+                  border: '2px solid #EF4444',
+                  borderRadius: '12px',
+                  padding: '1rem',
+                  marginBottom: '0.5rem',
+                }}>
+                  <p style={{ fontSize: '0.875rem', color: '#7F1D1D', marginBottom: '0.75rem', fontWeight: 600 }}>
+                    ⚡ MODO DESARROLLO - Para Testing
+                  </p>
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('bypassVerification', 'true')
+                      navigate('/driver/dashboard')
+                    }}
+                    style={{
+                      background: '#EF4444',
+                      color: 'white',
+                      padding: '0.875rem 1.5rem',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontFamily: '"Plus Jakarta Sans", sans-serif',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '1rem',
+                      width: '100%',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <span className="material-symbols-rounded">bolt</span>
+                    Saltarse Verificación (DEV ONLY)
+                  </button>
+                  <p style={{ fontSize: '0.75rem', color: '#991B1B', marginTop: '0.5rem' }}>
+                    Este botón solo está disponible en desarrollo y se eliminará antes de producción.
+                  </p>
+                </div>
+              )}
+              
+              <Link
+                to="/"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  color: '#64748B',
+                  textDecoration: 'none',
+                  fontFamily: '"Inter", sans-serif',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>home</span>
+                Volver al inicio
+              </Link>
+            </div>
           )}
         </div>
 
