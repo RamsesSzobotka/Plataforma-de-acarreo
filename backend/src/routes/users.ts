@@ -46,7 +46,7 @@ users.get('/', authMiddleware, requireRole(['admin']), async (c) => {
 })
 
 // Obtener usuario por ID de Clerk
-users.get('/:clerkId', authMiddleware, async (c) => {
+users.get('/:clerkId', async (c) => {
   const clerkId = c.req.param('clerkId')
   const user = await User.findOne({ clerkId })
   
@@ -202,7 +202,7 @@ users.get('/driver/me', authMiddleware, async (c) => {
 })
 
 // Obtener perfil de driver (otros usuarios)
-users.get('/driver/:userId', authMiddleware, async (c) => {
+users.get('/driver/:userId', async (c) => {
   const userId = c.req.param('userId')
   
   const driver = await Driver.findOne({ userId })

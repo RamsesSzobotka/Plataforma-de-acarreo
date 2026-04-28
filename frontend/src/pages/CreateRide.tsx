@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import AddressInput from '../components/AddressInput'
+import MultiFileUpload from '../components/MultiFileUpload'
+
+interface UploadedImage {
+  url: string
+  publicId?: string
+}
 
 interface RideFormData {
   title: string
   description: string
   type: string
-  images: File[]
+  images: UploadedImage[]
   pickupAddress: string
   dropoffAddress: string
   pickupCoordinates: [number, number] | null
@@ -19,6 +25,7 @@ interface RideFormData {
 
 function CreateRide() {
   const { user } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<RideFormData>({
@@ -42,15 +49,23 @@ function CreateRide() {
       alert('Por favor selecciona una dirección de la lista de sugerencias')
       return
     }
+
+    // Validar que tenga al menos una imagen
+    if (formData.images.length === 0) {
+      alert('Sube al menos una imagen del pedido')
+      return
+    }
     
     setLoading(true)
     
     try {
-      // TODO: Upload images first
-      
+      const token = await getToken()
       const response = await fetch('/api/rides', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           clientId: user.id,
           title: formData.title,
@@ -67,7 +82,9 @@ function CreateRide() {
             coordinates: formData.dropoffCoordinates
           },
           estimatedPrice: formData.estimatedPrice,
-          images: [],
+          images: formData.images,
+          packages: formData.packages,
+          notes: formData.notes,
         }),
       })
       
@@ -156,6 +173,15 @@ function CreateRide() {
           />
         </div>
 
+        <MultiFileUpload
+          label="Imágenes del Pedido"
+          required
+          maxFiles={8}
+          value={formData.images}
+          onChange={(images) => setFormData({ ...formData, images })}
+          folder="rides"
+        />
+
         <AddressInput
           label="Direccion de Recogida"
           placeholder="Escribe una direccion en Panama..."
@@ -190,10 +216,39 @@ function CreateRide() {
           />
         </div>
 
+        {/* Campos opcionales */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+              Número de Bultos
+            </label>
+            <input
+              type="number"
+              className="input"
+              placeholder="Ej: 5"
+              value={formData.packages || ''}
+              onChange={(e) => setFormData({ ...formData, packages: e.target.value ? Number(e.target.value) : undefined })}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+            Notas Especiales
+          </label>
+          <textarea
+            className="input"
+            rows={3}
+            placeholder="Ej: Requiere ayuda para cargar, contiene artículos frágiles..."
+            value={formData.notes || ''}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          />
+        </div>
+
         <button 
           type="submit" 
           className="btn btn-primary" 
-          disabled={loading || !formData.pickupCoordinates || !formData.dropoffCoordinates}
+          disabled={loading || !formData.pickupCoordinates || !formData.dropoffCoordinates || formData.images.length === 0}
         >
           {loading ? 'Creando...' : 'Crear Pedido'}
         </button>

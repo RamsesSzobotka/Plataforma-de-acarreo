@@ -25,6 +25,7 @@ export async function uploadImage(file: Buffer, folder: string): Promise<UploadR
       {
         folder: `plataforma-acarreo/${folder}`,
         resource_type: 'image' as const,
+        insecure: true,
       },
       (error, result) => {
         if (error) {

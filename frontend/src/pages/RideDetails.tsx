@@ -19,11 +19,32 @@ interface Ride {
   createdAt: string
 }
 
+interface Driver {
+  _id: string
+  userId: string
+  vehicleType: string
+  plate: string
+  rating: number
+  totalRides: number
+}
+
+interface User {
+  _id: string
+  clerkId: string
+  firstName?: string
+  lastName?: string
+  imageUrl?: string
+}
+
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
   const [ride, setRide] = useState<Ride | null>(null)
+  const [driver, setDriver] = useState<Driver | null>(null)
+  const [driverUser, setDriverUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [rating, setRating] = useState(0)
+  const [comment, setComment] = useState('')
 
   useEffect(() => {
     loadRide()
@@ -34,6 +55,18 @@ function RideDetails() {
       const response = await fetch(`/api/rides/${id}`)
       const data = await response.json()
       setRide(data)
+
+      // Cargar info del conductor si existe
+      if (data.driverId) {
+        const driverResponse = await fetch(`/api/users/${data.driverId}`)
+        const driverData = await driverResponse.json()
+        setDriverUser(driverData)
+
+        // Cargar perfil del conductor
+        const driverProfileResponse = await fetch(`/api/users/driver/${data.driverId}`)
+        const driverProfile = await driverProfileResponse.json()
+        setDriver(driverProfile)
+      }
     } catch (error) {
       console.error('Error loading ride:', error)
     } finally {
@@ -69,6 +102,40 @@ function RideDetails() {
     }
   }
 
+  async function handlePay() {
+    if (!ride) return
+    try {
+      // Redirigir a pantalla de pago (F1-10)
+      // Por ahora mostrar mensaje
+      alert(`Pagar $${ride.finalPrice || ride.estimatedPrice}`)
+    } catch (error) {
+      console.error('Error paying:', error)
+    }
+  }
+
+  async function handleRate() {
+    if (!ride || rating === 0 || !user) return
+    try {
+      const response = await fetch(`/api/rides/${id}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating,
+          comment,
+          raterId: user.id,
+        }),
+      })
+      if (response.ok) {
+        alert('Calificación enviada')
+        setRating(0)
+        setComment('')
+        loadRide()
+      }
+    } catch (error) {
+      console.error('Error rating:', error)
+    }
+  }
+
   if (loading) return <div>Cargando...</div>
   if (!ride) return <div>Pedido no encontrado</div>
 
@@ -99,7 +166,61 @@ function RideDetails() {
           {ride.description}
         </p>
 
-        {/* Route info */}
+        {/* Images */}
+        {ride.images && ride.images.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <span className="material-symbols-rounded">image</span>
+              Imágenes
+            </strong>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+              {ride.images.map((img, idx) => (
+                <img 
+                  key={idx}
+                  src={img.url} 
+                  alt={`Imagen ${idx + 1}`} 
+                  style={{ 
+                    width: '100%', 
+                    height: '150px', 
+                    objectFit: 'cover',
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid var(--border)'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Driver info */}
+        {ride.status === 'accepted' && driverUser && driver && (
+          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <span className="material-symbols-rounded">person</span>
+              Conductor Asignado
+            </strong>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              {driverUser.imageUrl && (
+                <img 
+                  src={driverUser.imageUrl} 
+                  alt={driverUser.firstName}
+                  style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover' }}
+                />
+              )}
+              <div>
+                <p style={{ fontWeight: 'bold' }}>
+                  {driverUser.firstName} {driverUser.lastName}
+                </p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  ⭐ {driver.rating} ({driver.totalRides} viajes)
+                </p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  🚗 {driver.vehicleType} - {driver.plate}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -127,7 +248,7 @@ function RideDetails() {
           </div>
           
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {canCancel && isOwner && (
               <button className="btn btn-outline" onClick={handleCancel}>
                 <span className="material-symbols-rounded">cancel</span>
@@ -138,6 +259,12 @@ function RideDetails() {
               <button className="btn btn-primary" onClick={handleConfirmDelivery}>
                 <span className="material-symbols-rounded">check_circle</span>
                 Confirmar Entrega
+              </button>
+            )}
+            {ride.status === 'completed' && isOwner && (
+              <button className="btn btn-primary" onClick={handlePay}>
+                <span className="material-symbols-rounded">payment</span>
+                Pagar ${ride.finalPrice || ride.estimatedPrice}
               </button>
             )}
           </div>
@@ -165,6 +292,59 @@ function RideDetails() {
               alt="Delivery" 
               style={{ marginTop: '0.5rem', maxWidth: '300px', borderRadius: 'var(--radius)' }}
             />
+          </div>
+        )}
+
+        {/* Rating */}
+        {ride.status === 'paid' && isOwner && (
+          <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <span className="material-symbols-rounded">star</span>
+              Calificar Conductor
+            </strong>
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setRating(star)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.5rem',
+                      cursor: 'pointer',
+                      opacity: rating >= star ? 1 : 0.3,
+                      transition: 'opacity 0.2s',
+                    }}
+                  >
+                    ⭐
+                  </button>
+                ))}
+              </div>
+              <textarea
+                placeholder="Comentario (opcional)"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '0.5rem',
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--border)',
+                  fontFamily: 'var(--font-body)',
+                  marginBottom: '0.75rem',
+                }}
+              />
+              <button 
+                onClick={handleRate}
+                disabled={rating === 0}
+                className="btn btn-primary"
+                style={{ opacity: rating === 0 ? 0.5 : 1 }}
+              >
+                <span className="material-symbols-rounded">check</span>
+                Enviar Calificación
+              </button>
+            </div>
           </div>
         )}
       </div>

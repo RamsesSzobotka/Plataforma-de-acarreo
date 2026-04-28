@@ -15,7 +15,7 @@ upload.post('/', authMiddleware, async (c) => {
   }
   
   //获取表单数据
-  const formData = await c.req.parseForm()
+  const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   const folder = (formData.get('folder') as string) || 'general'
   

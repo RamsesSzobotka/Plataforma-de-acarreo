@@ -52,7 +52,7 @@ async function getClerkUser(clerkId: string): Promise<{
  * - 403: Token inválido o expirado
  */
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  const authHeader = c.req.headers().get('Authorization')
+  const authHeader = c.req.header('Authorization')
   
   if (!authHeader?.startsWith('Bearer ')) {
     return c.json({ error: 'Authorization header required' }, 401)

@@ -1,5 +1,6 @@
 import { Hono } from 'hono/tiny'
 import { Ride } from '../models/ride'
+import { Rating } from '../models/rating'
 
 const rides = new Hono()
 
@@ -35,13 +36,76 @@ rides.get('/', async (c) => {
 // Crear ride
 rides.post('/', async (c) => {
   const body = await c.req.json()
-  // TODO: Validar body con Zod
-  // TODO: Verificar ownership (auth)
+
+  // Validar campos requeridos
+  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images']
+  const missing = required.filter(field => !body[field])
   
-  const ride = new Ride(body)
-  await ride.save()
-  
-  return c.json(ride, 201)
+  if (missing.length > 0) {
+    return c.json({ error: `Campos requeridos faltantes: ${missing.join(', ')}` }, 400)
+  }
+
+  // Validar que hay al menos una imagen
+  if (!Array.isArray(body.images) || body.images.length === 0) {
+    return c.json({ error: 'Se requiere al menos una imagen del pedido' }, 400)
+  }
+
+  // Validar máximo 8 imágenes
+  if (body.images.length > 8) {
+    return c.json({ error: 'Máximo 8 imágenes permitidas' }, 400)
+  }
+
+  // Validar tipo válido
+  const validTypes = ['mudanza', 'electrodomesticos', 'muebles', 'productos', 'otros']
+  if (!validTypes.includes(body.type)) {
+    return c.json({ error: `Tipo debe ser uno de: ${validTypes.join(', ')}` }, 400)
+  }
+
+  // Validar ubicaciones
+  if (!body.pickupLocation.coordinates || !Array.isArray(body.pickupLocation.coordinates) || body.pickupLocation.coordinates.length !== 2) {
+    return c.json({ error: 'pickupLocation.coordinates debe ser [lng, lat]' }, 400)
+  }
+
+  if (!body.dropoffLocation.coordinates || !Array.isArray(body.dropoffLocation.coordinates) || body.dropoffLocation.coordinates.length !== 2) {
+    return c.json({ error: 'dropoffLocation.coordinates debe ser [lng, lat]' }, 400)
+  }
+
+  // Validar precio
+  if (body.estimatedPrice < 0) {
+    return c.json({ error: 'Precio no puede ser negativo' }, 400)
+  }
+
+  try {
+    const ride = new Ride({
+      clientId: body.clientId,
+      title: body.title,
+      description: body.description,
+      type: body.type,
+      images: body.images,
+      pickupLocation: {
+        address: body.pickupLocation.address,
+        type: 'Point',
+        coordinates: body.pickupLocation.coordinates
+      },
+      dropoffLocation: {
+        address: body.dropoffLocation.address,
+        type: 'Point',
+        coordinates: body.dropoffLocation.coordinates
+      },
+      estimatedPrice: body.estimatedPrice,
+      packages: body.packages,
+      notes: body.notes,
+      status: 'requested',
+      chatEnabled: false,
+    })
+
+    await ride.save()
+
+    return c.json(ride, 201)
+  } catch (error: any) {
+    console.error('Error creating ride:', error)
+    return c.json({ error: 'Error al crear el pedido: ' + error.message }, 500)
+  }
 })
 
 // Obtener ride por ID
@@ -133,6 +197,51 @@ rides.post('/:id/cancel', async (c) => {
   }, { new: true })
   
   return c.json(ride)
+})
+
+// Calificar conductor (cliente) o cliente (conductor)
+rides.post('/:id/rate', async (c) => {
+  const id = c.req.param('id')
+  const { rating, comment, raterId } = await c.req.json()
+  
+  if (!raterId) {
+    return c.json({ error: 'raterId es requerido' }, 400)
+  }
+  
+  if (!rating || rating < 1 || rating > 5) {
+    return c.json({ error: 'Calificación debe estar entre 1 y 5' }, 400)
+  }
+  
+  // Obtener el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+  
+  // Determinar quién se está calificando
+  let ratedId: string
+  let role: 'client' | 'driver'
+  
+  if (raterId === ride.clientId && ride.driverId) {
+    // Cliente califica al conductor
+    ratedId = ride.driverId
+    role = 'driver'
+  } else if (raterId === ride.driverId && ride.clientId) {
+    // Conductor califica al cliente
+    ratedId = ride.clientId
+    role = 'client'
+  } else {
+    return c.json({ error: 'No tienes permiso para calificar este ride' }, 403)
+  }
+  
+  // Crear o actualizar la calificación
+  const ratingRecord = await Rating.findOneAndUpdate(
+    { rideId: id, raterId, ratedId, role },
+    { rating, comment, createdAt: new Date() },
+    { upsert: true, new: true }
+  )
+  
+  return c.json(ratingRecord)
 })
 
 export default rides
