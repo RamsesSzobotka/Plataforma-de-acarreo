@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import AddressInput from '../components/AddressInput'
 
 interface RideFormData {
   title: string
@@ -9,6 +10,8 @@ interface RideFormData {
   images: File[]
   pickupAddress: string
   dropoffAddress: string
+  pickupCoordinates: [number, number] | null
+  dropoffCoordinates: [number, number] | null
   estimatedPrice: number
   packages?: number
   notes?: string
@@ -25,12 +28,20 @@ function CreateRide() {
     images: [],
     pickupAddress: '',
     dropoffAddress: '',
+    pickupCoordinates: null,
+    dropoffCoordinates: null,
     estimatedPrice: 0,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
+    
+    // Validar que tenga coordenadas
+    if (!formData.pickupCoordinates || !formData.dropoffCoordinates) {
+      alert('Por favor selecciona una dirección de la lista de sugerencias')
+      return
+    }
     
     setLoading(true)
     
@@ -45,8 +56,14 @@ function CreateRide() {
           title: formData.title,
           description: formData.description,
           type: formData.type,
-          pickupLocation: { address: formData.pickupAddress, coordinates: [0, 0] },
-          dropoffLocation: { address: formData.dropoffAddress, coordinates: [0, 0] },
+          pickupLocation: { 
+            address: formData.pickupAddress, 
+            coordinates: { type: 'Point', coordinates: formData.pickupCoordinates }
+          },
+          dropoffLocation: { 
+            address: formData.dropoffAddress, 
+            coordinates: { type: 'Point', coordinates: formData.dropoffCoordinates }
+          },
           estimatedPrice: formData.estimatedPrice,
           images: [],
         }),
@@ -54,9 +71,13 @@ function CreateRide() {
       
       if (response.ok) {
         navigate('/my-rides')
+      } else {
+        const error = await response.json()
+        alert(error.message || 'Error al crear el pedido')
       }
     } catch (error) {
       console.error('Error creating ride:', error)
+      alert('Error al crear el pedido')
     } finally {
       setLoading(false)
     }
@@ -133,33 +154,25 @@ function CreateRide() {
           />
         </div>
 
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Direccion de Recogida *
-          </label>
-          <input
-            type="text"
-            className="input"
-            placeholder="Direccion donde recogida"
-            value={formData.pickupAddress}
-            onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
-            required
-          />
-        </div>
+        <AddressInput
+          label="Direccion de Recogida"
+          placeholder="Escribe una direccion en Panama..."
+          value={formData.pickupAddress}
+          coordinates={formData.pickupCoordinates}
+          onAddressChange={(address) => setFormData({ ...formData, pickupAddress: address })}
+          onCoordinatesChange={(coords) => setFormData({ ...formData, pickupCoordinates: coords })}
+          required
+        />
 
-        <div>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Direccion de Entrega *
-          </label>
-          <input
-            type="text"
-            className="input"
-            placeholder="Direccion de entrega"
-            value={formData.dropoffAddress}
-            onChange={(e) => setFormData({ ...formData, dropoffAddress: e.target.value })}
-            required
-          />
-        </div>
+        <AddressInput
+          label="Direccion de Entrega"
+          placeholder="Escribe una direccion en Panama..."
+          value={formData.dropoffAddress}
+          coordinates={formData.dropoffCoordinates}
+          onAddressChange={(address) => setFormData({ ...formData, dropoffAddress: address })}
+          onCoordinatesChange={(coords) => setFormData({ ...formData, dropoffCoordinates: coords })}
+          required
+        />
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
@@ -175,9 +188,17 @@ function CreateRide() {
           />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={loading}>
+        <button 
+          type="submit" 
+          className="btn btn-primary" 
+          disabled={loading || !formData.pickupCoordinates || !formData.dropoffCoordinates}
+        >
           {loading ? 'Creando...' : 'Crear Pedido'}
         </button>
+
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+          Direcciones proporcionadas por <a href="https://www.openstreetmap.org" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>OpenStreetMap</a>
+        </p>
       </form>
     </div>
   )

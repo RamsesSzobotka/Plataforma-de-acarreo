@@ -9,7 +9,7 @@ const rideSchema = new mongoose.Schema({
   description: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ['mudanza', 'electrodomésticos', 'muebles', 'productos', 'otros'],
+    enum: ['mudanza', 'electrodomesticos', 'muebles', 'productos', 'otros'],
     required: true 
   },
   
