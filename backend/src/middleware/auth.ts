@@ -104,7 +104,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     // Settear usuario en contexto
     c.set('user', {
       clerkId: user.clerkId,
-      role: user.role,
+      role: user.role || 'client',
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,

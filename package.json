@@ -1,0 +1,18 @@
+{
+  "name": "plataforma-de-acarreo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"bun run dev:backend\" \"bun run dev:frontend\"",
+    "dev:backend": "cd backend && bun run dev",
+    "dev:frontend": "cd frontend && bun run dev",
+    "db:up": "cd backend && bun run db:up",
+    "db:down": "cd backend && bun run db:down",
+    "build": "cd backend && bun run build",
+    "build:frontend": "cd frontend && bun run build",
+    "start": "cd backend && bun run start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

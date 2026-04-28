@@ -33,6 +33,9 @@ app.route('/api/payments', payments)
 app.route('/api/upload', upload)
 app.route('/api/admin', admin)
 
+// Admin routes (sin seguridad por ahora)
+app.route('/admin/api', admin)
+
 // Error handler
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
 app.onError((err, c) => {

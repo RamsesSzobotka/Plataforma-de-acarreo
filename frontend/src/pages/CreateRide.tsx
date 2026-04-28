@@ -28,11 +28,11 @@ function CreateRide() {
   const { getToken } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string>('')
   const [formData, setFormData] = useState<RideFormData>({
     title: '',
     description: '',
     type: '',
-    images: [],
     pickupAddress: '',
     dropoffAddress: '',
     pickupCoordinates: null,
@@ -57,6 +57,7 @@ function CreateRide() {
     }
     
     setLoading(true)
+    setError('')
     
     try {
       const token = await getToken()
@@ -124,6 +125,19 @@ function CreateRide() {
         <span className="material-symbols-rounded">add_circle</span>
         Crear Nuevo Pedido
       </h1>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          marginBottom: '1rem',
+          background: '#fee2e2',
+          border: '1px solid #fca5a5',
+          borderRadius: 'var(--radius)',
+          color: '#991b1b'
+        }}>
+          {error}
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div>
@@ -138,6 +152,9 @@ function CreateRide() {
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             required
           />
+          {formData.title && formData.title.length < 10 && (
+            <small style={{ color: '#ef4444' }}>Mínimo 10 caracteres ({formData.title.length}/10)</small>
+          )}
         </div>
 
         <div>
@@ -152,7 +169,7 @@ function CreateRide() {
           >
             <option value="">Seleccionar tipo</option>
             <option value="mudanza">Mudanza</option>
-            <option value="electrodomesticos">Electrodomesticos</option>
+            <option value="electrodomesticos">Electrodomésticos</option>
             <option value="muebles">Muebles</option>
             <option value="productos">Productos</option>
             <option value="otros">Otros</option>
@@ -161,7 +178,7 @@ function CreateRide() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-            Descripcion *
+            Descripción *
           </label>
           <textarea
             className="input"
@@ -171,6 +188,9 @@ function CreateRide() {
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             required
           />
+          {formData.description && formData.description.length < 20 && (
+            <small style={{ color: '#ef4444' }}>Mínimo 20 caracteres ({formData.description.length}/20)</small>
+          )}
         </div>
 
         <MultiFileUpload

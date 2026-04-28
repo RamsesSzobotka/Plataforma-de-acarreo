@@ -31,6 +31,9 @@ export const requireRole = (...allowedRoles: Role[]): MiddlewareHandler => {
   }
 }
 
+// Alias para roleMiddleware (utilizado por rides.ts)
+export const roleMiddleware = requireRole
+
 // Helpers convenientes para casos comunes
 export const requireDriver = () => requireRole('driver', 'admin')
 export const requireClient = () => requireRole('client', 'admin')

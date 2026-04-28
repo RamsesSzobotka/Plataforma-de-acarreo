@@ -22,6 +22,7 @@ export interface Ride {
   stripePaymentMethodId?: string  // NUEVO: Payment Method guardado
   paymentIntentId?: string         // NUEVO: PaymentIntent de Stripe
   paidAt?: string                  // NUEVO: Fecha de pago automático
+  distance?: number  // Calculated distance in km
   createdAt: string
   updatedAt: string
 }
@@ -48,6 +49,10 @@ export interface Location {
     type: string
     coordinates: [number, number]
   }
+}
+
+export interface RideWithDistance extends Ride {
+  distance: number
 }
 
 // User types
@@ -80,6 +85,8 @@ export interface Driver {
   rating: number
   totalRides: number
   isVerified: boolean
+  verificationStatus?: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
+  rejectionReason?: string
   createdAt: string
   updatedAt: string
 }
@@ -102,5 +109,22 @@ export interface PaginatedResponse<T> {
     limit: number
     total: number
     pages: number
+  }
+}
+
+// Geospatial API Response
+export interface GeospatialRidesResponse {
+  success: boolean
+  data: RideWithDistance[]
+  pagination: {
+    total: number
+    limit: number
+    skip: number
+    hasMore: boolean
+  }
+  metadata: {
+    searchedAt: string
+    driverLocation: { lat: number; lng: number }
+    radiusKm: number
   }
 }

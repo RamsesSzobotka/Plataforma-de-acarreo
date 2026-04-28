@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
+import { ridesAPI } from '../services/api'
 
 interface Ride {
   _id: string
@@ -42,6 +43,7 @@ interface User {
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
+  const navigate = useNavigate()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
@@ -50,6 +52,8 @@ function RideDetails() {
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
+  const [error, setError] = useState<string>('')
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     loadRide()
@@ -57,8 +61,8 @@ function RideDetails() {
 
   async function loadRide() {
     try {
-      const response = await fetch(`/api/rides/${id}`)
-      const data = await response.json()
+      if (!id) return
+      const data = await ridesAPI.get(id)
       setRide(data)
 
       // Cargar info del conductor si existe
@@ -79,18 +83,36 @@ function RideDetails() {
     }
   }
 
-  async function handleCancel() {
-    if (!confirm('Estas seguro de cancelar este pedido?')) return
-    
+  async function handleAccept() {
+    if (!ride || !user) return
+    setActionLoading(true)
+    setError('')
     try {
-      await fetch(`/api/rides/${id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Cancelado por el cliente' }),
-      })
-      loadRide()
-    } catch (error) {
-      console.error('Error canceling ride:', error)
+      const agreedPrice = ride.estimatedPrice
+      const updated = await ridesAPI.accept(ride._id, agreedPrice)
+      setRide(updated)
+      alert('¡Pedido aceptado! Ahora puedes chatear con el cliente.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al aceptar el pedido'
+      setError(message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleStart() {
+    if (!ride || !user) return
+    setActionLoading(true)
+    setError('')
+    try {
+      const updated = await ridesAPI.start(ride._id)
+      setRide(updated)
+      alert('¡Viaje iniciado! Tu ubicación está siendo compartida.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al iniciar el viaje'
+      setError(message)
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -152,11 +174,26 @@ function RideDetails() {
     }
   }
 
-  if (loading) return <div>Cargando...</div>
-  if (!ride) return <div>Pedido no encontrado</div>
+  if (loading) return <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando pedido...</div>
+  if (!ride) return <div style={{ textAlign: 'center', padding: '2rem' }}>Pedido no encontrado</div>
 
   const isOwner = user?.id === ride.clientId
-  const canCancel = ride.status === 'requested' || ride.status === 'negotiating' || ride.status === 'accepted'
+  const isDriver = user?.id === ride.driverId
+  const canAccept = ride.status === 'requested' && !isOwner
+  const canStart = ride.status === 'accepted' && isDriver
+  const canConfirmDelivery = ride.status === 'in_progress' && isOwner
+  const canCancel = ['requested', 'negotiating', 'accepted'].includes(ride.status)
+  const canChat = ['negotiating', 'accepted', 'in_progress'].includes(ride.status) && (isOwner || isDriver)
+
+  const statusColors: Record<string, string> = {
+    requested: '#f59e0b',
+    negotiating: '#8b5cf6',
+    accepted: '#22c55e',
+    in_progress: '#3b82f6',
+    completed: '#22c55e',
+    paid: '#22c55e',
+    cancelled: '#ef4444',
+  }
 
   return (
     <div>
@@ -165,14 +202,29 @@ function RideDetails() {
         Volver a Mis Pedidos
       </Link>
 
+      {error && (
+        <div style={{
+          padding: '1rem',
+          marginBottom: '1rem',
+          background: '#fee2e2',
+          border: '1px solid #fca5a5',
+          borderRadius: 'var(--radius)',
+          color: '#991b1b'
+        }}>
+          {error}
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
           <h1>{ride.title}</h1>
           <span style={{
             padding: '0.5rem 1rem',
             borderRadius: 'var(--radius)',
-            background: 'var(--primary)',
+            background: statusColors[ride.status] || '#64748b',
             color: 'white',
+            fontSize: '0.9rem',
+            fontWeight: 500,
           }}>
             {ride.status}
           </span>
@@ -257,8 +309,8 @@ function RideDetails() {
         {/* Price */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <p>Tipo: {ride.type}</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Tipo: {ride.type}</p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
               ${ride.finalPrice || ride.estimatedPrice}
             </p>
           </div>
@@ -271,8 +323,13 @@ function RideDetails() {
                 Cancelar
               </button>
             )}
-            {ride.status === 'in_progress' && isOwner && (
-              <button className="btn btn-primary" onClick={handleConfirmDelivery}>
+
+            {canConfirmDelivery && (
+              <button 
+                className="btn btn-primary"
+                onClick={handleConfirmDelivery}
+                disabled={actionLoading}
+              >
                 <span className="material-symbols-rounded">check_circle</span>
                 Confirmar Entrega
               </button>
@@ -360,10 +417,11 @@ function RideDetails() {
             </Link>
           </div>
         )}
+        */}
 
         {/* Delivery photo */}
         {ride.deliveryPhoto && (
-          <div style={{ marginTop: '1.5rem' }}>
+          <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span className="material-symbols-rounded">photo_camera</span>
               Foto de Entrega
@@ -371,7 +429,7 @@ function RideDetails() {
             <img 
               src={ride.deliveryPhoto.url} 
               alt="Delivery" 
-              style={{ marginTop: '0.5rem', maxWidth: '300px', borderRadius: 'var(--radius)' }}
+              style={{ marginTop: '0.5rem', maxWidth: '300px', maxHeight: '300px', borderRadius: 'var(--radius)', objectFit: 'cover' }}
             />
           </div>
         )}
