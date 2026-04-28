@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
+import { ridesAPI, usersAPI } from '../services/api'
 
 interface Driver {
   _id: string
@@ -26,6 +27,7 @@ interface Ride {
 
 function DriverDashboard() {
   const { user } = useUser()
+  const { getToken } = useAuth()
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableRides, setAvailableRides] = useState<Ride[]>([])
   const [myRides, setMyRides] = useState<Ride[]>([])
@@ -44,11 +46,9 @@ function DriverDashboard() {
 
   async function loadDriver() {
     try {
-      const response = await fetch('/api/users/driver/me')
-      if (response.ok) {
-        const data = await response.json()
-        setDriver(data)
-      }
+      const token = await getToken()
+      const data = await usersAPI.getDriver('me', token || undefined)
+      setDriver(data)
     } catch (error) {
       console.error('Error loading driver:', error)
     } finally {
@@ -58,13 +58,12 @@ function DriverDashboard() {
 
   async function loadRides() {
     try {
+      const token = await getToken()
       if (tab === 'available') {
-        const response = await fetch('/api/rides?status=requested')
-        const data = await response.json()
+        const data = await ridesAPI.list({ status: 'requested' }, token || undefined)
         setAvailableRides(data.data || [])
       } else {
-        const response = await fetch('/api/rides?driverId=' + user?.id)
-        const data = await response.json()
+        const data = await ridesAPI.list({ driverId: user?.id }, token || undefined)
         setMyRides(data.data || [])
       }
     } catch (error) {
@@ -76,11 +75,8 @@ function DriverDashboard() {
     if (!user) return
     
     try {
-      await fetch(`/api/rides/${rideId}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverId: user.id, agreedPrice: price }),
-      })
+      const token = await getToken()
+      await ridesAPI.accept(rideId, user.id, price, token || undefined)
       loadRides()
     } catch (error) {
       console.error('Error accepting ride:', error)

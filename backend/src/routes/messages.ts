@@ -1,5 +1,7 @@
 import { Hono } from 'hono/tiny'
 import { Message } from '../models/message'
+import { Ride } from '../models/ride'
+import { broadcastToRide } from '../index'
 
 const messages = new Hono()
 
@@ -26,12 +28,30 @@ messages.post('/', async (c) => {
   const body = await c.req.json()
   const { rideId, senderId, content } = body
   
-  // TODO: Verificar que el usuario tiene acceso al ride
+  // Verificar que el usuario tiene acceso al ride (client or assigned driver)
+  const ride = await Ride.findById(rideId)
+  if (!ride) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
+  
+  const hasAccess = ride.clientId === senderId || ride.driverId === senderId
+  if (!hasAccess) {
+    return c.json({ error: 'Forbidden: You do not have access to this ride' }, 403)
+  }
+  
+  // Verificar que el chat está habilitado (negotiating or accepted status)
+  if (ride.status !== 'negotiating' && ride.status !== 'accepted') {
+    return c.json({ error: 'Chat is not available for this ride status' }, 400)
+  }
   
   const message = new Message({ rideId, senderId, content })
   await message.save()
   
-  // TODO: Emitir via WebSocket
+  // Emitir via WebSocket
+  broadcastToRide(rideId, {
+    type: 'new_message',
+    data: message
+  })
   
   return c.json(message, 201)
 })

@@ -2,14 +2,15 @@ import { Hono } from 'hono/tiny'
 import Stripe from 'stripe'
 import { Ride } from '../models/ride'
 import { Rating } from '../models/rating'
+import { authMiddleware } from '../middleware'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
 
 const rides = new Hono()
 
-// Listar rides (con filtros)
-rides.get('/', async (c) => {
+// Listar rides (con filtros) - requiere autenticación
+rides.get('/', authMiddleware, async (c) => {
   const status = c.req.query('status')
   const clientId = c.req.query('clientId')
   const driverId = c.req.query('driverId')
@@ -37,8 +38,8 @@ rides.get('/', async (c) => {
   })
 })
 
-// Crear ride
-rides.post('/', async (c) => {
+// Crear ride - requiere autenticación
+rides.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
 
   // Validar campos requeridos (stripePaymentMethodId ahora opcional para pruebas)

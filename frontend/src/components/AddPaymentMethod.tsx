@@ -5,7 +5,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
-import { paymentsAPI, ridesAPI } from '../services/api'
+import { paymentsAPI, ridesAPI, usersAPI } from '../services/api'
 
 interface AddPaymentMethodProps {
   rideId?: string
@@ -55,6 +55,11 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
       console.log('✅ PaymentMethod created:', paymentMethod.id)
       setSavedMethodId(paymentMethod.id)
 
+      // Guardar en perfil de usuario
+      console.log('💾 Saving payment method to user profile...')
+      await usersAPI.savePaymentMethod(paymentMethod.id)
+      console.log('✅ Payment method saved to user profile')
+
       if (rideId) {
         console.log('💾 Saving payment method to ride...')
         await paymentsAPI.savePaymentMethod(rideId, paymentMethod.id)
@@ -67,6 +72,13 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         onSuccess(paymentMethod.id)
       } else if (rideId) {
         navigate(`/ride/${rideId}`)
+      } else {
+        // Check if there's a redirect parameter
+        const params = new URLSearchParams(window.location.search)
+        const redirect = params.get('redirect')
+        if (redirect === 'create-ride') {
+          navigate('/create-ride?payment_added=true')
+        }
       }
 
       setTimeout(() => {

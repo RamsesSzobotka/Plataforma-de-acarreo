@@ -48,8 +48,14 @@ const rideSchema = new mongoose.Schema({
     default: 'requested'
   },
   
-  // Chat habilitado
-  chatEnabled: { type: Boolean, default: false },
+   // Chat habilitado (negotiating o accepted)
+  chatEnabled: { 
+    type: Boolean, 
+    default: false,
+    set: function(this: any) {
+      return this.status === 'negotiating' || this.status === 'accepted'
+    }
+  },
   
   // Foto de entrega
   deliveryPhoto: {

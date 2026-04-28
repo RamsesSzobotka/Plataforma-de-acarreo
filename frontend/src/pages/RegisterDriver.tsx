@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
+import { usersAPI } from '../services/api'
 import FileUpload from '../components/FileUpload'
 
 // Types para el estado del conductor
@@ -57,6 +58,7 @@ interface FormData {
 
 export default function RegisterDriver() {
   const { user, isSignedIn } = useUser()
+  const { getToken } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -78,33 +80,31 @@ export default function RegisterDriver() {
       }
 
       try {
-        const response = await fetch('/api/users/driver/me', {
-          headers: { 'Content-Type': 'application/json' }
-        })
+        const token = await getToken()
+        const data = await usersAPI.getDriver('me', token || undefined)
 
-        if (response.ok) {
-          const data = await response.json()
-          setDriverStatus(data)
+        setDriverStatus(data)
+        setIsLoadingStatus(false)
 
-          // Si ya está verificado -> ir directo al dashboard
-          if (data.verificationStatus === 'verified') {
-            navigate(redirectUrl)
-            return
-          }
-
-          // Si está en revisión o pendiente -> mostrar estado (no bloquear)
-          // Si está suspendido -> mostrar error
-          if (data.verificationStatus === 'suspended') {
-            setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
-            return
-          }
-        } else if (response.status === 404) {
-          // No existe -> es nuevo, mostrar formulario
-          setDriverStatus(null)
+        // Si ya está verificado -> ir directo al dashboard
+        if (data.verificationStatus === 'verified') {
+          navigate(redirectUrl)
+          return
         }
-      } catch (err) {
-        console.error('Error checking driver status:', err)
-      } finally {
+
+        // Si está en revisión o pendiente -> mostrar estado (no bloquear)
+        // Si está suspendido -> mostrar error
+        if (data.verificationStatus === 'suspended') {
+          setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
+          return
+        }
+
+        // rejected -> permitir reenvío
+      } catch (err: any) {
+        // 404 significa que no está registrado, está bien
+        if (err?.response?.status !== 404) {
+          console.error('Error checking driver status:', err)
+        }
         setIsLoadingStatus(false)
       }
     }

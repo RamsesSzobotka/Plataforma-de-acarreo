@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import { Elements } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import { PaymentForm } from '../components/PaymentForm'
 import { AddPaymentMethod } from '../components/AddPaymentMethod'
+import { ridesAPI, usersAPI } from '../services/api'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
 
@@ -47,7 +48,7 @@ interface User {
 
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
-  const { user } = useUser()
+  const { user, getToken } = useAuth()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
@@ -63,19 +64,17 @@ function RideDetails() {
 
   async function loadRide() {
     try {
-      const response = await fetch(`/api/rides/${id}`)
-      const data = await response.json()
+      const token = await getToken()
+      const data = await ridesAPI.get(id, token || undefined)
       setRide(data)
 
       // Cargar info del conductor si existe
       if (data.driverId) {
-        const driverResponse = await fetch(`/api/users/${data.driverId}`)
-        const driverData = await driverResponse.json()
+        const driverData = await usersAPI.get(data.driverId, token || undefined)
         setDriverUser(driverData)
 
         // Cargar perfil del conductor
-        const driverProfileResponse = await fetch(`/api/users/driver/${data.driverId}`)
-        const driverProfile = await driverProfileResponse.json()
+        const driverProfile = await usersAPI.getDriver(data.driverId, token || undefined)
         setDriver(driverProfile)
       }
     } catch (error) {
@@ -89,11 +88,8 @@ function RideDetails() {
     if (!confirm('Estas seguro de cancelar este pedido?')) return
     
     try {
-      await fetch(`/api/rides/${id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Cancelado por el cliente' }),
-      })
+      const token = await getToken()
+      await ridesAPI.cancel(id, 'Cancelado por el cliente', token || undefined)
       loadRide()
     } catch (error) {
       console.error('Error canceling ride:', error)

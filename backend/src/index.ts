@@ -12,6 +12,22 @@ import health from './routes/health'
 import upload from './routes/upload'
 import admin from './routes/admin'
 
+// WebSocket connections store (rideId -> Set of WebSocket connections)
+const wsConnections = new Map<string, Set<WebSocket>>()
+
+// Helper to broadcast message to ride room
+export function broadcastToRide(rideId: string, data: any) {
+  const connections = wsConnections.get(rideId)
+  if (!connections) return
+  
+  const message = JSON.stringify(data)
+  connections.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(message)
+    }
+  })
+}
+
 const app = new Hono()
 
 // CORS config con headers para preflight
@@ -42,12 +58,48 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500)
 })
 
-// Iniciar servidor
+// Iniciar servidor con WebSocket support
 const PORT = parseInt(process.env.PORT || '3000')
 
 export default {
   port: PORT,
   fetch: app.fetch,
+  websocket: {
+    open(ws: any) {
+      const url = new URL(ws.data.request.url)
+      const pathParts = url.pathname.split('/')
+      // Expected format: /ws/chat/:rideId
+      if (pathParts[1] === 'ws' && pathParts[2] === 'chat' && pathParts[3]) {
+        const rideId = pathParts[3]
+        ws.data.rideId = rideId
+        
+        // Add to room
+        if (!wsConnections.has(rideId)) {
+          wsConnections.set(rideId, new Set())
+        }
+        wsConnections.get(rideId)!.add(ws)
+        
+        console.log(`WebSocket connected: rideId=${rideId}, total connections=${wsConnections.get(rideId)?.size}`)
+      }
+    },
+    message(ws: any, message: string | Buffer) {
+      // Handle incoming WebSocket messages if needed
+      console.log('WebSocket message received:', message)
+    },
+    close(ws: any) {
+      const rideId = ws.data.rideId
+      if (rideId) {
+        const connections = wsConnections.get(rideId)
+        if (connections) {
+          connections.delete(ws)
+          if (connections.size === 0) {
+            wsConnections.delete(rideId)
+          }
+          console.log(`WebSocket disconnected: rideId=${rideId}, remaining=${connections.size}`)
+        }
+      }
+    },
+  },
 }
 
 async function initServer() {

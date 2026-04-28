@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
+import { wsService } from '../services/api'
 
 interface Message {
   _id: string
@@ -15,39 +16,68 @@ function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (rideId) {
-      loadMessages()
-      // Poll for new messages (simple approach)
-      const interval = setInterval(loadMessages, 5000)
-      return () => clearInterval(interval)
+    async function initChat() {
+      if (!rideId || !user) return
+
+      try {
+        // Load initial messages
+        const response = await fetch(`/api/messages/ride/${rideId}`)
+        const data = await response.json()
+        setMessages(data.data || [])
+        setLoading(false)
+
+        // Connect to WebSocket
+        const token = await user.getToken()
+        if (token) {
+          wsService.onMessage((data) => {
+            if (data.type === 'new_message') {
+              setMessages((prev) => [...prev, data.data])
+              // Mark as read
+              fetch(`/api/messages/ride/${rideId}/read`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id }),
+              }).catch(err => console.error('Error marking as read:', err))
+            }
+          })
+
+          wsService.onError((err) => {
+            console.error('WebSocket error:', err)
+            setIsConnected(false)
+          })
+
+          wsService.connect(rideId, token)
+          setIsConnected(true)
+        }
+      } catch (err: any) {
+        setError(err.message || 'Error loading chat')
+        setLoading(false)
+      }
     }
-  }, [rideId])
+
+    initChat()
+
+    return () => {
+      wsService.disconnect()
+      setIsConnected(false)
+    }
+  }, [rideId, user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function loadMessages() {
-    try {
-      const response = await fetch(`/api/messages/ride/${rideId}`)
-      const data = await response.json()
-      setMessages(data.data || [])
-    } catch (error) {
-      console.error('Error loading messages:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
-    if (!newMessage.trim() || !user) return
+    if (!newMessage.trim() || !user || !rideId) return
 
     try {
-      await fetch('/api/messages', {
+      const response = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,10 +86,16 @@ function Chat() {
           content: newMessage,
         }),
       })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error sending message')
+      }
+
       setNewMessage('')
-      loadMessages()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error)
+      setError(error.message || 'Error sending message')
     }
   }
 

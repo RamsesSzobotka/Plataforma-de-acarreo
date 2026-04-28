@@ -57,6 +57,48 @@ users.get('/:clerkId', async (c) => {
   return c.json(user)
 })
 
+// Guardar método de pago en perfil de usuario
+users.post('/payment-method', authMiddleware, async (c) => {
+  const currentUser = c.get('user') as AuthUser
+  const body = await c.req.json()
+  const { stripePaymentMethodId } = body
+  
+  if (!stripePaymentMethodId) {
+    return c.json({ error: 'stripePaymentMethodId es requerido' }, 400)
+  }
+  
+  const user = await User.findOneAndUpdate(
+    { clerkId: currentUser.clerkId },
+    { stripePaymentMethodId, updatedAt: new Date() },
+    { new: true }
+  )
+  
+  if (!user) {
+    return c.json({ error: 'Usuario no encontrado' }, 404)
+  }
+  
+  return c.json({
+    success: true,
+    stripePaymentMethodId: user.stripePaymentMethodId
+  })
+})
+
+// Obtener método de pago del usuario
+users.get('/me/payment-method', authMiddleware, async (c) => {
+  const currentUser = c.get('user') as AuthUser
+  
+  const user = await User.findOne({ clerkId: currentUser.clerkId })
+  
+  if (!user) {
+    return c.json({ error: 'Usuario no encontrado' }, 404)
+  }
+  
+  return c.json({
+    hasPaymentMethod: !!user.stripePaymentMethodId,
+    stripePaymentMethodId: user.stripePaymentMethodId || null
+  })
+})
+
 // Crear/actualizar usuario (desde webhook de Clerk)
 users.post('/', async (c) => {
   const body = await c.req.json()

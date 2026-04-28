@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
+import { ridesAPI } from '../services/api'
 
 interface Ride {
   _id: string
@@ -15,6 +16,7 @@ interface Ride {
 
 function MyRides() {
   const { user } = useUser()
+  const { getToken } = useAuth()
   const [rides, setRides] = useState<Ride[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -27,13 +29,16 @@ function MyRides() {
 
   async function loadRides() {
     try {
+      const token = await getToken()
       const queryParams = new URLSearchParams()
       queryParams.append('clientId', user?.id || '')
       if (filter !== 'all') {
         queryParams.append('status', filter)
       }
-      const response = await fetch(`/api/rides?${queryParams.toString()}`)
-      const data = await response.json()
+      const data = await ridesAPI.list(
+        { clientId: user?.id, status: filter !== 'all' ? filter : undefined },
+        token || undefined
+      )
       setRides(data.data || [])
     } catch (error) {
       console.error('Error loading rides:', error)

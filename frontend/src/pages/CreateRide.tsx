@@ -1,77 +1,9 @@
-import { useState, FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, FormEvent, useEffect } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { loadStripe } from '@stripe/stripe-js'
 import AddressInput from '../components/AddressInput'
 import MultiFileUpload from '../components/MultiFileUpload'
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '')
-
-const stripeElementsOptions = {
-  appearance: {
-    theme: 'stripe' as const,
-    variables: {
-      colorPrimary: '#0D9488',
-      colorBackground: '#FFFFFF',
-      colorText: '#0F172A',
-      colorDanger: '#EF4444',
-      fontFamily: 'Inter, sans-serif',
-      borderRadius: '8px',
-    },
-  },
-}
-
-// Componente interno para el formulario de pago
-function PaymentMethodForm({ onSuccess, onCancel }: { onSuccess: (pmId: string) => void; onCancel: () => void }) {
-  const stripe = useStripe()
-  const elements = useElements()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!stripe || !elements) return
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const cardElement = elements.getElement(CardElement)
-      if (!cardElement) throw new Error('Card element not found')
-
-      const { error: stripeError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
-      })
-
-      if (stripeError) throw new Error(stripeError.message)
-      if (!paymentMethod) throw new Error('No payment method created')
-
-      onSuccess(paymentMethod.id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px', backgroundColor: '#F8FAFC' }}>
-      <h4 style={{ margin: '0 0 1rem 0' }}>💳 Método de Pago</h4>
-      <div style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px', backgroundColor: '#FFF', marginBottom: '1rem' }}>
-        <CardElement options={{ style: { base: { fontSize: '16px' } } }} />
-      </div>
-      {error && <div style={{ color: '#EF4444', marginBottom: '0.5rem' }}>{error}</div>}
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <button type="submit" className="btn btn-primary" disabled={loading || !stripe} onClick={handleSubmit}>
-          {loading ? 'Guardando...' : '💳 Guardar'}
-        </button>
-        <button type="button" className="btn btn-outline" onClick={onCancel}>Cancelar</button>
-      </div>
-    </div>
-  )
-}
+import { usersAPI } from '../services/api'
 
 interface UploadedImage {
   url: string
@@ -96,11 +28,12 @@ function CreateRide() {
   const { user } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
-  const stripe = useStripe()
-  const elements = useElements()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
-  const [addPaymentMethodNow, setAddPaymentMethodNow] = useState(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null)
+  const [hasSavedPaymentMethod, setHasSavedPaymentMethod] = useState<boolean | null>(null)
+  const [checkingPaymentMethod, setCheckingPaymentMethod] = useState(true)
+
   const [formData, setFormData] = useState<RideFormData>({
     title: '',
     description: '',
@@ -112,6 +45,39 @@ function CreateRide() {
     dropoffCoordinates: null,
     estimatedPrice: 0,
   })
+
+  // Check for saved payment method on mount
+  useEffect(() => {
+    async function checkPaymentMethod() {
+      try {
+        const result = await usersAPI.getPaymentMethod()
+        setHasSavedPaymentMethod(result.hasPaymentMethod)
+        if (result.stripePaymentMethodId) {
+          setPaymentMethodId(result.stripePaymentMethodId)
+        }
+      } catch (err) {
+        console.error('Error checking payment method:', err)
+        setHasSavedPaymentMethod(false)
+      } finally {
+        setCheckingPaymentMethod(false)
+      }
+    }
+    checkPaymentMethod()
+  }, [])
+
+  // Check if returned from add-payment-method page with success
+  useEffect(() => {
+    const paymentAdded = searchParams.get('payment_added')
+    if (paymentAdded === 'true') {
+      setHasSavedPaymentMethod(true)
+      // Re-check to get the paymentMethodId
+      usersAPI.getPaymentMethod().then(result => {
+        if (result.stripePaymentMethodId) {
+          setPaymentMethodId(result.stripePaymentMethodId)
+        }
+      })
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -126,6 +92,12 @@ function CreateRide() {
     // Validar que tenga al menos una imagen
     if (formData.images.length === 0) {
       alert('Sube al menos una imagen del pedido')
+      return
+    }
+
+    // Check payment method
+    if (!paymentMethodId && !hasSavedPaymentMethod) {
+      navigate('/add-payment-method?redirect=create-ride')
       return
     }
     
@@ -200,6 +172,33 @@ function CreateRide() {
       </h1>
       
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Payment Method Status */}
+        {checkingPaymentMethod ? (
+          <div style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px', backgroundColor: '#F8FAFC', textAlign: 'center' }}>
+            <span style={{ color: '#64748B' }}>Verificando método de pago...</span>
+          </div>
+        ) : hasSavedPaymentMethod ? (
+          <div style={{ padding: '0.75rem 1rem', backgroundColor: '#DCFCE7', borderRadius: '6px', fontSize: '0.875rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
+            Método de pago guardado ✓
+          </div>
+        ) : (
+          <div style={{ padding: '1rem', border: '1px solid #FCA5A5', borderRadius: '8px', backgroundColor: '#FEF2F2' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#991B1B' }}>
+                <span className="material-symbols-rounded">warning</span>
+                <strong>Método de pago requerido</strong>
+              </div>
+              <Link to="/add-payment-method?redirect=create-ride" className="btn btn-secondary" style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}>
+                + Agregar
+              </Link>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#7F1D1D' }}>
+              Debes agregar un método de pago antes de crear un pedido.
+            </p>
+          </div>
+        )}
+
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
             Titulo *
@@ -319,44 +318,10 @@ function CreateRide() {
           />
         </div>
 
-        {/* Payment Method Section */}
-        <div style={{ padding: '1rem', border: '1px solid #E2E8F0', borderRadius: '8px', backgroundColor: '#F8FAFC' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-symbols-rounded">credit_card</span>
-              <strong>Método de Pago</strong>
-            </div>
-            {paymentMethodId ? (
-              <span style={{ color: '#22C55E', fontSize: '0.875rem' }}>✓Guardado</span>
-            ) : addPaymentMethodNow ? (
-              <button type="button" className="btn btn-outline" style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }} onClick={() => { setAddPaymentMethodNow(false); setPaymentMethodId(null) }}>
-                Cancelar
-              </button>
-            ) : (
-              <button type="button" className="btn btn-secondary" style={{ fontSize: '0.875rem' }} onClick={() => setAddPaymentMethodNow(true)}>
-                + Agregar Ahora
-              </button>
-            )}
-          </div>
-          
-          {addPaymentMethodNow && !paymentMethodId && (
-            <PaymentMethodForm 
-              onSuccess={(pmId) => { setPaymentMethodId(pmId); setAddPaymentMethodNow(false) }} 
-              onCancel={() => setAddPaymentMethodNow(false)} 
-            />
-          )}
-          
-          {paymentMethodId && (
-            <div style={{ padding: '0.75rem', backgroundColor: '#DCFCE7', borderRadius: '6px', fontSize: '0.875rem', color: '#166534' }}>
-              ✓ Tu méthode de pago ha sido guardado para este pedido
-            </div>
-          )}
-        </div>
-
         <button 
           type="submit" 
           className="btn btn-primary" 
-          disabled={loading || !formData.pickupCoordinates || !formData.dropoffCoordinates || formData.images.length === 0}
+          disabled={loading || !formData.pickupCoordinates || !formData.dropoffCoordinates || formData.images.length === 0 || !hasSavedPaymentMethod}
         >
           {loading ? 'Creando...' : 'Crear Pedido'}
         </button>
