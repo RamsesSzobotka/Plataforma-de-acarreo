@@ -305,6 +305,7 @@ plataforma-de-acarreo/
 ### Rides
 | Método | Endpoint | Auth | Descripción |
 |--------|----------|------|-------------|
+| GET | `/api/rides/available` | ✅ | Listar pedidos disponibles para driver |
 | GET | `/api/rides` | ✅ | Listar rides (filtros) |
 | POST | `/api/rides` | ✅ | Crear ride |
 | GET | `/api/rides/:id` | ✅ | Obtener ride |

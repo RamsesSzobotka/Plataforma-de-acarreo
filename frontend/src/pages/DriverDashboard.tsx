@@ -92,21 +92,23 @@ function DriverDashboard() {
     try {
       const token = await getToken()
       if (tab === 'available') {
+        // Cargar pedidos disponibles usando el endpoint específico
         const params: any = { 
-          status: statusFilter,
           page,
-          limit: 10
+          limit: 20
         }
         if (typeFilter) params.type = typeFilter
         
-        const data = await ridesAPI.list(params, token || undefined)
-        // Filter out rides that already have a driverId
-        const available = (data.data || []).filter((ride: Ride) => !ride.driverId)
-        setAvailableRides(available)
-        setTotalPages(data.totalPages || 1)
+        const data = await ridesAPI.listAvailable(params, token || undefined)
+        setAvailableRides(data.data || [])
+        setTotalPages(data.pagination?.pages || 1)
       } else {
-        const data = await ridesAPI.list({ driverId: user?.id }, token || undefined)
+        // Mis acarreos: pedidos donde soy el driver asignado
+        const data = await ridesAPI.list({ driverId: user?.id, page, limit: 20 }, token || undefined)
         setMyRides(data.data || [])
+        if (data.pagination) {
+          setTotalPages(data.pagination.pages)
+        }
       }
     } catch (error) {
       console.error('Error loading rides:', error)

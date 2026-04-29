@@ -10,6 +10,47 @@ const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
 
 const rides = new Hono()
 
+// Listar rides disponibles para driver (requested o negotiating)
+// Este endpoint es para que drivers puedan ver pedidos cercanos disponibles
+rides.get('/available', authMiddleware, async (c) => {
+  const currentUser = (c as any).get('user') as AuthUser
+  
+  // Solo drivers y admins pueden ver pedidos disponibles
+  if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
+    return c.json({ error: 'Solo conductors pueden ver pedidos disponibles' }, 403)
+  }
+  
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = parseInt(c.req.query('limit') || '20')
+  const type = c.req.query('type') // opcional: filtrar por tipo
+  
+  // Pedidos disponibles: requested o negotiating
+  const query: any = {
+    status: { $in: ['requested', 'negotiating'] }
+  }
+  
+  // Filtrar por tipo si se especifica
+  if (type) {
+    query.type = type
+  }
+  
+  const skip = (page - 1) * limit
+  
+  const [ridesList, total] = await Promise.all([
+    Ride.find(query)
+      .select('-chatEnabled') // No necesario para lista
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Ride.countDocuments(query)
+  ])
+  
+  return c.json({
+    data: ridesList,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  })
+})
+
 // Listar rides (con filtros) - requiere autenticación
 rides.get('/', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
@@ -231,15 +272,51 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
 // Aceptar ride (driver) - requiere autenticación
 rides.post('/:id/accept', authMiddleware, async (c) => {
   const id = c.req.param('id')
-  const { driverId, agreedPrice } = await c.req.json()
-  // TODO: Verificar que el ride está en estado válido
+  const body = await c.req.json()
+  const { driverId, agreedPrice } = body
   
+  const currentUser = (c as any).get('user') as AuthUser
+  
+  // Validar que el usuario es driver
+  if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
+    return c.json({ error: 'Solo conductors pueden aceptar pedidos' }, 403)
+  }
+  
+  // Obtener el ride actual
+  const existingRide = await Ride.findById(id)
+  if (!existingRide) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+  
+  // Validar estado: solo puede aceptar si está en requested o negotiating
+  if (existingRide.status !== 'requested' && existingRide.status !== 'negotiating') {
+    return c.json({ 
+      error: 'No puedes aceptar este pedido en su estado actual',
+      currentStatus: existingRide.status 
+    }, 400)
+  }
+  
+  // Validar que el driver no acepte su propio pedido
+  if (existingRide.clientId === driverId) {
+    return c.json({ error: 'No puedes aceptar tu propio pedido' }, 400)
+  }
+  
+  // Validar precio
+  if (!agreedPrice || agreedPrice < 0) {
+    return c.json({ error: 'Precio válido requerido' }, 400)
+  }
+  
+  // Verificar que el ride aún está disponible (otro driver no lo aceptó)
   const ride = await Ride.findByIdAndUpdate(id, {
     driverId,
     status: 'accepted',
     finalPrice: agreedPrice,
     chatEnabled: true
   }, { new: true })
+  
+  if (!ride) {
+    return c.json({ error: 'El pedido ya fue aceptado por otro conductor' }, 409)
+  }
   
   return c.json(ride)
 })

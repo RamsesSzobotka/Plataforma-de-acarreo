@@ -107,9 +107,22 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: stri
 
 // Rides API
 export const ridesAPI = {
-  list: (params?: { status?: string; page?: number; limit?: number }, token?: string) => {
+  // Listar pedidos disponibles (para drivers)
+  listAvailable: (params?: { type?: string; page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.type) searchParams.set('type', params.type)
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<Ride>>(`/api/rides/available${query ? `?${query}` : ''}`, {}, token)
+  },
+
+  // Listar rides (filtros por status, clientId, driverId)
+  list: (params?: { status?: string; clientId?: string; driverId?: string; page?: number; limit?: number }, token?: string) => {
     const searchParams = new URLSearchParams()
     if (params?.status) searchParams.set('status', params.status)
+    if (params?.clientId) searchParams.set('clientId', params.clientId)
+    if (params?.driverId) searchParams.set('driverId', params.driverId)
     if (params?.page) searchParams.set('page', String(params.page))
     if (params?.limit) searchParams.set('limit', String(params.limit))
     const query = searchParams.toString()
