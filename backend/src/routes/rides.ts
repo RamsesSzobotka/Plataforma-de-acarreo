@@ -91,8 +91,8 @@ rides.get('/', authMiddleware, async (c) => {
 rides.post('/', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
   const body = await c.req.json()
-
-  // Validar campos requeridos (stripePaymentMethodId ahora opcional para pruebas)
+  
+  // Validar campos requeridos
   const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images']
   const missing = required.filter(field => !body[field])
   
@@ -135,6 +135,22 @@ rides.post('/', authMiddleware, async (c) => {
     return c.json({ error: 'No tienes permiso para crear pedidos para otro usuario' }, 403)
   }
 
+  // Obtener payment method del usuario si no se proporciona en el body
+  let stripePaymentMethodId = body.stripePaymentMethodId
+  
+  if (!stripePaymentMethodId) {
+    // Buscar en el perfil del usuario
+    const { User } = await import('../models/user')
+    const userProfile = await User.findOne({ clerkId: currentUser.clerkId })
+    if (userProfile?.stripePaymentMethodId) {
+      stripePaymentMethodId = userProfile.stripePaymentMethodId
+    }
+  }
+  
+  if (!stripePaymentMethodId) {
+    return c.json({ error: 'Debes guardar un método de pago primero. Ve a tu perfil y agrega una tarjeta.' }, 400)
+  }
+
   try {
     const ride = new Ride({
       clientId: body.clientId,
@@ -155,7 +171,7 @@ rides.post('/', authMiddleware, async (c) => {
       estimatedPrice: body.estimatedPrice,
       packages: body.packages,
       notes: body.notes,
-      stripePaymentMethodId: body.stripePaymentMethodId || null, // Opcional para pruebas
+      stripePaymentMethodId, // Del body o del perfil del usuario
       status: 'requested',
       chatEnabled: false,
     })

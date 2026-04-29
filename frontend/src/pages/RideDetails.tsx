@@ -246,22 +246,36 @@ function RideDetails() {
           <div style={{ marginBottom: '1.5rem' }}>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <span className="material-symbols-rounded">image</span>
-              Imágenes
+              Imágenes ({ride.images.length})
             </strong>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(180px, 1fr))', 
+              gap: '1rem' 
+            }}>
               {ride.images.map((img, idx) => (
-                <img 
+                <div 
                   key={idx}
-                  src={img.url} 
-                  alt={`Imagen ${idx + 1}`} 
-                  style={{ 
-                    width: '100%', 
-                    height: '150px', 
-                    objectFit: 'cover',
+                  style={{
+                    position: 'relative',
                     borderRadius: 'var(--radius)',
-                    border: '1px solid var(--border)'
+                    overflow: 'hidden',
+                    border: '1px solid var(--border)',
+                    background: '#f8fafc'
                   }}
-                />
+                >
+                  <img 
+                    src={img.url} 
+                    alt={`Imagen ${idx + 1}`}
+                    style={{ 
+                      width: '100%', 
+                      height: 'auto',
+                      aspectRatio: '4/3',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -454,15 +468,28 @@ function RideDetails() {
         {/* Delivery photo */}
         {ride.deliveryPhoto && (
           <div style={{ marginTop: '1.5rem' }}>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <span className="material-symbols-rounded">photo_camera</span>
               Foto de Entrega
             </strong>
-            <img 
-              src={ride.deliveryPhoto.url} 
-              alt="Delivery" 
-              style={{ marginTop: '0.5rem', maxWidth: '300px', borderRadius: 'var(--radius)' }}
-            />
+            <div style={{
+              borderRadius: 'var(--radius)',
+              overflow: 'hidden',
+              border: '1px solid var(--border)',
+              maxWidth: '400px'
+            }}>
+              <img 
+                src={ride.deliveryPhoto.url} 
+                alt="Entrega"
+                style={{ 
+                  width: '100%', 
+                  height: 'auto',
+                  aspectRatio: '4/3',
+                  objectFit: 'cover',
+                  display: 'block'
+                }}
+              />
+            </div>
           </div>
         )}
 
