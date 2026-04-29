@@ -122,7 +122,6 @@ function RideDetails() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ clientId: user.id }),
       })
 
       if (!response.ok) {

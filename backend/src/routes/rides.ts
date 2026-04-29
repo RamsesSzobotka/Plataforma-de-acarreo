@@ -321,29 +321,88 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
   return c.json(ride)
 })
 
-// Iniciar trackeo (driver confirma carga) - requiere autenticación
+// Iniciar viaje (driver confirma que tiene la mercancía cargada)
+// Primero confirma carga, luego cambia a in_progress
 rides.post('/:id/start', authMiddleware, async (c) => {
   const id = c.req.param('id')
-  const ride = await Ride.findByIdAndUpdate(id, { status: 'in_progress' }, { new: true })
-  return c.json(ride)
+  const currentUser = (c as any).get('user') as AuthUser
+  
+  // Obtener el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+  
+  // Validar que el usuario es el driver asignado
+  if (ride.driverId !== currentUser.clerkId && currentUser.role !== 'admin') {
+    return c.json({ error: 'No tienes permiso para iniciar este viaje' }, 403)
+  }
+  
+  // Solo puede iniciar si está en estado 'accepted'
+  if (ride.status !== 'accepted') {
+    return c.json({ 
+      error: 'No puedes iniciar el viaje en este momento',
+      currentStatus: ride.status,
+      message: 'Solo puedes iniciar cuando el pedido esté aceptado'
+    }, 400)
+  }
+  
+  // Cambiar a in_progress
+  const updatedRide = await Ride.findByIdAndUpdate(id, { status: 'in_progress' }, { new: true })
+  
+  return c.json({
+    success: true,
+    message: 'Viaje iniciado',
+    ride: updatedRide
+  })
 })
 
-// Subir foto de entrega - requiere autenticación
+// Subir foto de entrega (driver sube evidencia al llegar al destino)
 rides.post('/:id/delivery-photo', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { url, publicId } = await c.req.json()
+  const currentUser = (c as any).get('user') as AuthUser
   
-  const ride = await Ride.findByIdAndUpdate(id, {
+  // Validar que hay url
+  if (!url) {
+    return c.json({ error: 'URL de imagen requerida' }, 400)
+  }
+  
+  // Obtener el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+  
+  // Validar que el usuario es el driver asignado
+  if (ride.driverId !== currentUser.clerkId && currentUser.role !== 'admin') {
+    return c.json({ error: 'No tienes permiso para subir foto en este ride' }, 403)
+  }
+  
+  // Solo puede subir foto si está en estado 'in_progress'
+  if (ride.status !== 'in_progress') {
+    return c.json({ 
+      error: 'No puedes subir foto en este momento',
+      currentStatus: ride.status,
+      message: 'Solo puedes subir foto cuando el viaje está en progreso'
+    }, 400)
+  }
+  
+  const updatedRide = await Ride.findByIdAndUpdate(id, {
     deliveryPhoto: { url, publicId }
   }, { new: true })
   
-  return c.json(ride)
+  return c.json({
+    success: true,
+    message: 'Foto de entrega guardada',
+    ride: updatedRide
+  })
 })
 
-// Confirmar entrega (cliente confirma que recibió la mercancía) - requiere autenticación
+// Confirmar entrega (cliente verifica que recibió la mercancía)
 rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   const id = c.req.param('id')
-  const { clientId } = await c.req.json()
+  const currentUser = (c as any).get('user') as AuthUser
   
   // Buscar el ride
   const ride = await Ride.findById(id)
@@ -352,7 +411,7 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   }
   
   // Validar que el usuario es el cliente
-  if (ride.clientId !== clientId) {
+  if (ride.clientId !== currentUser.clerkId && currentUser.role !== 'admin') {
     return c.json({ error: 'No tienes permiso para confirmar este ride' }, 403)
   }
   

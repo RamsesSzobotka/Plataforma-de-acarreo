@@ -160,6 +160,25 @@ export const ridesAPI = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }, token),
+
+  // Iniciar viaje (driver confirma carga)
+  start: (id: string, token?: string) =>
+    fetchAPI<{ success: boolean; message: string; ride: Ride }>(`/api/rides/${id}/start`, {
+      method: 'POST',
+    }, token),
+
+  // Subir foto de entrega
+  deliveryPhoto: (id: string, url: string, publicId?: string, token?: string) =>
+    fetchAPI<{ success: boolean; message: string; ride: Ride }>(`/api/rides/${id}/delivery-photo`, {
+      method: 'POST',
+      body: JSON.stringify({ url, publicId }),
+    }, token),
+
+  // Confirmar entrega (cliente)
+  confirmDelivery: (id: string, token?: string) =>
+    fetchAPI<{ success: boolean; message: string; ride: Ride }>(`/api/rides/${id}/confirm-delivery`, {
+      method: 'POST',
+    }, token),
 }
 
 // Messages API
