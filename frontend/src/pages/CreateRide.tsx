@@ -46,6 +46,13 @@ function CreateRide() {
     estimatedPrice: 0,
   })
 
+  function updateFormField<K extends keyof RideFormData>(field: K, value: RideFormData[K]) {
+    setFormData((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
   // Check for saved payment method on mount
   useEffect(() => {
     async function checkPaymentMethod() {
@@ -218,7 +225,7 @@ function CreateRide() {
             className="input"
             placeholder="Ej: Mudanza completa de apartamento"
             value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            onChange={(e) => updateFormField('title', e.target.value)}
             required
           />
         </div>
@@ -230,7 +237,7 @@ function CreateRide() {
           <select
             className="input"
             value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value as RideFormData['type'] })}
+            onChange={(e) => updateFormField('type', e.target.value as RideFormData['type'])}
             required
           >
             <option value="">Seleccionar tipo</option>
@@ -251,7 +258,7 @@ function CreateRide() {
             rows={4}
             placeholder="Describe que necesitas transportar..."
             value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            onChange={(e) => updateFormField('description', e.target.value)}
             required
           />
         </div>
@@ -261,7 +268,7 @@ function CreateRide() {
           required
           maxFiles={8}
           value={formData.images}
-          onChange={(images) => setFormData({ ...formData, images })}
+          onChange={(images) => updateFormField('images', images)}
           folder="rides"
         />
 
@@ -270,8 +277,8 @@ function CreateRide() {
           placeholder="Escribe una direccion en Panama..."
           value={formData.pickupAddress}
           coordinates={formData.pickupCoordinates}
-          onAddressChange={(address) => setFormData({ ...formData, pickupAddress: address })}
-          onCoordinatesChange={(coords) => setFormData({ ...formData, pickupCoordinates: coords })}
+          onAddressChange={(address) => updateFormField('pickupAddress', address)}
+          onCoordinatesChange={(coords) => updateFormField('pickupCoordinates', coords)}
           required
         />
 
@@ -280,8 +287,8 @@ function CreateRide() {
           placeholder="Escribe una direccion en Panama..."
           value={formData.dropoffAddress}
           coordinates={formData.dropoffCoordinates}
-          onAddressChange={(address) => setFormData({ ...formData, dropoffAddress: address })}
-          onCoordinatesChange={(coords) => setFormData({ ...formData, dropoffCoordinates: coords })}
+          onAddressChange={(address) => updateFormField('dropoffAddress', address)}
+          onCoordinatesChange={(coords) => updateFormField('dropoffCoordinates', coords)}
           required
         />
 
@@ -294,7 +301,7 @@ function CreateRide() {
             className="input"
             placeholder="0.00"
             value={formData.estimatedPrice}
-            onChange={(e) => setFormData({ ...formData, estimatedPrice: Number(e.target.value) })}
+            onChange={(e) => updateFormField('estimatedPrice', Number(e.target.value))}
             required
           />
         </div>
@@ -310,7 +317,9 @@ function CreateRide() {
               className="input"
               placeholder="Ej: 5"
               value={formData.packages || ''}
-              onChange={(e) => setFormData({ ...formData, packages: e.target.value ? Number(e.target.value) : undefined })}
+              onChange={(e) =>
+                updateFormField('packages', e.target.value ? Number(e.target.value) : undefined)
+              }
             />
           </div>
         </div>
@@ -324,7 +333,7 @@ function CreateRide() {
             rows={3}
             placeholder="Ej: Requiere ayuda para cargar, contiene artículos frágiles..."
             value={formData.notes || ''}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            onChange={(e) => updateFormField('notes', e.target.value)}
           />
         </div>
 
