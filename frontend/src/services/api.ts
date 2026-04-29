@@ -61,8 +61,20 @@ export class WebSocketService {
     this.onMessageCallback = callback
   }
 
+  offMessage(callback: (data: any) => void) {
+    if (this.onMessageCallback === callback) {
+      this.onMessageCallback = null
+    }
+  }
+
   onError(callback: (error: Event) => void) {
     this.onErrorCallback = callback
+  }
+
+  offError(callback: (error: Event) => void) {
+    if (this.onErrorCallback === callback) {
+      this.onErrorCallback = null
+    }
   }
 
   disconnect() {
