@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
@@ -20,48 +20,80 @@ function Chat() {
   const [error, setError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // Refs para mantener los callbacks sin re-renders
+  const userRef = useRef(user)
+  const getTokenRef = useRef(getToken)
+  const rideIdRef = useRef(rideId)
+  
+  // Actualizar refs cuando cambian
+  useEffect(() => {
+    userRef.current = user
+    getTokenRef.current = getToken
+    rideIdRef.current = rideId
+  }, [user, getToken, rideId])
+
+  // Función para manejar nuevos mensajes (useCallback para stability)
+  const handleNewMessage = useCallback((data: any) => {
+    if (data.type === 'new_message') {
+      setMessages((prev) => {
+        // Evitar duplicados
+        if (prev.some(msg => msg._id === data.data._id)) {
+          return prev
+        }
+        return [...prev, data.data]
+      })
+      
+      // Marcar como leído
+      const token = getTokenRef.current()
+      const currentUserId = userRef.current?.id
+      const currentRideId = rideIdRef.current
+      
+      if (token && currentUserId && currentRideId) {
+        fetch(`${import.meta.env.VITE_API_URL || ''}/api/messages/ride/${currentRideId}/read`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ userId: currentUserId }),
+        }).catch(err => console.error('Error marking as read:', err))
+      }
+    }
+  }, [])
+
+  const handleWsError = useCallback((err: any) => {
+    console.error('WebSocket error:', err)
+    setIsConnected(false)
+  }, [])
 
   useEffect(() => {
     async function initChat() {
-      if (!rideId || !user) return
+      const currentRideId = rideIdRef.current
+      const currentUser = userRef.current
+      const token = await getTokenRef.current()
+      
+      if (!currentRideId || !currentUser || !token) {
+        setLoading(false)
+        return
+      }
 
       try {
-        // Load initial messages
-        const token = await getToken()
-        const headers: HeadersInit = {}
-        if (token) {
-          (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
-        }
-        
-        const response = await fetch(`/api/messages/ride/${rideId}`, { headers })
+        // Cargar mensajes iniciales
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/messages/ride/${currentRideId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        })
         const data = await response.json()
         setMessages(data.data || [])
         setLoading(false)
 
-        // Connect to WebSocket
-        if (token) {
-          wsService.onMessage((data) => {
-            if (data.type === 'new_message') {
-              setMessages((prev) => [...prev, data.data])
-              // Mark as read
-              const readHeaders: HeadersInit = { 'Content-Type': 'application/json' }
-              ;(readHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`
-              fetch(`/api/messages/ride/${rideId}/read`, {
-                method: 'PATCH',
-                headers: readHeaders,
-                body: JSON.stringify({ userId: user.id }),
-              }).catch(err => console.error('Error marking as read:', err))
-            }
-          })
-
-          wsService.onError((err) => {
-            console.error('WebSocket error:', err)
-            setIsConnected(false)
-          })
-
-          wsService.connect(rideId, token)
-          setIsConnected(true)
-        }
+        // Conectar WebSocket solo una vez al montar
+        wsService.onMessage(handleNewMessage)
+        wsService.onError(handleWsError)
+        wsService.connect(currentRideId, token)
+        setIsConnected(true)
       } catch (err: any) {
         setError(err.message || 'Error loading chat')
         setLoading(false)
@@ -70,11 +102,14 @@ function Chat() {
 
     initChat()
 
+    // Cleanup: desconectar y quitar callbacks
     return () => {
+      wsService.offMessage(handleNewMessage)
+      wsService.offError(handleWsError)
       wsService.disconnect()
       setIsConnected(false)
     }
-  }, [rideId, user])
+  }, [rideId, handleNewMessage, handleWsError]) // Quitamos 'user' de las deps
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,7 +126,7 @@ function Chat() {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch('/api/messages', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/messages`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
