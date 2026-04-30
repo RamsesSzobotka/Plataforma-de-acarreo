@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
 import { ridesAPI, usersAPI } from '../services/api'
+import { wsService } from '../services/api'
 import type { DriverContact } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 
@@ -18,7 +19,7 @@ interface Ride {
   dropoffLocation: { address: string; type?: string; coordinates: [number, number] }
   estimatedPrice: number
   finalPrice?: number
-  status: 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
+  status: 'requested' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
   deliveryPhoto?: { url: string }
   createdAt: string
   updatedAt: string
@@ -50,7 +51,7 @@ function RideDetails() {
   const { user } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
-  const { getUnreadCount } = useNotifications()
+  const { unreadCounts } = useNotifications()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
@@ -86,8 +87,8 @@ function RideDetails() {
         setDriver(driverProfile)
       }
 
-      // Cargar contacts si está en requested o negotiating (cliente puede ver drivers que le escribieron)
-      if ((data.status === 'requested' || data.status === 'negotiating') && user?.id === data.clientId) {
+      // Cargar contacts si está en requested (cliente puede ver drivers que le escribieron)
+      if (data.status === 'requested' && user?.id === data.clientId) {
         const contactsResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/contacts`, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -102,6 +103,20 @@ function RideDetails() {
       setLoading(false)
     }
   }
+
+  // Escuchar eventos WebSocket para recargar cuando lleguen mensajes
+  useEffect(() => {
+    if (!id || !user) return
+
+    const unsubscribe = wsService.onMessage((data) => {
+      if (data.type === 'new_message' && data.data && data.data.rideId === id) {
+        // Recargar el ride y los contacts cuando llegue un mensaje
+        loadRide()
+      }
+    })
+
+    return unsubscribe
+  }, [id, user])
 
   async function handleCancel() {
     if (!id) return
@@ -210,13 +225,12 @@ function RideDetails() {
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
   const isOwner = isClientOwner
-  const canClientCancel = isClientOwner && (ride.status === 'requested' || ride.status === 'negotiating')
+  const canClientCancel = isClientOwner && ride.status === 'requested'
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
 
   // Badge de estado con colores
   const statusColors: Record<string, string> = {
     requested: '#F59E0B',
-    negotiating: '#F59E0B',
     accepted: '#F97316',
     in_progress: '#0D9488',
     completed: '#22C55E',
@@ -227,7 +241,6 @@ function RideDetails() {
 
   const statusLabels: Record<string, string> = {
     requested: 'Pendiente',
-    negotiating: 'En negociación',
     accepted: 'Aceptado',
     in_progress: 'En camino',
     completed: 'Completado',
@@ -236,7 +249,7 @@ function RideDetails() {
   }
 
   // Obtener unread count para este ride
-  const unreadCount = getUnreadCount(ride._id)
+  const unreadCount = unreadCounts[ride._id] || 0
 
   return (
     <div>
@@ -331,7 +344,7 @@ function RideDetails() {
         )}
 
         {/* Driver info */}
-        {ride.status === 'accepted' && driverUser && driver && (
+        {(ride.status === 'accepted' || ride.status === 'in_progress') && driverUser && driver && (
           <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <span className="material-symbols-rounded">person</span>
@@ -345,7 +358,7 @@ function RideDetails() {
                   style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover' }}
                 />
               )}
-              <div>
+              <div style={{ flex: 1 }}>
                 <p style={{ fontWeight: 'bold' }}>
                   {driverUser.firstName} {driverUser.lastName}
                 </p>
@@ -356,12 +369,22 @@ function RideDetails() {
                   🚗 {driver.vehicleType} - {driver.plate}
                 </p>
               </div>
+              {isClientOwner && (
+                <Link
+                  to={`/chat/${ride._id}?contactId=${ride.driverId}&driverId=${ride.driverId}`}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <span className="material-symbols-rounded">chat</span>
+                  Chatear
+                </Link>
+              )}
             </div>
           </div>
         )}
 
         {/* Contacts (drivers que escribieron) - solo para cliente */}
-        {isClientOwner && contacts.length > 0 && (ride.status === 'requested' || ride.status === 'negotiating') && (
+        {isClientOwner && contacts.length > 0 && ride.status === 'requested' && (
           <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <span className="material-symbols-rounded">chat</span>
