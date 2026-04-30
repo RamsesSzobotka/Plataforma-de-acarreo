@@ -11,6 +11,12 @@ services:
       MONGO_INITDB_DATABASE: plataforma_acarreo
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - plataforma-network
 
@@ -23,6 +29,26 @@ services:
       - "6379:6379"
     networks:
       - plataforma-network
+
+  # Inicializador de admin (se ejecuta una vez)
+  init-admin:
+    image: oven/bun:1
+    container_name: plataforma-acarreo-init-admin
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mongodb://admin:password@mongodb:27017/plataforma_acarreo
+    volumes:
+      - ./src/scripts:/scripts
+    working_dir: /scripts
+    command: ["bun", "run", "create-admin.ts"]
+    networks:
+      - plataforma-network
+
+  # Script auxiliar para esperar MongoDB y crear admin
+  # Este servicio espera a que MongoDB esté healthy antes de ejecutar
 
 volumes:
   mongo_data:
