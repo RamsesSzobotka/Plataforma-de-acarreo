@@ -325,15 +325,13 @@ export const usersAPI = {
       body: JSON.stringify({ coordinates }),
     }, token),
 
-  // Get payment method status
   getPaymentMethod: (token?: string) =>
-    fetchAPI<{ hasPaymentMethod: boolean; stripePaymentMethodId: string | null }>(
+    fetchAPI<{ hasPaymentMethod: boolean; stripePaymentMethodId: string | null; paymentMethodId?: string | null }>(
       '/api/users/me/payment-method',
       {},
       token
     ),
 
-  // Save payment method to user profile
   savePaymentMethod: (stripePaymentMethodId: string, token?: string) =>
     fetchAPI<{ success: boolean; stripePaymentMethodId: string }>(
       '/api/users/payment-method',
@@ -347,8 +345,25 @@ export const usersAPI = {
 
 // Payments API
 export const paymentsAPI = {
+  createSetupIntent: (token?: string) =>
+    fetchAPI<{ clientSecret: string; setupIntentId: string; stripeCustomerId: string }>(
+      '/api/payments/setup-intent',
+      { method: 'POST' },
+      token
+    ),
+
+  chargeRide: (rideId: string, token?: string) =>
+    fetchAPI<{ success: boolean; paymentIntentId: string; status: string; clientSecret?: string; platformFee: number; driverAmount: number }>(
+      '/api/payments/charge',
+      {
+        method: 'POST',
+        body: JSON.stringify({ rideId }),
+      },
+      token
+    ),
+
   createPaymentIntent: (rideId: string, amount: number, token?: string) =>
-    fetchAPI<{ clientSecret: string; paymentIntentId: string }>(
+    fetchAPI<{ clientSecret: string; paymentIntentId: string; status?: string }>(
       '/api/payments/create-intent',
       {
         method: 'POST',
@@ -373,19 +388,34 @@ export const paymentsAPI = {
       body: JSON.stringify({ stripePaymentMethodId }),
     }, token),
 
-  // Stripe Connect
   createConnectAccount: (token?: string) =>
-    fetchAPI<{ success: boolean; onboardingUrl: string }>(
-      '/api/payments/create-connect-account',
+    fetchAPI<{ success: boolean; onboardingUrl: string; stripeAccountId?: string }>(
+      '/api/payments/connect/create-account',
       { method: 'POST' },
       token
     ),
 
-  // Handle Stripe callback (if needed from frontend)
+  getConnectStatus: (token?: string) =>
+    fetchAPI<{ stripeAccountId: string | null; payoutsEnabled: boolean; chargesEnabled: boolean; detailsSubmitted: boolean }>(
+      '/api/payments/connect/status',
+      { method: 'GET' },
+      token
+    ),
+
   handleStripeCallback: (token?: string) =>
-    fetchAPI<{ success: boolean; stripeAccountId: string }>(
+    fetchAPI<{ success: boolean; message?: string; stripeAccountId?: string }>(
       '/api/payments/stripe-callback',
       {},
+      token
+    ),
+
+  attachPaymentMethod: (paymentMethodId: string, setupIntentId: string, token?: string) =>
+    fetchAPI<{ success: boolean; paymentMethodId: string; customerId: string; last4?: string; brand?: string }>(  
+      '/api/payments/attach-payment-method',
+      {
+        method: 'POST',
+        body: JSON.stringify({ paymentMethodId, setupIntentId }),
+      },
       token
     ),
 }

@@ -1,13 +1,10 @@
 import { Hono } from 'hono/tiny'
-import Stripe from 'stripe'
 import { Ride } from '../models/ride'
 import { Rating } from '../models/rating'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
-const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
+import { createMarketplaceCharge, MarketplaceStripeError } from '../services/stripeMarketplace'
 
 const rides = new Hono()
 
@@ -275,49 +272,21 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
   if (reason) update.cancellationReason = reason
   
   // LÓGICA: Si el estado cambia a 'completed', automáticamente cobrar
-  if (status === 'completed' && ride.stripePaymentMethodId && !ride.paymentIntentId) {
+  if (status === 'completed' && !ride.paymentIntentId) {
     try {
       console.log(`💳 Cobrando automáticamente al completar ride ${id}...`)
-      
-      // Obtener el monto a cobrar
-      const amount = ride.finalPrice || ride.estimatedPrice
-      const amountCents = Math.round(amount * 100) // Stripe usa centavos
-      
-      // Crear PaymentIntent con el Payment Method guardado
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amountCents,
-        currency: 'usd',
-        customer: undefined, // Sin customer para simplificar
-        payment_method: ride.stripePaymentMethodId,
-        off_session: true, // Pago sin confirmación del usuario
-        confirm: true, // Confirmar inmediatamente
-        metadata: {
-          rideId: id,
-          clientId: ride.clientId,
-          conductorAmount: Math.round(amount * (1 - PLATFORM_COMMISSION) * 100).toString(),
-          platformAmount: Math.round(amount * PLATFORM_COMMISSION * 100).toString(),
-        },
-      })
-      
-      if (paymentIntent.status === 'succeeded') {
-        console.log(`✅ Pago exitoso al completar ride ${id}`)
-        update.paymentIntentId = paymentIntent.id
-        update.paidAt = new Date()
-        update.status = 'paid' // Cambiar status directamente a 'paid'
-      } else if (paymentIntent.status === 'requires_action') {
-        console.warn(`⚠️ Pago requiere acción adicional para ride ${id}`)
-        // El pago se quedará en 'completed' esperando acción
-      } else if (paymentIntent.status === 'processing') {
-        console.log(`⏳ Pago en procesamiento para ride ${id}`)
-        update.paymentIntentId = paymentIntent.id
-      } else {
-        console.error(`❌ Pago fallido al completar ride ${id}: ${paymentIntent.last_payment_error?.message}`)
-        return c.json({ 
-          error: `Error al procesar el pago automático: ${paymentIntent.last_payment_error?.message || 'Error desconocido'}` 
-        }, 402)
-      }
+      const chargeResult = await createMarketplaceCharge(id, { skipStatusCheck: true })
+      update.paymentIntentId = chargeResult.paymentIntent.id
+      update.platformFee = chargeResult.platformFee
+      update.driverAmount = chargeResult.driverAmount
+      update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
+      update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
     } catch (err) {
-      console.error(`❌ Error intentando cobrar automáticamente:`, err)
+      if (err instanceof MarketplaceStripeError) {
+        console.warn(`ℹ️ Cobro automático omitido para ride ${id}: ${err.message}`)
+      } else {
+        console.error(`❌ Error intentando cobrar automáticamente:`, err)
+      }
       // NO retornar error, dejar que el cliente intente pagar manualmente
       console.log(`ℹ️ Ride ${id} se completará, pero requiere pago manual`)
     }
@@ -496,38 +465,21 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   // Cobro automático si hay método de pago guardado
   const update: any = { status: 'completed' }
   
-  if (ride.stripePaymentMethodId && !ride.paymentIntentId) {
+  if (!ride.paymentIntentId) {
     try {
       console.log(`💳 Cobrando automáticamente al confirmar entrega ${id}...`)
-      
-      const amount = ride.finalPrice || ride.estimatedPrice
-      const amountCents = Math.round(amount * 100)
-      
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amountCents,
-        currency: 'usd',
-        payment_method: ride.stripePaymentMethodId,
-        off_session: true,
-        confirm: true,
-        metadata: {
-          rideId: id,
-          clientId: ride.clientId,
-          conductorAmount: Math.round(amount * (1 - PLATFORM_COMMISSION) * 100).toString(),
-          platformAmount: Math.round(amount * PLATFORM_COMMISSION * 100).toString(),
-        },
-      })
-      
-      if (paymentIntent.status === 'succeeded') {
-        console.log(`✅ Pago exitoso al confirmar entrega ${id}`)
-        update.paymentIntentId = paymentIntent.id
-        update.paidAt = new Date()
-        update.status = 'paid'
-      } else if (paymentIntent.status === 'requires_action') {
-        console.warn(`⚠️ Pago requiere acción adicional para ride ${id}`)
-        update.paymentIntentId = paymentIntent.id
-      }
+      const chargeResult = await createMarketplaceCharge(id, { skipStatusCheck: true })
+      update.paymentIntentId = chargeResult.paymentIntent.id
+      update.platformFee = chargeResult.platformFee
+      update.driverAmount = chargeResult.driverAmount
+      update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
+      update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
     } catch (err) {
-      console.error(`❌ Error intentando cobrar automáticamente:`, err)
+      if (err instanceof MarketplaceStripeError) {
+        console.warn(`ℹ️ Cobro automático omitido para ride ${id}: ${err.message}`)
+      } else {
+        console.error(`❌ Error intentando cobrar automáticamente:`, err)
+      }
     }
   }
   

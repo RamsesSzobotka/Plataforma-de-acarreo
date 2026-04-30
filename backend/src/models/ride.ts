@@ -44,7 +44,7 @@ const rideSchema = new mongoose.Schema({
 // Estado del ride
   status: {
     type: String,
-    enum: ['requested', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled'],
+    enum: ['requested', 'negotiating', 'accepted', 'in_progress', 'completed', 'paid', 'failed', 'cancelled'],
     default: 'requested'
   },
 
@@ -60,6 +60,8 @@ const rideSchema = new mongoose.Schema({
   // Pago - Stripe
   stripePaymentMethodId: { type: String }, // ID del método de pago guardado (obligatorio)
   paymentIntentId: { type: String }, // ID del PaymentIntent cuando se procesa
+  platformFee: { type: Number },
+  driverAmount: { type: Number },
   paidAt: { type: Date }, // Fecha de pago automático
   
   // Timestamps

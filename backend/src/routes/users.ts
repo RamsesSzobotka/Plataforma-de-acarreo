@@ -69,7 +69,7 @@ users.post('/payment-method', authMiddleware, async (c) => {
   
   const user = await User.findOneAndUpdate(
     { clerkId: currentUser.clerkId },
-    { stripePaymentMethodId, updatedAt: new Date() },
+    { stripePaymentMethodId, paymentMethodId: stripePaymentMethodId, updatedAt: new Date() },
     { new: true }
   )
   
@@ -95,7 +95,8 @@ users.get('/me/payment-method', authMiddleware, async (c) => {
   
   return c.json({
     hasPaymentMethod: !!user.stripePaymentMethodId,
-    stripePaymentMethodId: user.stripePaymentMethodId || null
+    stripePaymentMethodId: user.stripePaymentMethodId || null,
+    paymentMethodId: user.paymentMethodId || user.stripePaymentMethodId || null,
   })
 })
 

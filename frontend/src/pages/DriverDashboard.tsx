@@ -14,6 +14,7 @@ interface Driver {
   rating?: number
   isAvailable?: boolean
   stripeAccountId?: string
+  payoutsEnabled?: boolean
 }
 
 interface Ride {
@@ -139,6 +140,8 @@ function DriverDashboard() {
       console.error('Error connecting Stripe:', error)
     }
   }
+
+  const connectLabel = driver?.payoutsEnabled ? 'Pagos habilitados' : 'Activar cuenta para recibir pagos'
 
   // Estado de verificación
   const verificationStatus = driver?.verificationStatus
@@ -341,19 +344,19 @@ function DriverDashboard() {
               <span className="material-symbols-rounded">edit</span>
               Editar Perfil
             </Link>
-            {!driver?.stripeAccountId ? (
+            {!driver?.payoutsEnabled ? (
               <button 
                 className="btn btn-secondary"
                 onClick={handleConnectStripe}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <span className="material-symbols-rounded">payments</span>
-                Conectar Stripe
+                {connectLabel}
               </button>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
                 <span className="material-symbols-rounded">check_circle</span>
-                Stripe conectado
+                Pagos habilitados en Stripe
               </div>
             )}
           </div>

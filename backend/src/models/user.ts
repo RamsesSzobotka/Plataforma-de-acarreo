@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema({
   
   // Para clientes
   phone: { type: String },
+  stripeCustomerId: { type: String },
+  paymentMethodId: { type: String },
   
   // Stripe Payment Method ID (guardado para uso en pedidos)
   stripePaymentMethodId: { type: String },

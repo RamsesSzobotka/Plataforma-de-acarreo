@@ -1,10 +1,5 @@
 import { useState, FormEvent } from 'react'
-import {
-  CardElement,
-  useStripe,
-  useElements,
-} from '@stripe/react-stripe-js'
-import type { Stripe, StripeElements } from '@stripe/stripe-js'
+import { useAuth } from '@clerk/clerk-react'
 import { paymentsAPI, ridesAPI } from '../services/api'
 import type { Ride } from '../types'
 
@@ -19,8 +14,7 @@ export function PaymentForm({
   onPaymentSuccess,
   onPaymentError,
 }: PaymentFormProps) {
-  const stripe = useStripe()
-  const elements = useElements()
+  const { getToken } = useAuth()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,65 +34,20 @@ export function PaymentForm({
   async function handlePaymentSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
-    if (!stripe || !elements) {
-      setError('Stripe no está cargado correctamente')
-      return
-    }
-
     setLoading(true)
     setError(null)
 
     try {
-      // 1. Crear PaymentIntent en el backend
-      console.log('📱 Creating payment intent...')
-      const { clientSecret, paymentIntentId } =
-        await paymentsAPI.createPaymentIntent(ride._id, finalPrice)
+      const token = await getToken()
+      console.log('📱 Creating marketplace charge...')
+      const chargeResult = await paymentsAPI.chargeRide(ride._id, token || undefined)
 
-      console.log('✅ Payment intent created:', paymentIntentId)
+      console.log('✅ Charge requested:', chargeResult.paymentIntentId, chargeResult.status)
 
-      // 2. Confirmar el pago con Stripe Elements
-      console.log('💳 Confirming payment with Stripe...')
-      const cardElement = elements.getElement(CardElement)
-      if (!cardElement) {
-        throw new Error('Card element no encontrado')
-      }
-
-      const { error: stripeError, paymentIntent } =
-        await stripe.confirmCardPayment(clientSecret, {
-          payment_method: {
-            card: cardElement,
-          },
-        })
-
-      if (stripeError) {
-        throw new Error(stripeError.message || 'Error al procesar el pago')
-      }
-
-      if (!paymentIntent || paymentIntent.status !== 'succeeded') {
-        throw new Error('El pago no fue completado correctamente')
-      }
-
-      console.log('✅ Payment succeeded:', paymentIntent.id)
-
-      // 3. Confirmar el pago en el backend
-      console.log('🔄 Confirming payment in backend...')
-      const confirmResult = await paymentsAPI.confirmPayment(
-        ride._id,
-        paymentIntentId
-      )
-
-      if (!confirmResult.success) {
-        throw new Error('Error confirmando el pago en el servidor')
-      }
-
-      console.log('✅ Payment confirmed in backend')
-
-      // 4. Actualizar la vista del ride para mostrar estado 'paid'
-      const updatedRide = await ridesAPI.get(ride._id)
+      const updatedRide = await ridesAPI.get(ride._id, token || undefined)
       setSuccess(true)
       onPaymentSuccess(updatedRide)
 
-      // Limpiar mensaje de error y mostrar éxito
       setTimeout(() => {
         setSuccess(false)
       }, 5000)
@@ -126,7 +75,6 @@ export function PaymentForm({
         💳 Pagar ${finalPrice.toFixed(2)}
       </h3>
 
-      {/* Resumen de comisiones */}
       <div
         style={{
           marginBottom: '1.5rem',
@@ -138,45 +86,12 @@ export function PaymentForm({
           border: '1px solid #E2E8F0',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: '0.5rem',
-          }}
-        >
-          <span>Monto total:</span>
-          <span style={{ fontWeight: 600 }}>${finalPrice.toFixed(2)}</span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: '0.5rem',
-            fontSize: '13px',
-            color: '#64748B',
-          }}
-        >
-          <span>Conductor recibe (90%):</span>
-          <span>${(finalPrice * 0.9).toFixed(2)}</span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: '13px',
-            color: '#64748B',
-            paddingTop: '0.5rem',
-            borderTop: '1px solid #E2E8F0',
-          }}
-        >
-          <span>Comisión plataforma (10%):</span>
-          <span>${(finalPrice * 0.1).toFixed(2)}</span>
-        </div>
+        <p style={{ margin: 0 }}>
+          El cobro se ejecutará contra el método de pago guardado en tu perfil y el backend dividirá automáticamente 90/10.
+        </p>
       </div>
 
       <form onSubmit={handlePaymentSubmit}>
-        {/* Card Element */}
         <div
           style={{
             marginBottom: '1rem',
@@ -186,22 +101,9 @@ export function PaymentForm({
             backgroundColor: '#FFFFFF',
           }}
         >
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#0F172A',
-                  '::placeholder': {
-                    color: '#64748B',
-                  },
-                },
-                invalid: {
-                  color: '#EF4444',
-                },
-              },
-            }}
-          />
+          <p style={{ margin: 0, color: '#64748B', fontSize: '14px' }}>
+            Este paso no requiere ingresar tarjeta de nuevo. Se usa el método guardado.
+          </p>
         </div>
 
         {/* Error message */}
@@ -241,7 +143,7 @@ export function PaymentForm({
         {/* Submit button */}
         <button
           type="submit"
-          disabled={loading || !stripe || !elements}
+          disabled={loading}
           style={{
             width: '100%',
             padding: '0.875rem',

@@ -9,6 +9,7 @@ import auth from './routes/auth'
 import users from './routes/users'
 import messages from './routes/messages'
 import payments from './routes/payments'
+import webhooks from './routes/webhooks'
 import health from './routes/health'
 import upload from './routes/upload'
 import admin from './routes/admin'
@@ -67,6 +68,7 @@ app.route('/api/rides', rides)
 app.route('/api/users', users)
 app.route('/api/messages', messages)
 app.route('/api/payments', payments)
+app.route('/api/webhooks', webhooks)
 app.route('/api/upload', upload)
 app.route('/api/admin', admin)
 

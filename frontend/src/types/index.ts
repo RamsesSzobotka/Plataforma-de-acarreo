@@ -19,9 +19,11 @@ export interface Ride {
   chatEnabled: boolean
   deliveryPhoto?: RideImage
   cancellationReason?: string
-  stripePaymentMethodId?: string  // NUEVO: Payment Method guardado
-  paymentIntentId?: string         // NUEVO: PaymentIntent de Stripe
-  paidAt?: string                  // NUEVO: Fecha de pago automático
+  stripePaymentMethodId?: string
+  paymentIntentId?: string
+  platformFee?: number
+  driverAmount?: number
+  paidAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -30,10 +32,12 @@ export type RideType = 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos'
 
 export type RideStatus = 
   | 'requested' 
+  | 'negotiating'
   | 'accepted' 
   | 'in_progress' 
   | 'completed' 
   | 'paid' 
+  | 'failed'
   | 'cancelled'
 
 export interface RideImage {
@@ -57,6 +61,8 @@ export interface User {
   role: UserRole
   isActive: boolean
   phone?: string
+  stripeCustomerId?: string
+  paymentMethodId?: string
   createdAt: string
   updatedAt: string
 }
@@ -77,6 +83,8 @@ export interface Driver {
   rating: number
   totalRides: number
   isVerified: boolean
+  stripeAccountId?: string
+  payoutsEnabled?: boolean
   createdAt: string
   updatedAt: string
 }

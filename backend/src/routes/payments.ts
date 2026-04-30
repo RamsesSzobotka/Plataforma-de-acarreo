@@ -1,248 +1,321 @@
 import { Hono } from 'hono/tiny'
-import Stripe from 'stripe'
-import { Ride } from '../models/ride'
+import { authMiddleware } from '../middleware'
+import type { AuthUser } from '../middleware'
+import { User } from '../models/user'
 import { Driver } from '../models/driver'
+import {
+  createDriverConnectAccount,
+  createMarketplaceCharge,
+  getStripeClient,
+  MarketplaceStripeError,
+  refreshDriverPayoutStatus,
+} from '../services/stripeMarketplace'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
-const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
+const stripe = getStripeClient()
 
 const payments = new Hono()
 
-// Crear PaymentIntent
-payments.post('/create-intent', async (c) => {
+payments.post('/setup-intent', authMiddleware, async (c) => {
+  try {
+    const currentUser = c.get('user') as AuthUser
+    const user = await User.findOne({ clerkId: currentUser.clerkId })
+
+    if (!user) {
+      return c.json({ error: 'Usuario no encontrado' }, 404)
+    }
+
+    let customerId = user.stripeCustomerId
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
+        metadata: { clerkId: currentUser.clerkId },
+      }, {
+        idempotencyKey: `customer:${currentUser.clerkId}`,
+      })
+
+      customerId = customer.id
+
+      await User.findOneAndUpdate(
+        { clerkId: currentUser.clerkId },
+        { stripeCustomerId: customerId, updatedAt: new Date() },
+        { new: true }
+      )
+    }
+
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
+      usage: 'off_session',
+      metadata: { clerkId: currentUser.clerkId },
+    }, {
+      idempotencyKey: `setup-intent:${currentUser.clerkId}`,
+    })
+
+    return c.json({
+      clientSecret: setupIntent.client_secret,
+      setupIntentId: setupIntent.id,
+      stripeCustomerId: customerId,
+    })
+  } catch (error) {
+    console.error('Error creating setup intent:', error)
+    return c.json({ error: 'Error creando SetupIntent' }, 500)
+  }
+})
+
+payments.post('/charge', authMiddleware, async (c) => {
   try {
     const body = await c.req.json()
-    const { rideId, amount } = body
-    
-    if (!rideId || !amount) {
-      return c.json({ error: 'rideId y amount son requeridos' }, 400)
+    const rideId = String(body.rideId || body.id || '')
+
+    if (!rideId) {
+      return c.json({ error: 'rideId es requerido' }, 400)
     }
-    
-    // Verificar que el ride existe y está en estado correcto
-    const ride = await Ride.findById(rideId)
-    if (!ride) {
-      return c.json({ error: 'Ride no encontrado' }, 404)
-    }
-    
-    if (ride.status !== 'completed') {
-      return c.json({ error: 'Ride debe estar en estado completed' }, 400)
-    }
-    
-    // Calcular comisiones
-    const amountCents = Math.round(amount * 100) // Stripe usa centavos
-    const conductorAmount = Math.round(amount * (1 - PLATFORM_COMMISSION) * 100)
-    const platformAmount = Math.round(amount * PLATFORM_COMMISSION * 100)
-    
-    // Crear PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: 'usd',
-      metadata: {
-        rideId,
-        conductorAmount: conductorAmount.toString(),
-        platformAmount: platformAmount.toString(),
-      },
-    })
-    
+
+    const result = await createMarketplaceCharge(rideId)
+
     return c.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
+      success: true,
+      paymentIntentId: result.paymentIntent.id,
+      status: result.paymentIntent.status,
+      clientSecret: result.paymentIntent.client_secret,
+      platformFee: result.platformFee,
+      driverAmount: result.driverAmount,
+      customerId: result.customerId,
+      paymentMethodId: result.paymentMethodId,
     })
-  } catch (err) {
-    console.error('Error creating payment intent:', err)
+  } catch (error: any) {
+    if (error instanceof MarketplaceStripeError) {
+      return c.json({ error: error.message }, error.statusCode)
+    }
+
+    console.error('Error creating marketplace charge:', error)
+    return c.json({ error: 'Error creando el cobro con Stripe Connect' }, 500)
+  }
+})
+
+payments.post('/create-intent', authMiddleware, async (c) => {
+  try {
+    const body = await c.req.json()
+    const result = await createMarketplaceCharge(String(body.rideId))
+
+    return c.json({
+      clientSecret: result.paymentIntent.client_secret,
+      paymentIntentId: result.paymentIntent.id,
+      status: result.paymentIntent.status,
+      platformFee: result.platformFee,
+      driverAmount: result.driverAmount,
+    })
+  } catch (error: any) {
+    if (error instanceof MarketplaceStripeError) {
+      return c.json({ error: error.message }, error.statusCode)
+    }
+
+    console.error('Error creating legacy payment intent:', error)
     return c.json({ error: 'Error creando PaymentIntent' }, 500)
   }
 })
 
-// Webhook de Stripe - CRÍTICO: Debe verificar firma
-payments.post('/webhook', async (c) => {
+payments.post('/attach-payment-method', authMiddleware, async (c) => {
   try {
-    const payload = await c.req.text()
-    const signature = c.req.headers.get('stripe-signature')
-    
-    if (!signature) {
-      return c.json({ error: 'Missing stripe-signature header' }, 400)
+    const currentUser = c.get('user') as AuthUser
+    const body = await c.req.json()
+    const { paymentMethodId, setupIntentId } = body
+
+    if (!paymentMethodId || !setupIntentId) {
+      return c.json({ error: 'paymentMethodId y setupIntentId son requeridos' }, 400)
     }
-    
-    let event: Stripe.Event
-    
-    try {
-      event = stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        webhookSecret
+
+    // Obtener usuario
+    const user = await User.findOne({ clerkId: currentUser.clerkId })
+    if (!user) {
+      return c.json({ error: 'Usuario no encontrado' }, 404)
+    }
+
+    // Validar que el setupIntent pertenece a este usuario
+    const setupIntent = await stripe.setupIntents.retrieve(setupIntentId)
+    if (!setupIntent || setupIntent.metadata?.clerkId !== currentUser.clerkId) {
+      return c.json({ error: 'SetupIntent no válido para este usuario' }, 403)
+    }
+
+    // Asegurar que existe un customer
+    let customerId = user.stripeCustomerId
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
+        metadata: { clerkId: currentUser.clerkId },
+      }, {
+        idempotencyKey: `customer:${currentUser.clerkId}`,
+      })
+      customerId = customer.id
+      await User.findOneAndUpdate(
+        { clerkId: currentUser.clerkId },
+        { stripeCustomerId: customerId, updatedAt: new Date() },
+        { new: true }
       )
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err)
-      return c.json({ error: 'Invalid signature' }, 400)
     }
+
+    // Adjuntar el payment method al customer
+    console.log(`💳 Adjuntando PaymentMethod ${paymentMethodId} al Customer ${customerId}...`)
+    const attachedPaymentMethod = await stripe.paymentMethods.attach(
+      paymentMethodId,
+      { customer: customerId }
+    )
+
+    console.log(`✅ PaymentMethod ${paymentMethodId} adjuntado al Customer ${customerId}`)
+
+    return c.json({
+      success: true,
+      paymentMethodId: attachedPaymentMethod.id,
+      customerId,
+      last4: attachedPaymentMethod.card?.last4,
+      brand: attachedPaymentMethod.card?.brand,
+    })
+  } catch (error: any) {
+    console.error('❌ Error adjuntando PaymentMethod:', error.message)
     
-    // Procesar eventos de Stripe
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentSuccess(event.data.object as Stripe.PaymentIntent)
-        break
-        
-      case 'payment_intent.payment_failed':
-        await handlePaymentFailure(event.data.object as Stripe.PaymentIntent)
-        break
+    // Ignorar error si el PaymentMethod ya está adjunto
+    if (error.message?.includes('already attached')) {
+      return c.json({
+        success: true,
+        message: 'PaymentMethod ya estaba adjuntado',
+      })
     }
-    
-    return c.json({ received: true })
-  } catch (err) {
-    console.error('Error processing webhook:', err)
-    return c.json({ error: 'Webhook processing failed' }, 500)
+
+    return c.json({ error: `Error adjuntando método de pago: ${error.message}` }, 400)
   }
 })
 
-// Confirmar pago (endpoint para el cliente)
-payments.post('/confirm', async (c) => {
+payments.post('/confirm', authMiddleware, async (c) => {
   try {
     const { rideId, paymentIntentId } = await c.req.json()
-    
+
     if (!rideId || !paymentIntentId) {
       return c.json({ error: 'rideId y paymentIntentId son requeridos' }, 400)
     }
-    
-    // Verificar que el ride existe
-    const ride = await Ride.findById(rideId)
-    if (!ride) {
-      return c.json({ error: 'Ride no encontrado' }, 404)
-    }
-    
-    // Verificar PaymentIntent con Stripe
+
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
-    
+
     if (paymentIntent.status !== 'succeeded') {
       return c.json({ error: 'Pago no completado' }, 400)
     }
-    
-    // El webhook se encargará de actualizar el ride a 'paid'
-    // Aquí solo devolvemos confirmación
+
     return c.json({
       success: true,
       paymentIntentId: paymentIntent.id,
       status: paymentIntent.status,
     })
-  } catch (err) {
-    console.error('Error confirming payment:', err)
+  } catch (error) {
+    console.error('Error confirming payment:', error)
     return c.json({ error: 'Error confirmando pago' }, 500)
   }
 })
 
-// Crear cuenta Stripe Connect para el conductor
-payments.post('/create-connect-account', async (c) => {
+payments.post('/connect/create-account', authMiddleware, async (c) => {
   try {
-    const userId = c.get('clerkId') || c.req.header('x-user-id')
+    const currentUser = c.get('user') as AuthUser
 
-    if (!userId) {
-      return c.json({ error: 'User not authenticated' }, 401)
+    if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
+      return c.json({ error: 'Solo conductores pueden activar cuentas de pagos' }, 403)
     }
-
-    const driver = await Driver.findOne({ userId })
-    if (!driver) {
-      return c.json({ error: 'Driver not found' }, 404)
-    }
-
-    const account = await stripe.accounts.create({
-      type: 'express',
-      capabilities: {
-        transfers: { requested: true },
-      },
-    })
-
-    driver.stripeAccountId = account.id
-    await driver.save()
 
     const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
-    const accountLink = await stripe.accountLinks.create({
-      account: account.id,
-      refresh_url: `${origin}/stripe-callback?refresh=true`,
-      return_url: `${origin}/stripe-callback?success=true`,
-      type: 'account_onboarding',
+    const account = await createDriverConnectAccount({
+      clerkId: currentUser.clerkId,
+      email: currentUser.email,
+      origin,
     })
 
     return c.json({
       success: true,
-      onboardingUrl: accountLink.url,
+      onboardingUrl: account.onboardingUrl,
+      stripeAccountId: account.stripeAccountId,
     })
-  } catch (err: any) {
-    console.error('Error creating Stripe Connect account:', err)
-    return c.json({ error: err.message || 'Error creating connect account' }, 500)
+  } catch (error: any) {
+    if (error instanceof MarketplaceStripeError) {
+      return c.json({ error: error.message }, error.statusCode)
+    }
+
+    console.error('Error creating Stripe Connect account:', error)
+    return c.json({ error: 'Error creando cuenta Stripe Connect' }, 500)
   }
 })
 
-// Callback de Stripe Connect
+payments.post('/create-connect-account', authMiddleware, async (c) => {
+  try {
+    const currentUser = c.get('user') as AuthUser
+
+    if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
+      return c.json({ error: 'Solo conductores pueden activar cuentas de pagos' }, 403)
+    }
+
+    const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
+    const account = await createDriverConnectAccount({
+      clerkId: currentUser.clerkId,
+      email: currentUser.email,
+      origin,
+    })
+
+    return c.json({
+      success: true,
+      onboardingUrl: account.onboardingUrl,
+      stripeAccountId: account.stripeAccountId,
+    })
+  } catch (error: any) {
+    if (error instanceof MarketplaceStripeError) {
+      return c.json({ error: error.message }, error.statusCode)
+    }
+
+    console.error('Error creating connect account:', error)
+    return c.json({ error: 'Error creando connect account' }, 500)
+  }
+})
+
+payments.get('/connect/status', authMiddleware, async (c) => {
+  try {
+    const currentUser = c.get('user') as AuthUser
+    const driver = await Driver.findOne({ userId: currentUser.clerkId })
+
+    if (!driver) {
+      return c.json({ error: 'Driver not found' }, 404)
+    }
+
+    if (!driver.stripeAccountId) {
+      return c.json({
+        stripeAccountId: null,
+        payoutsEnabled: false,
+        chargesEnabled: false,
+        detailsSubmitted: false,
+      })
+    }
+
+    const status = await refreshDriverPayoutStatus(driver.stripeAccountId)
+    return c.json(status)
+  } catch (error: any) {
+    if (error instanceof MarketplaceStripeError) {
+      return c.json({ error: error.message }, error.statusCode)
+    }
+
+    console.error('Error retrieving connect status:', error)
+    return c.json({ error: 'Error consultando el estado de Stripe Connect' }, 500)
+  }
+})
+
 payments.get('/stripe-callback', async (c) => {
-  try {
-    const success = c.req.query('success')
-    const refresh = c.req.query('refresh')
+  const success = c.req.query('success')
+  const refresh = c.req.query('refresh')
 
-    if (refresh === 'true') {
-      return c.json({ success: false, message: 'Onboarding refresh required' })
-    }
-
-    if (success === 'true') {
-      return c.json({ success: true, message: 'Stripe account connected successfully' })
-    }
-
-    return c.json({ success: false, message: 'Unknown callback state' })
-  } catch (err: any) {
-    console.error('Error in Stripe callback:', err)
-    return c.json({ error: err.message }, 500)
+  if (refresh === 'true') {
+    return c.json({ success: false, message: 'Onboarding refresh required' })
   }
+
+  if (success === 'true') {
+    return c.json({ success: true, message: 'Stripe account connected successfully' })
+  }
+
+  return c.json({ success: false, message: 'Unknown callback state' })
 })
-
-// Handler para pago exitoso
-async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
-  const rideId = paymentIntent.metadata?.rideId
-  
-  if (!rideId) {
-    console.error('No rideId in payment intent metadata')
-    return
-  }
-  
-  try {
-    // Actualizar estado del ride a 'paid'
-    const updatedRide = await Ride.findByIdAndUpdate(
-      rideId,
-      {
-        status: 'paid',
-        paymentIntentId: paymentIntent.id,
-        paidAt: new Date(),
-        updatedAt: new Date()
-      },
-      { new: true }
-    )
-    
-    if (!updatedRide) {
-      console.error('Ride not found:', rideId)
-      return
-    }
-    
-    console.log(`✅ Payment confirmed for ride ${rideId}`)
-  } catch (err) {
-    console.error('Error updating ride after payment:', err)
-  }
-}
-
-// Handler para pago fallido
-async function handlePaymentFailure(paymentIntent: Stripe.PaymentIntent) {
-  const rideId = paymentIntent.metadata?.rideId
-  
-  if (!rideId) {
-    console.error('No rideId in payment intent metadata')
-    return
-  }
-  
-  try {
-    // Mantener el ride en estado 'completed' para reintentos
-    console.log(`❌ Payment failed for ride ${rideId}`)
-    console.error('Last payment error:', paymentIntent.last_payment_error)
-  } catch (err) {
-    console.error('Error handling payment failure:', err)
-  }
-}
 
 export default payments

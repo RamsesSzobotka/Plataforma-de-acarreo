@@ -6,7 +6,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js'
 import { useAuth } from '@clerk/clerk-react'
-import { usersAPI } from '../services/api'
+import { paymentsAPI, usersAPI } from '../services/api'
 
 interface AddPaymentMethodProps {
   rideId?: string
@@ -41,34 +41,53 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         throw new Error('Card element no encontrado')
       }
 
-      const { error: stripeError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
-      })
+      const token = await getToken()
+      const setupIntentResponse = await paymentsAPI.createSetupIntent(token || undefined)
+
+      const { error: stripeError, setupIntent } = await stripe.confirmCardSetup(
+        setupIntentResponse.clientSecret,
+        {
+          payment_method: {
+            card: cardElement,
+          },
+        }
+      )
 
       if (stripeError) {
         throw new Error(stripeError.message || 'Error al procesar la tarjeta')
       }
 
-      if (!paymentMethod) {
-        throw new Error('No se pudo crear el método de pago')
+      if (!setupIntent || typeof setupIntent.payment_method !== 'string') {
+        throw new Error('No se pudo confirmar el método de pago')
       }
 
-      console.log('✅ PaymentMethod created:', paymentMethod.id)
-      setSavedMethodId(paymentMethod.id)
+      console.log('✅ PaymentMethod confirmed:', setupIntent.payment_method)
+      setSavedMethodId(setupIntent.payment_method)
 
-      // Get token and save to user profile
-      const token = await getToken()
+      // 💳 Adjuntar PaymentMethod al Customer
+      console.log('💳 Adjuntando PaymentMethod al Customer...')
+      try {
+        const attachResponse = await paymentsAPI.attachPaymentMethod(
+          setupIntent.payment_method,
+          setupIntentResponse.setupIntentId,
+          token || undefined
+        )
+        console.log('✅ PaymentMethod adjuntado exitosamente:', attachResponse.brand, '****', attachResponse.last4)
+      } catch (attachError) {
+        const attachMessage = attachError instanceof Error ? attachError.message : 'Error desconocido'
+        console.warn('⚠️ Error adjuntando PaymentMethod (continuando):', attachMessage)
+        // Continuar de todas formas - el fallback del backend lo habrá adjuntado
+      }
+
       console.log('💾 Saving payment method to user profile...')
-      await usersAPI.savePaymentMethod(paymentMethod.id, token || undefined)
+      await usersAPI.savePaymentMethod(setupIntent.payment_method, token || undefined)
       console.log('✅ Payment method saved to user profile')
 
       setSuccess(true)
 
       if (onSuccess) {
-        onSuccess(paymentMethod.id)
+        onSuccess(setupIntent.payment_method)
       } else {
-        // Check if there's a redirect parameter
         const params = new URLSearchParams(window.location.search)
         const redirect = params.get('redirect')
         if (redirect === 'create-ride') {

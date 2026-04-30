@@ -55,6 +55,7 @@ const driverSchema = new mongoose.Schema({
 
   // Stripe Connect
   stripeAccountId: { type: String },
+  payoutsEnabled: { type: Boolean, default: false },
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
