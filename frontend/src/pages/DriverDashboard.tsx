@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
+import ChatButton from '../components/ChatButton'
 import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
 
 interface Driver {
@@ -46,7 +47,7 @@ function DriverDashboard() {
   // NEW: Filters and pagination
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<string>('requested,negotiating')
+  const [statusFilter, setStatusFilter] = useState<string>('requested')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
 
@@ -388,9 +389,7 @@ function DriverDashboard() {
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
                 style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border)' }}
               >
-                <option value="requested,negotiating">Todos</option>
-                <option value="requested">Solicitado</option>
-                <option value="negotiating">Negociando</option>
+                <option value="requested">Pendientes</option>
               </select>
             </div>
             
@@ -504,10 +503,7 @@ function DriverDashboard() {
                         <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>visibility</span>
                         Ver
                       </Link>
-                      <Link to={`/chat/${ride._id}`} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chat</span>
-                        Chat
-                      </Link>
+                      <ChatButton rideId={ride._id} variant="outline" />
                     </div>
                     <div>
                       <span style={{ 

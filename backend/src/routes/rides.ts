@@ -2,6 +2,7 @@ import { Hono } from 'hono/tiny'
 import Stripe from 'stripe'
 import { Ride } from '../models/ride'
 import { Rating } from '../models/rating'
+import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 
@@ -10,23 +11,23 @@ const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
 
 const rides = new Hono()
 
-// Listar rides disponibles para driver (requested o negotiating)
+// Listar rides disponibles para driver (solo requested)
 // Este endpoint es para que drivers puedan ver pedidos cercanos disponibles
 rides.get('/available', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
-  
+
   // Solo drivers y admins pueden ver pedidos disponibles
   if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
     return c.json({ error: 'Solo conductors pueden ver pedidos disponibles' }, 403)
   }
-  
+
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '20')
   const type = c.req.query('type') // opcional: filtrar por tipo
-  
-  // Pedidos disponibles: requested o negotiating
+
+  // Pedidos disponibles: solo requested
   const query: any = {
-    status: { $in: ['requested', 'negotiating'] }
+    status: 'requested'
   }
   
   // Filtrar por tipo si se especifica
@@ -190,7 +191,7 @@ rides.get('/:id', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
   const id = c.req.param('id')
   const ride = await Ride.findById(id)
-  
+
   if (!ride) {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
@@ -198,8 +199,50 @@ rides.get('/:id', authMiddleware, async (c) => {
   if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
     return c.json({ error: 'No tienes permiso para ver este pedido' }, 403)
   }
-  
+
   return c.json(ride)
+})
+
+// Obtener contacts (drivers que han iniciado chat) para un ride
+rides.get('/:id/contacts', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const currentUser = (c as any).get('user') as AuthUser
+
+  // Obtener el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Solo el cliente puede ver los contacts de su ride
+  if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
+    return c.json({ error: 'No tienes permiso para ver los contactos de este pedido' }, 403)
+  }
+
+  // Obtener los contacts activos ordenados por fecha
+  const contacts = await DriverContact.find({ rideId: id, isActive: true })
+    .sort({ createdAt: 1 })
+
+  // Obtener info de los drivers
+  const { User } = await import('../models/user')
+  const contactsWithDriverInfo = await Promise.all(
+    contacts.map(async (contact) => {
+      const driver = await User.findOne({ clerkId: contact.driverId })
+      return {
+        _id: contact._id,
+        driverId: contact.driverId,
+        createdAt: contact.createdAt,
+        driver: driver ? {
+          firstName: driver.firstName,
+          lastName: driver.lastName,
+          imageUrl: driver.imageUrl,
+          email: driver.email
+        } : null
+      }
+    })
+  )
+
+  return c.json({ data: contactsWithDriverInfo })
 })
 
 // Actualizar ride - requiere autenticación
@@ -304,11 +347,11 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
   
-  // Validar estado: solo puede aceptar si está en requested o negotiating
-  if (existingRide.status !== 'requested' && existingRide.status !== 'negotiating') {
-    return c.json({ 
+  // Validar estado: solo puede aceptar si está en requested
+  if (existingRide.status !== 'requested') {
+    return c.json({
       error: 'No puedes aceptar este pedido en su estado actual',
-      currentStatus: existingRide.status 
+      currentStatus: existingRide.status
     }, 400)
   }
   
@@ -322,18 +365,23 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Precio válido requerido' }, 400)
   }
   
-  // Verificar que el ride aún está disponible (otro driver no lo aceptó)
+// Verificar que el ride aún está disponible (otro driver no lo aceptó)
   const ride = await Ride.findByIdAndUpdate(id, {
     driverId,
     status: 'accepted',
-    finalPrice: agreedPrice,
     chatEnabled: true
   }, { new: true })
-  
+
   if (!ride) {
     return c.json({ error: 'El pedido ya fue aceptado por otro conductor' }, 409)
   }
-  
+
+  // Desactivar todos los contacts excepto el del driver que aceptó
+  await DriverContact.updateMany(
+    { rideId: id, driverId: { $ne: driverId } },
+    { isActive: false }
+  )
+
   return c.json(ride)
 })
 
@@ -504,16 +552,17 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
   }
 
   // Reglas de AGENTS:
-  // - requested/negotiating: cliente puede cancelar
-  // - accepted: solo conductor puede cancelar
+  // - requested: cliente puede cancelar
+  // - accepted: solo conductor puede cancelar (solo si no ha iniciado viaje)
   // - in_progress/completed/paid: solo admin (caso excepcional)
   let canCancel = false
 
   if (currentUser.role === 'admin') {
     canCancel = true
-  } else if (ride.status === 'requested' || ride.status === 'negotiating') {
+  } else if (ride.status === 'requested') {
     canCancel = currentUser.clerkId === ride.clientId
   } else if (ride.status === 'accepted') {
+    // Driver solo puede cancelar si no ha iniciado viaje
     canCancel = !!ride.driverId && currentUser.clerkId === ride.driverId
   }
 

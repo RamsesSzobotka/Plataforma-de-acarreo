@@ -497,7 +497,7 @@ admin.patch('/rides/:id/status', async (c) => {
   const id = c.req.param('id')
   const { status } = await c.req.json()
 
-  const validStatuses = ['requested', 'negotiating', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled']
+  const validStatuses = ['requested', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled']
   if (!status || !validStatuses.includes(status)) {
     return c.json({ error: `Status debe ser uno de: ${validStatuses.join(', ')}` }, 400)
   }

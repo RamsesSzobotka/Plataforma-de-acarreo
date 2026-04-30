@@ -30,7 +30,6 @@ export type RideType = 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos'
 
 export type RideStatus = 
   | 'requested' 
-  | 'negotiating' 
   | 'accepted' 
   | 'in_progress' 
   | 'completed' 
@@ -90,6 +89,19 @@ export interface Message {
   content: string
   read: boolean
   createdAt: string
+}
+
+// Driver Contact types
+export interface DriverContact {
+  _id: string
+  driverId: string
+  createdAt: string
+  driver: {
+    firstName?: string
+    lastName?: string
+    imageUrl?: string
+    email?: string
+  } | null
 }
 
 // API Response types

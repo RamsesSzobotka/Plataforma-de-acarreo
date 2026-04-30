@@ -1,0 +1,16 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "local_shipping Carglyn" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]: local_shipping
+        - generic [ref=e8]: Carglyn
+      - navigation [ref=e9]:
+        - link "login Iniciar Sesion" [ref=e10] [cursor=pointer]:
+          - /url: /sign-in
+          - generic [ref=e11]: login
+          - text: Iniciar Sesion
+  - main [ref=e12]:
+    - generic [ref=e14]: Cargando sesion...
+  - contentinfo [ref=e15]:
+    - paragraph [ref=e17]: 2026 Carglyn

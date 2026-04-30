@@ -1,0 +1,100 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "arrow_back Volver al inicio" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e6]: arrow_back
+      - text: Volver al inicio
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e12]: local_shipping
+          - generic [ref=e13]:
+            - heading "Carglyn" [level=1] [ref=e14]
+            - paragraph [ref=e15]: Marketplace B2B de transporte
+        - generic [ref=e16]:
+          - heading "Transporta mercancias con confianza" [level=2] [ref=e17]:
+            - text: Transporta mercancias
+            - generic [ref=e18]: con confianza
+          - paragraph [ref=e19]: Encuentra conductores confiables para tus necesidades de transporte.
+        - generic [ref=e20]:
+          - button "shopping_bag Cliente" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]: shopping_bag
+            - text: Cliente
+          - button "directions_car Conductor" [ref=e23] [cursor=pointer]:
+            - generic [ref=e24]: directions_car
+            - text: Conductor
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]: inventory_2
+            - generic [ref=e28]: Multiples imagenes por pedido
+          - generic [ref=e29]:
+            - generic [ref=e30]: location_on
+            - generic [ref=e31]: Tracking en tiempo real
+          - generic [ref=e32]:
+            - generic [ref=e33]: chat
+            - generic [ref=e34]: Chat directo con conductor
+          - generic [ref=e35]:
+            - generic [ref=e36]: star
+            - generic [ref=e37]: Calificaciones verificadas
+      - generic [ref=e38]:
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e44]:
+              - heading "Sign in to Cargly" [level=1] [ref=e45]
+              - paragraph [ref=e46]: Welcome back! Please sign in to continue
+            - generic [ref=e47]:
+              - generic [ref=e49]:
+                - button "Sign in with Google Google" [ref=e50] [cursor=pointer]:
+                  - generic [ref=e51]:
+                    - img "Sign in with Google" [ref=e53]
+                    - generic [ref=e54]: Google
+                - button "Sign in with Microsoft Microsoft" [ref=e55] [cursor=pointer]:
+                  - generic [ref=e56]:
+                    - img "Sign in with Microsoft" [ref=e58]
+                    - generic [ref=e59]: Microsoft
+              - paragraph [ref=e62]: or
+              - generic [ref=e64]:
+                - generic [ref=e65]:
+                  - generic [ref=e68]:
+                    - generic [ref=e70]: Email address
+                    - textbox "Email address" [ref=e71]:
+                      - /placeholder: Enter your email address
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Password
+                        - generic:
+                          - textbox "Password":
+                            - /placeholder: Enter your password
+                          - button "Show password":
+                            - img
+                - button "Continue" [ref=e74] [cursor=pointer]:
+                  - generic [ref=e75]:
+                    - text: Continue
+                    - img [ref=e76]
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: Don’t have an account?
+              - link "Sign up" [ref=e81] [cursor=pointer]:
+                - /url: http://localhost:5173/sign-up
+            - generic [ref=e83]:
+              - generic [ref=e85]:
+                - paragraph [ref=e86]: Secured by
+                - link "Clerk logo" [ref=e87] [cursor=pointer]:
+                  - /url: https://go.clerk.com/components
+                  - img [ref=e88]
+              - paragraph [ref=e93]: Development mode
+        - paragraph [ref=e94]:
+          - text: No tienes cuenta?
+          - link "Crear cuenta como cliente" [ref=e95] [cursor=pointer]:
+            - /url: /
+  - contentinfo [ref=e96]:
+    - generic [ref=e97]:
+      - paragraph [ref=e98]: 2026 Carglyn. Todos los derechos reservados.
+      - generic [ref=e99]:
+        - link "Terminos de Servicio" [ref=e100] [cursor=pointer]:
+          - /url: "#"
+        - link "Politica de Privacidad" [ref=e101] [cursor=pointer]:
+          - /url: "#"

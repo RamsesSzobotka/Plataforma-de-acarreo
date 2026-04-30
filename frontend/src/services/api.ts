@@ -6,33 +6,62 @@ const API_URL = import.meta.env.VITE_API_URL || ''
 export class WebSocketService {
   private ws: WebSocket | null = null
   private rideId: string | null = null
-  private onMessageCallback: ((data: any) => void) | null = null
-  private onErrorCallback: ((error: Event) => void) | null = null
+  private token: string | null = null
+  // Use array of callbacks to allow multiple listeners
+  private messageCallbacks: Set<(data: any) => void> = new Set()
+  private errorCallbacks: Set<(error: Event) => void> = new Set()
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectDelay = 1000
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private isIntentionallyDisconnected = false
 
   connect(rideId: string, token: string) {
+    // Don't reconnect if we intentionally disconnected
+    if (this.isIntentionallyDisconnected) {
+      console.log('WebSocket intentionally disconnected, skipping reconnect')
+      return
+    }
+
+    // Already connected to this ride
     if (this.ws?.readyState === WebSocket.OPEN && this.rideId === rideId) {
-      return // Already connected to this ride
+      console.log('WebSocket already connected to ride:', rideId)
+      return
+    }
+
+    // Different ride - disconnect first
+    if (this.ws && this.rideId !== rideId) {
+      console.log('Switching WebSocket from ride', this.rideId, 'to', rideId)
+      this.disconnectInternal()
     }
 
     this.rideId = rideId
+    this.token = token
     const wsUrl = `${API_URL.replace('http', 'ws')}/ws/chat/${rideId}`
     
+    console.log('WebSocket connecting to:', wsUrl)
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected')
+      console.log('WebSocket connected successfully')
       this.reconnectAttempts = 0
       // Send auth token
       this.ws?.send(JSON.stringify({ type: 'auth', token }))
+      // Start heartbeat
+      this.startHeartbeat()
     }
 
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        this.onMessageCallback?.(data)
+        // Notify all listeners
+        this.messageCallbacks.forEach(callback => {
+          try {
+            callback(data)
+          } catch (err) {
+            console.error('Error in message callback:', err)
+          }
+        })
       } catch (err) {
         console.error('Error parsing WebSocket message:', err)
       }
@@ -40,54 +69,116 @@ export class WebSocketService {
 
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error)
-      this.onErrorCallback?.(error)
+      this.errorCallbacks.forEach(callback => {
+        try {
+          callback(error)
+        } catch (err) {
+          console.error('Error in error callback:', err)
+        }
+      })
     }
 
-    this.ws.onclose = () => {
-      console.log('WebSocket disconnected')
-      // Attempt reconnection
+    this.ws.onclose = (event) => {
+      console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason)
+      this.stopHeartbeat()
+      
+      // Don't reconnect if intentionally disconnected
+      if (this.isIntentionallyDisconnected) {
+        console.log('Skipping reconnect - intentional disconnect')
+        return
+      }
+
+      // Attempt reconnection with exponential backoff
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++
+        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
+        console.log(`Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
         setTimeout(() => {
-          if (this.rideId) {
-            this.connect(this.rideId, token)
+          if (this.rideId && this.token && !this.isIntentionallyDisconnected) {
+            this.connect(this.rideId, this.token)
           }
-        }, this.reconnectDelay * this.reconnectAttempts)
+        }, delay)
+      } else {
+        console.error('Max reconnection attempts reached')
       }
     }
   }
 
-  onMessage(callback: (data: any) => void) {
-    this.onMessageCallback = callback
+  private startHeartbeat() {
+    this.stopHeartbeat()
+    // Send ping every 30 seconds to keep connection alive
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }))
+      }
+    }, 30000)
   }
 
-  offMessage(callback: (data: any) => void) {
-    if (this.onMessageCallback === callback) {
-      this.onMessageCallback = null
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
     }
   }
 
-  onError(callback: (error: Event) => void) {
-    this.onErrorCallback = callback
-  }
-
-  offError(callback: (error: Event) => void) {
-    if (this.onErrorCallback === callback) {
-      this.onErrorCallback = null
+  // Subscribe to messages - returns unsubscribe function
+  onMessage(callback: (data: any) => void): () => void {
+    this.messageCallbacks.add(callback)
+    return () => {
+      this.messageCallbacks.delete(callback)
     }
   }
 
-  disconnect() {
+  // Subscribe to errors - returns unsubscribe function
+  onError(callback: (error: Event) => void): () => void {
+    this.errorCallbacks.add(callback)
+    return () => {
+      this.errorCallbacks.delete(callback)
+    }
+  }
+
+  // Internal disconnect without resetting intent flag
+  private disconnectInternal() {
+    this.stopHeartbeat()
     if (this.ws) {
-      this.ws.close()
+      this.ws.close(1000, 'Switching rides')
       this.ws = null
-      this.rideId = null
+    }
+  }
+
+  // Intentional disconnect - stops all reconnection attempts
+  disconnect() {
+    console.log('WebSocket intentional disconnect')
+    this.isIntentionallyDisconnected = true
+    this.stopHeartbeat()
+    if (this.ws) {
+      this.ws.close(1000, 'User left')
+      this.ws = null
+    }
+    this.rideId = null
+    this.token = null
+  }
+
+  // Resume connection after intentional disconnect
+  reconnect(rideId: string, token: string) {
+    console.log('WebSocket reconnect requested')
+    this.isIntentionallyDisconnected = false
+    this.connect(rideId, token)
+  }
+
+  // Get current connection state
+  getState(): { isConnected: boolean; rideId: string | null } {
+    return {
+      isConnected: this.ws?.readyState === WebSocket.OPEN,
+      rideId: this.rideId
     }
   }
 
   send(data: any) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data))
+    } else {
+      console.warn('WebSocket not connected, cannot send:', data)
     }
   }
 }

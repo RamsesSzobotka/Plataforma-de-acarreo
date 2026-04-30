@@ -1,0 +1,178 @@
+- generic [ref=e102]:
+  - banner [ref=e103]:
+    - generic [ref=e104]:
+      - link "local_shipping Carglyn" [ref=e105] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e106]: local_shipping
+        - generic [ref=e107]: Carglyn
+      - navigation [ref=e108]:
+        - link "login Iniciar Sesion" [ref=e109] [cursor=pointer]:
+          - /url: /sign-in
+          - generic [ref=e110]: login
+          - text: Iniciar Sesion
+  - main [ref=e111]:
+    - generic [ref=e113]:
+      - generic [ref=e116]:
+        - heading "El marketplace que conecta emisores y conductores para acarreos" [level=1] [ref=e117]
+        - paragraph [ref=e118]: Publica tu pedido en segundos, negocia directamente y recibe tu carga con tracking en tiempo real.
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - button "shopping_bag Soy Cliente" [ref=e121] [cursor=pointer]:
+              - generic [ref=e122]: shopping_bag
+              - text: Soy Cliente
+            - button "directions_car Soy Conductor" [ref=e123] [cursor=pointer]:
+              - generic [ref=e124]: directions_car
+              - text: Soy Conductor
+          - generic [ref=e125]:
+            - button "rocket_launch Publicar un Pedido" [ref=e126] [cursor=pointer]:
+              - generic [ref=e127]: rocket_launch
+              - text: Publicar un Pedido
+            - button "login Iniciar Sesion" [ref=e128] [cursor=pointer]:
+              - generic [ref=e129]: login
+              - text: Iniciar Sesion
+      - generic [ref=e131]:
+        - generic [ref=e132]:
+          - heading "Asi de facil es" [level=2] [ref=e133]
+          - paragraph [ref=e134]: Tu acarreo en solo 4 pasos simples
+        - generic [ref=e135]:
+          - generic [ref=e136]:
+            - generic [ref=e137]: "01"
+            - generic [ref=e139]: edit_note
+            - heading "Publica tu pedido" [level=3] [ref=e140]
+            - paragraph [ref=e141]: Describe lo que necesitas transportar, sube fotos y establece tu precio sugerido.
+          - generic [ref=e142]:
+            - generic [ref=e143]: "02"
+            - generic [ref=e145]: chat
+            - heading "Negocia directo" [level=3] [ref=e146]
+            - paragraph [ref=e147]: Conductores te contactan y pueden negociar el precio en el chat.
+          - generic [ref=e148]:
+            - generic [ref=e149]: "03"
+            - generic [ref=e151]: local_shipping
+            - heading "Sigue el viaje" [level=3] [ref=e152]
+            - paragraph [ref=e153]: Trackea la ubicacion en tiempo real desde que cargan hasta la entrega.
+          - generic [ref=e154]:
+            - generic [ref=e155]: "04"
+            - generic [ref=e157]: verified
+            - heading "Confirma y paga" [level=3] [ref=e158]
+            - paragraph [ref=e159]: Verifica la foto de entrega y paga de forma segura con Stripe.
+      - generic [ref=e162]:
+        - generic [ref=e163]:
+          - generic [ref=e165]: inventory_2
+          - heading "Multiples Imagenes" [level=3] [ref=e166]
+          - paragraph [ref=e167]: Sube hasta 8 fotos de tu carga para mejores cotizaciones.
+        - generic [ref=e168]:
+          - generic [ref=e170]: location_on
+          - heading "Tracking en Tiempo Real" [level=3] [ref=e171]
+          - paragraph [ref=e172]: Sabes exactamente donde esta tu carga en cada momento.
+        - generic [ref=e173]:
+          - generic [ref=e175]: chat
+          - heading "Chat Directo" [level=3] [ref=e176]
+          - paragraph [ref=e177]: Comunicate con el conductor sin intermediarios.
+        - generic [ref=e178]:
+          - generic [ref=e180]: star
+          - heading "Calificaciones" [level=3] [ref=e181]
+          - paragraph [ref=e182]: Cada usuario tiene rating verificado para mayor confianza.
+        - generic [ref=e183]:
+          - generic [ref=e185]: shield
+          - heading "Pago Seguro" [level=3] [ref=e186]
+          - paragraph [ref=e187]: Stripe para transacciones 100% protegidas.
+        - generic [ref=e188]:
+          - generic [ref=e190]: photo_camera
+          - heading "Foto de Entrega" [level=3] [ref=e191]
+          - paragraph [ref=e192]: Evidencia fotografica obligatoria al completar.
+      - generic [ref=e195]:
+        - generic [ref=e196]:
+          - generic [ref=e197]:
+            - generic [ref=e198]: shopping_bag
+            - generic [ref=e199]: Para Clientes
+          - heading "Tu carga en buenas manos" [level=2] [ref=e200]
+          - paragraph [ref=e201]: Encuentra conductores confiables para cualquier tipo de acarreo. Desde mudanzas completas hasta entregas de productos.
+          - list [ref=e202]:
+            - listitem [ref=e203]:
+              - generic [ref=e204]: check_circle
+              - text: Conductores verificados con rating
+            - listitem [ref=e205]:
+              - generic [ref=e206]: check_circle
+              - text: Negocia precios sin compromiso
+            - listitem [ref=e207]:
+              - generic [ref=e208]: check_circle
+              - text: Pago seguro solo al confirmar entrega
+            - listitem [ref=e209]:
+              - generic [ref=e210]: check_circle
+              - text: Soporte en tiempo real
+          - button "add_circle Publicar mi Primer Pedido" [ref=e211] [cursor=pointer]:
+            - generic [ref=e212]: add_circle
+            - text: Publicar mi Primer Pedido
+        - generic [ref=e213]:
+          - generic [ref=e214]:
+            - generic [ref=e215]:
+              - generic [ref=e216]: Mudanza
+              - generic [ref=e217]: $45
+            - generic [ref=e218]: San Miguelito→Costa del Este
+          - generic [ref=e219]:
+            - generic [ref=e220]:
+              - generic [ref=e221]: Productos
+              - generic [ref=e222]: $80
+            - generic [ref=e223]: Chorrera→Bella Vista
+          - generic [ref=e224]:
+            - generic [ref=e225]:
+              - generic [ref=e226]: Muebles
+              - generic [ref=e227]: $35
+            - generic [ref=e228]: Arraijan→Albrook
+          - generic [ref=e229]:
+            - generic [ref=e230]:
+              - generic [ref=e231]: Carga
+              - generic [ref=e232]: $150
+            - generic [ref=e233]: Penonome→David
+      - generic [ref=e236]:
+        - generic [ref=e237]:
+          - generic [ref=e238]:
+            - generic [ref=e239]:
+              - generic [ref=e240]: Mudanza
+              - generic [ref=e241]: $60
+            - generic [ref=e242]: Tocumen→Marbella
+          - generic [ref=e243]:
+            - generic [ref=e244]:
+              - generic [ref=e245]: Muebles
+              - generic [ref=e246]: $55
+            - generic [ref=e247]: La Chorerra→Brisas del Golf
+          - generic [ref=e248]:
+            - generic [ref=e249]:
+              - generic [ref=e250]: Productos
+              - generic [ref=e251]: $70
+            - generic [ref=e252]: San Carlos→Albrook
+          - generic [ref=e253]:
+            - generic [ref=e254]:
+              - generic [ref=e255]: Carga
+              - generic [ref=e256]: $90
+            - generic [ref=e257]: Capira→El Cangrejo
+        - generic [ref=e258]:
+          - generic [ref=e259]:
+            - generic [ref=e260]: directions_car
+            - generic [ref=e261]: Para Conductores
+          - heading "Genera ingresos con tu vehiculo" [level=2] [ref=e262]
+          - paragraph [ref=e263]: Acepta pedidos cerca de tu ubicacion, negocia precios y genera ingresos extras. Tu horario, tu vehiculo, tus reglas.
+          - list [ref=e264]:
+            - listitem [ref=e265]:
+              - generic [ref=e266]: check_circle
+              - text: Sin comisiones ocultas - recibe el 90%
+            - listitem [ref=e267]:
+              - generic [ref=e268]: check_circle
+              - text: Filtros por distancia y tipo de carga
+            - listitem [ref=e269]:
+              - generic [ref=e270]: check_circle
+              - text: Chat integrado con clientes
+            - listitem [ref=e271]:
+              - generic [ref=e272]: check_circle
+              - text: Pagos automaticos por Stripe
+          - button "directions_car Registrarme como Conductor" [ref=e273] [cursor=pointer]:
+            - generic [ref=e274]: directions_car
+            - text: Registrarme como Conductor
+      - generic [ref=e276]:
+        - heading "Listo para tu primer acarreo?" [level=2] [ref=e277]
+        - paragraph [ref=e278]: Empieza hoy mismo. Es rapido, seguro y sin compromisos.
+        - button "rocket_launch Comenzar Ahora" [ref=e279] [cursor=pointer]:
+          - generic [ref=e280]: rocket_launch
+          - text: Comenzar Ahora
+  - contentinfo [ref=e281]:
+    - paragraph [ref=e283]: 2026 Carglyn

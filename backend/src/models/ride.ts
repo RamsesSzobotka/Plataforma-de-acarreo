@@ -41,22 +41,13 @@ const rideSchema = new mongoose.Schema({
   notes: { type: String },
   preferredDate: { type: Date },
   
-  // Estado del ride
+// Estado del ride
   status: {
     type: String,
-    enum: ['requested', 'negotiating', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled'],
+    enum: ['requested', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled'],
     default: 'requested'
   },
-  
-   // Chat habilitado (negotiating o accepted)
-  chatEnabled: { 
-    type: Boolean, 
-    default: false,
-    set: function(this: any) {
-      return this.status === 'negotiating' || this.status === 'accepted'
-    }
-  },
-  
+
   // Foto de entrega
   deliveryPhoto: {
     url: String,

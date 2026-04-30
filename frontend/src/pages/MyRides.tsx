@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { ridesAPI } from '../services/api'
+import { useNotifications } from '../contexts/NotificationsContext'
+import { wsService } from '../services/api'
 import type { PaginatedResponse } from '../types'
 
 interface Ride {
@@ -13,6 +15,7 @@ interface Ride {
   pickupLocation: { address: string }
   dropoffLocation: { address: string }
   createdAt: string
+  clientId: string
 }
 
 const PAGE_LIMIT = 10
@@ -20,6 +23,8 @@ const PAGE_LIMIT = 10
 function MyRides() {
   const { user } = useUser()
   const { getToken } = useAuth()
+  const navigate = useNavigate()
+  const { unreadCounts } = useNotifications()
   const [rides, setRides] = useState<Ride[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -36,6 +41,34 @@ function MyRides() {
       loadRides()
     }
   }, [user, filter, page])
+
+  // Escuchar eventos WebSocket para recargar cuando lleguen mensajes
+  // También recargar cuando el tab vuelve a estar visible
+  useEffect(() => {
+    if (!user) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadRides()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // También recargar periódicamente para captar cambios
+    const refreshInterval = setInterval(loadRides, 10000)
+
+    const unsubscribe = wsService.onMessage((data) => {
+      if (data.type === 'new_message' && data.data) {
+        loadRides()
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      clearInterval(refreshInterval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [user])
 
   async function loadRides() {
     try {
@@ -68,12 +101,18 @@ function MyRides() {
     }
   }
 
+  const handleChatClick = (e: React.MouseEvent, rideId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Navigate to ride details - from there user can select a driver to chat with
+    navigate(`/ride/${rideId}`)
+  }
+
   const startRange = total === 0 ? 0 : (page - 1) * PAGE_LIMIT + 1
   const endRange = Math.min(page * PAGE_LIMIT, total)
 
   const statusLabels: Record<string, string> = {
     requested: 'Pendiente',
-    negotiating: 'Negociando',
     accepted: 'Aceptado',
     in_progress: 'En Progreso',
     completed: 'Completado',
@@ -83,7 +122,6 @@ function MyRides() {
 
   const statusColors: Record<string, string> = {
     requested: '#f59e0b',
-    negotiating: '#8b5cf6',
     accepted: '#22c55e',
     in_progress: '#3b82f6',
     completed: '#22c55e',
@@ -110,7 +148,7 @@ function MyRides() {
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {['all', 'requested', 'negotiating', 'accepted', 'in_progress', 'completed'].map((s) => (
+        {['all', 'requested', 'accepted', 'in_progress', 'completed'].map((s) => (
           <button
             key={s}
             className={`btn ${filter === s ? 'btn-primary' : 'btn-outline'}`}
@@ -136,47 +174,84 @@ function MyRides() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {rides.map((ride) => (
-            <Link
-              key={ride._id}
-              to={`/ride/${ride._id}`}
-              className="card"
-              style={{ display: 'block', textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                <div>
-                  <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
-                    {ride.title}
-                  </h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
-                    {ride.pickupLocation.address}
-                    <span style={{ margin: '0 0.5rem' }}>→</span>
-                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
-                    {ride.dropoffLocation.address}
-                  </p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span
+          {rides.map((ride) => {
+            const unreadCount = unreadCounts[ride._id] || 0
+
+            return (
+              <div
+                key={ride._id}
+                className="card"
+                style={{ display: 'block', textDecoration: 'none', color: 'inherit', cursor: 'pointer', position: 'relative' }}
+              >
+                {/* Badge de mensajes no leídos en la esquina superior */}
+                {unreadCount > 0 && (
+                  <div
+                    onClick={(e) => handleChatClick(e, ride._id)}
                     style={{
-                      display: 'inline-block',
-                      padding: '0.25rem 0.75rem',
+                      position: 'absolute',
+                      top: '-8px',
+                      right: '-8px',
+                      minWidth: '22px',
+                      height: '22px',
+                      padding: '0 6px',
                       borderRadius: '999px',
-                      fontSize: '0.8rem',
-                      background: statusColors[ride.status] || '#64748b',
+                      background: 'var(--error)',
                       color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      zIndex: 10,
+                      cursor: 'pointer',
                     }}
+                    title="Tienes mensajes nuevos"
                   >
-                    {statusLabels[ride.status] || ride.status}
-                  </span>
-                  <p style={{ marginTop: '0.5rem', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
-                    ${ride.estimatedPrice}
-                  </p>
-                </div>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </div>
+                )}
+
+                <Link
+                  to={`/ride/${ride._id}`}
+                  style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
+                        {ride.title}
+                      </h3>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
+                        {ride.pickupLocation.address}
+                        <span style={{ margin: '0 0.5rem' }}>→</span>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
+                        {ride.dropoffLocation.address}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '999px',
+                          fontSize: '0.8rem',
+                          background: statusColors[ride.status] || '#64748b',
+                          color: 'white',
+                        }}
+                      >
+                        {statusLabels[ride.status] || ride.status}
+                      </span>
+                      <p style={{ marginTop: '0.5rem', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
+                        ${ride.estimatedPrice}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
               </div>
-            </Link>
-          ))}
+            )
+          })}
         </div>
       )}
 

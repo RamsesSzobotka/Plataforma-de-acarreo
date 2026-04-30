@@ -1,0 +1,26 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: local_shipping
+      - heading "Plataforma de Acarreos" [level=1] [ref=e7]:
+        - text: Plataforma de
+        - generic [ref=e8]: Acarreos
+    - navigation [ref=e9]:
+      - link "dashboard Dashboard" [ref=e10] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e11]: dashboard
+        - text: Dashboard
+      - link "group Usuarios" [ref=e12] [cursor=pointer]:
+        - /url: /users
+        - generic [ref=e13]: group
+        - text: Usuarios
+      - link "local_shipping Conductores" [ref=e14] [cursor=pointer]:
+        - /url: /drivers
+        - generic [ref=e15]: local_shipping
+        - text: Conductores
+      - link "inventory_2 Pedidos" [ref=e16] [cursor=pointer]:
+        - /url: /rides
+        - generic [ref=e17]: inventory_2
+        - text: Pedidos
+  - main [ref=e18]:
+    - button "Cerrar Sesión" [ref=e20] [cursor=pointer]

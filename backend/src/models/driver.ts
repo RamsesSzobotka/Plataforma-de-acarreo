@@ -79,9 +79,4 @@ driverSchema.pre('findOneAndUpdate', function(next) {
   next()
 })
 
-driverSchema.index({ userId: 1 }, { unique: true })
-driverSchema.index({ currentLocation: '2dsphere' }, { sparse: true })
-driverSchema.index({ isAvailable: 1 })
-driverSchema.index({ verificationStatus: 1 })
-
 export const Driver = mongoose.models.Driver || mongoose.model('Driver', driverSchema)
