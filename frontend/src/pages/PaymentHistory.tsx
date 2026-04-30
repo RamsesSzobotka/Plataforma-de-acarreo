@@ -47,7 +47,8 @@ function PaymentHistory() {
     }
   }
 
-  function formatCurrency(amount: number) {
+  function formatCurrency(amountInCents: number) {
+    const amount = amountInCents / 100
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
   }
 
@@ -143,8 +144,8 @@ function PaymentHistory() {
                       +{formatCurrency(item.driverAmount)}
                     </p>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      <div>Precio total: {formatCurrency(item.finalPrice)}</div>
-                      <div>Comisión (10%): {formatCurrency(item.platformFee)}</div>
+                      <div>Total del viaje: ${((item.driverAmount + item.platformFee) / 100).toFixed(2)}</div>
+                      <div>Tu pago: {formatCurrency(item.driverAmount)} | Comisión: {formatCurrency(item.platformFee)}</div>
                     </div>
                   </div>
                 </div>
