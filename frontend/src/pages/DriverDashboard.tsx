@@ -47,7 +47,7 @@ function DriverDashboard() {
   // NEW: Filters and pagination
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<string>('requested,negotiating')
+  const [statusFilter, setStatusFilter] = useState<string>('requested')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
 
@@ -389,9 +389,7 @@ function DriverDashboard() {
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
                 style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border)' }}
               >
-                <option value="requested,negotiating">Todos</option>
-                <option value="requested">Solicitado</option>
-                <option value="negotiating">Negociando</option>
+                <option value="requested">Pendientes</option>
               </select>
             </div>
             

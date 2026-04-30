@@ -44,25 +44,10 @@ const rideSchema = new mongoose.Schema({
 // Estado del ride
   status: {
     type: String,
-    enum: ['requested', 'negotiating', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled'],
+    enum: ['requested', 'accepted', 'in_progress', 'completed', 'paid', 'cancelled'],
     default: 'requested'
   },
 
-   // Chat habilitado (negotiating o accepted)
-  chatEnabled: {
-    type: Boolean,
-    default: false,
-    set: function(this: any) {
-      return this.status === 'negotiating' || this.status === 'accepted'
-    }
-  },
-
-  // Última actividad de chat (para timeout de 1 minuto)
-  chatActiveAt: { type: Date },
-
-  // ClerkId de quien inició la negociación (driver que escribió primero)
-  chatInitiatedBy: { type: String },
-  
   // Foto de entrega
   deliveryPhoto: {
     url: String,

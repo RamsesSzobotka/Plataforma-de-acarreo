@@ -69,7 +69,6 @@ export default function Rides() {
   function getStatusLabel(status: string) {
     const labels: Record<string, string> = {
       requested: 'Solicitado',
-      negotiating: 'Negociando',
       accepted: 'Aceptado',
       in_progress: 'En progreso',
       completed: 'Completado',
@@ -117,7 +116,6 @@ export default function Rides() {
             >
               <option value="todos">Todos</option>
               <option value="requested">Solicitados</option>
-              <option value="negotiating">Negociando</option>
               <option value="accepted">Aceptados</option>
               <option value="in_progress">En progreso</option>
               <option value="completed">Completados</option>

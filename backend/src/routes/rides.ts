@@ -11,23 +11,23 @@ const PLATFORM_COMMISSION = 0.10 // 10% para la plataforma
 
 const rides = new Hono()
 
-// Listar rides disponibles para driver (requested o negotiating)
+// Listar rides disponibles para driver (solo requested)
 // Este endpoint es para que drivers puedan ver pedidos cercanos disponibles
 rides.get('/available', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
-  
+
   // Solo drivers y admins pueden ver pedidos disponibles
   if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
     return c.json({ error: 'Solo conductors pueden ver pedidos disponibles' }, 403)
   }
-  
+
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '20')
   const type = c.req.query('type') // opcional: filtrar por tipo
-  
-  // Pedidos disponibles: requested o negotiating
+
+  // Pedidos disponibles: solo requested
   const query: any = {
-    status: { $in: ['requested', 'negotiating'] }
+    status: 'requested'
   }
   
   // Filtrar por tipo si se especifica
@@ -347,11 +347,11 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
   
-  // Validar estado: solo puede aceptar si está en requested o negotiating
-  if (existingRide.status !== 'requested' && existingRide.status !== 'negotiating') {
-    return c.json({ 
+  // Validar estado: solo puede aceptar si está en requested
+  if (existingRide.status !== 'requested') {
+    return c.json({
       error: 'No puedes aceptar este pedido en su estado actual',
-      currentStatus: existingRide.status 
+      currentStatus: existingRide.status
     }, 400)
   }
   
@@ -552,16 +552,17 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
   }
 
   // Reglas de AGENTS:
-  // - requested/negotiating: cliente puede cancelar
-  // - accepted: solo conductor puede cancelar
+  // - requested: cliente puede cancelar
+  // - accepted: solo conductor puede cancelar (solo si no ha iniciado viaje)
   // - in_progress/completed/paid: solo admin (caso excepcional)
   let canCancel = false
 
   if (currentUser.role === 'admin') {
     canCancel = true
-  } else if (ride.status === 'requested' || ride.status === 'negotiating') {
+  } else if (ride.status === 'requested') {
     canCancel = currentUser.clerkId === ride.clientId
   } else if (ride.status === 'accepted') {
+    // Driver solo puede cancelar si no ha iniciado viaje
     canCancel = !!ride.driverId && currentUser.clerkId === ride.driverId
   }
 

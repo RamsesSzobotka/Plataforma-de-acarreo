@@ -121,7 +121,6 @@ export default function RideDetail() {
   function getStatusLabel(status: string) {
     const labels: Record<string, string> = {
       requested: 'Solicitado',
-      negotiating: 'Negociando',
       accepted: 'Aceptado',
       in_progress: 'En progreso',
       completed: 'Completado',
@@ -427,7 +426,6 @@ export default function RideDetail() {
                 style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
               >
                 <option value="requested">Solicitado</option>
-                <option value="negotiating">Negociando</option>
                 <option value="accepted">Aceptado</option>
                 <option value="in_progress">En progreso</option>
                 <option value="completed">Completado</option>

@@ -1,0 +1,51 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "arrow_back Volver al inicio" [ref=e5] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e6]: arrow_back
+      - text: Volver al inicio
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e12]: local_shipping
+          - generic [ref=e13]:
+            - heading "Carglyn" [level=1] [ref=e14]
+            - paragraph [ref=e15]: Marketplace B2B de transporte
+        - generic [ref=e16]:
+          - heading "Transporta mercancias con confianza" [level=2] [ref=e17]:
+            - text: Transporta mercancias
+            - generic [ref=e18]: con confianza
+          - paragraph [ref=e19]: Encuentra conductores confiables para tus necesidades de transporte.
+        - generic [ref=e20]:
+          - button "shopping_bag Cliente" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]: shopping_bag
+            - text: Cliente
+          - button "directions_car Conductor" [ref=e23] [cursor=pointer]:
+            - generic [ref=e24]: directions_car
+            - text: Conductor
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]: inventory_2
+            - generic [ref=e28]: Multiples imagenes por pedido
+          - generic [ref=e29]:
+            - generic [ref=e30]: location_on
+            - generic [ref=e31]: Tracking en tiempo real
+          - generic [ref=e32]:
+            - generic [ref=e33]: chat
+            - generic [ref=e34]: Chat directo con conductor
+          - generic [ref=e35]:
+            - generic [ref=e36]: star
+            - generic [ref=e37]: Calificaciones verificadas
+      - paragraph [ref=e39]:
+        - text: No tienes cuenta?
+        - link "Crear cuenta como cliente" [ref=e40] [cursor=pointer]:
+          - /url: /
+  - contentinfo [ref=e41]:
+    - generic [ref=e42]:
+      - paragraph [ref=e43]: 2026 Carglyn. Todos los derechos reservados.
+      - generic [ref=e44]:
+        - link "Terminos de Servicio" [ref=e45] [cursor=pointer]:
+          - /url: "#"
+        - link "Politica de Privacidad" [ref=e46] [cursor=pointer]:
+          - /url: "#"

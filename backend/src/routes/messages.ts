@@ -7,7 +7,7 @@ import { authMiddleware } from '../middleware/auth'
 
 const messages = new Hono()
 
-const CHAT_TIMEOUT_MS = 60000 // 1 minuto
+const MAX_PROPOSALS = 3
 
 // Obtener mensajes de un ride
 messages.get('/ride/:rideId', async (c) => {
@@ -28,9 +28,10 @@ messages.get('/ride/:rideId', async (c) => {
 })
 
 // Enviar mensaje
-messages.post('/', async (c) => {
+messages.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
   const { rideId, senderId, content } = body
+  const currentUser = c.get('user')
 
   // Obtener el ride
   const ride = await Ride.findById(rideId)
@@ -39,14 +40,34 @@ messages.post('/', async (c) => {
   }
 
   // Verificar estado válido para chat
-  if (ride.status !== 'requested' && ride.status !== 'negotiating' && ride.status !== 'accepted') {
+  if (ride.status !== 'requested' && ride.status !== 'accepted' &&
+      ride.status !== 'in_progress' && ride.status !== 'completed') {
     return c.json({ error: 'Chat is not available for this ride status' }, 400)
   }
 
-  // Si está en 'requested', solo drivers pueden iniciar chat
+  // Si está en 'requested', drivers pueden iniciar chat y clientes pueden responder a contacts activos
   if (ride.status === 'requested') {
-    // Verificar que el sender es un driver (chequeamos en DriverContact o en users)
-    // Por ahora aceptamos el mensaje del driver y creamos el contacto
+    // Primero verificar si es el cliente respondiendo a un driver que le escribió
+    if (senderId === ride.clientId) {
+      // Cliente: verificar que tiene al menos un contact activo
+      const activeContact = await DriverContact.findOne({ rideId, isActive: true })
+      if (!activeContact) {
+        return c.json({ error: 'No tienes conversaciones activas con conductores' }, 403)
+      }
+
+      // Cliente puede responder - crear mensaje
+      const message = new Message({ rideId, senderId, content })
+      await message.save()
+
+      broadcastToRide(rideId, {
+        type: 'new_message',
+        data: message
+      })
+
+      return c.json(message, 201)
+    }
+
+    // Es un driver - verificar que tiene contact o crear uno nuevo
     const { User } = await import('../models/user')
     const sender = await User.findOne({ clerkId: senderId })
 
@@ -54,25 +75,23 @@ messages.post('/', async (c) => {
       return c.json({ error: 'Only drivers can initiate chat when ride is pending' }, 403)
     }
 
-    // Verificar si ya existe un driverContact activo para este driver en este ride
+    // Buscar o crear contact
     let contact = await DriverContact.findOne({ driverId: senderId, rideId, isActive: true })
 
     if (!contact) {
-      // Crear nuevo contacto
+      // Guardar info del driver en el momento del contacto
       contact = new DriverContact({
         driverId: senderId,
         clientId: ride.clientId,
         rideId: rideId,
-        isActive: true
+        isActive: true,
+        driverFirstName: sender.firstName,
+        driverLastName: sender.lastName,
+        driverImageUrl: sender.imageUrl,
+        proposalCount: 0
       })
       await contact.save()
     }
-
-    // Cambiar ride a negotiating y guardar info
-    ride.status = 'negotiating'
-    ride.chatActiveAt = new Date()
-    ride.chatInitiatedBy = senderId
-    await ride.save()
 
     // Crear y guardar mensaje
     const message = new Message({ rideId, senderId, content })
@@ -87,79 +106,273 @@ messages.post('/', async (c) => {
     return c.json(message, 201)
   }
 
-  // Si está en 'negotiating' o 'accepted'
-  // Verificar timeout: si chatActiveAt existe y pasó > 1 min, volver a 'requested'
-  if (ride.status === 'negotiating' && ride.chatActiveAt) {
-    const now = new Date()
-    const diffMs = now.getTime() - new Date(ride.chatActiveAt).getTime()
-
-    if (diffMs > CHAT_TIMEOUT_MS) {
-      // Timeout: volver a requested
-      ride.status = 'requested'
-      ride.chatActiveAt = null
-      // NO limpiamos chatInitiatedBy para mantener referencia
-      await ride.save()
-
-      // Verificar si el sender tiene un contact activo
-      const contact = await DriverContact.findOne({ driverId: senderId, rideId, isActive: true })
-      if (!contact) {
-        return c.json({ error: 'Your contact has expired. Please send a new message to continue.' }, 403)
-      }
-      // El contact sigue activo - el cliente puede seguir chateando
-      // Si es el cliente quien envía, permitir mensaje (ride queda en requested)
-      // Si es el driver quien envía, necesita re-iniciar la negociación
-      if (senderId !== ride.clientId) {
-        // Driver debe re-iniciar - crear nuevo contact y volver a negotiating
-        contact.createdAt = new Date()
-        await contact.save()
-
-        ride.status = 'negotiating'
-        ride.chatActiveAt = new Date()
-        ride.chatInitiatedBy = senderId
-        await ride.save()
-      }
-    }
-  }
-
-  // Verificar access para 'negotiating'
-  if (ride.status === 'negotiating') {
-    // Cliente puede enviar siempre (es su ride)
-    if (senderId === ride.clientId) {
-      // Cliente puede enviar
-    } else {
-      // Es un driver - verificar que tiene contact activo
-      const contact = await DriverContact.findOne({ driverId: senderId, rideId, isActive: true })
-      if (!contact) {
-        return c.json({ error: 'You do not have an active contact for this ride' }, 403)
-      }
-    }
-  }
-
-  // Verificar access para 'accepted'
-  if (ride.status === 'accepted') {
+  // Si está en 'accepted', 'in_progress' o 'completed':
+  // Cliente puede chatear si es el dueño del ride
+  // Driver puede chatear si es el driver asignado
+  if (ride.status === 'accepted' || ride.status === 'in_progress' || ride.status === 'completed') {
     const hasAccess = ride.clientId === senderId || ride.driverId === senderId
-    if (!hasAccess) {
-      return c.json({ error: 'Forbidden: You do not have access to this ride' }, 403)
+
+    // Si es el cliente, siempre puede chatear
+    if (ride.clientId === senderId) {
+      const message = new Message({ rideId, senderId, content })
+      await message.save()
+
+      broadcastToRide(rideId, {
+        type: 'new_message',
+        data: message
+      })
+
+      return c.json(message, 201)
     }
+
+    // Si es el driver asignado, puede chatear
+    if (ride.driverId === senderId) {
+      const message = new Message({ rideId, senderId, content })
+      await message.save()
+
+      broadcastToRide(rideId, {
+        type: 'new_message',
+        data: message
+      })
+
+      return c.json(message, 201)
+    }
+
+    // Verificar si tiene un contact activo (driver que escribió antes de ser aceptado)
+    const contact = await DriverContact.findOne({ driverId: senderId, rideId, isActive: true })
+    if (contact) {
+      const message = new Message({ rideId, senderId, content })
+      await message.save()
+
+      broadcastToRide(rideId, {
+        type: 'new_message',
+        data: message
+      })
+
+      return c.json(message, 201)
+    }
+
+    return c.json({ error: 'Forbidden: You do not have access to this ride' }, 403)
   }
 
-  // Actualizar chatActiveAt si está en negotiating
-  if (ride.status === 'negotiating') {
-    ride.chatActiveAt = new Date()
-    await ride.save()
+  return c.json({ error: 'Chat is not available' }, 400)
+})
+
+// Proponer precio (driver)
+messages.post('/propose-price', authMiddleware, async (c) => {
+  const body = await c.req.json()
+  const { rideId, proposedPrice } = body
+  const currentUser = c.get('user')
+
+  if (!currentUser || currentUser.role !== 'driver') {
+    return c.json({ error: 'Only drivers can propose prices' }, 403)
   }
 
-  // Crear y guardar mensaje
-  const message = new Message({ rideId, senderId, content })
+  const driverId = currentUser.clerkId
+
+  // Obtener el ride
+  const ride = await Ride.findById(rideId)
+  if (!ride) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
+
+  // Solo en estado 'requested'
+  if (ride.status !== 'requested') {
+    return c.json({ error: 'Can only propose price when ride is pending' }, 400)
+  }
+
+  // Validar precio
+  if (!proposedPrice || proposedPrice <= 0) {
+    return c.json({ error: 'Valid price required' }, 400)
+  }
+
+  // Buscar contact activo del driver
+  const contact = await DriverContact.findOne({ driverId, rideId, isActive: true })
+  if (!contact) {
+    return c.json({ error: 'You must first send a message to the client' }, 403)
+  }
+
+  // Verificar que no haya alcanzado el máximo de propuestas
+  if (contact.proposalCount >= MAX_PROPOSALS) {
+    return c.json({
+      error: 'Has alcanzado el máximo de 3 propuestas',
+      proposalCount: contact.proposalCount
+    }, 400)
+  }
+
+  // Actualizar propuesta
+  contact.proposedPrice = proposedPrice
+  contact.priceProposedAt = new Date()
+  contact.proposalCount = contact.proposalCount + 1
+  await contact.save()
+
+  // Crear mensaje del sistema
+  const message = new Message({
+    rideId,
+    senderId: driverId,
+    content: `💰 Propuesta de precio: $${proposedPrice}`,
+  })
   await message.save()
 
   // Emitir via WebSocket
   broadcastToRide(rideId, {
-    type: 'new_message',
-    data: message
+    type: 'price_proposed',
+    data: {
+      message,
+      driverId,
+      proposedPrice,
+      proposalCount: contact.proposalCount,
+      remainingProposals: MAX_PROPOSALS - contact.proposalCount
+    }
   })
 
-  return c.json(message, 201)
+  return c.json({
+    success: true,
+    contact,
+    proposalCount: contact.proposalCount,
+    remainingProposals: MAX_PROPOSALS - contact.proposalCount
+  })
+})
+
+// Aceptar precio (cliente)
+messages.post('/accept-price', authMiddleware, async (c) => {
+  const body = await c.req.json()
+  const { rideId, driverId } = body
+  const currentUser = c.get('user')
+
+  if (!currentUser) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const clientId = currentUser.clerkId
+
+  // Obtener el ride
+  const ride = await Ride.findById(rideId)
+  if (!ride) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
+
+  // Solo el cliente puede aceptar
+  if (ride.clientId !== clientId) {
+    return c.json({ error: 'Only the client can accept a proposal' }, 403)
+  }
+
+  // Solo en estado 'requested'
+  if (ride.status !== 'requested') {
+    return c.json({ error: 'Can only accept price when ride is pending' }, 400)
+  }
+
+  // Buscar contact del driver que queremos aceptar
+  const contact = await DriverContact.findOne({ driverId, rideId, isActive: true })
+  if (!contact) {
+    return c.json({ error: 'Driver has no active contact' }, 404)
+  }
+
+  if (!contact.proposedPrice) {
+    return c.json({ error: 'Driver has not proposed a price yet' }, 400)
+  }
+
+  // Aceptar: cambiar ride a 'accepted'
+  const updatedRide = await Ride.findByIdAndUpdate(rideId, {
+    status: 'accepted',
+    driverId: driverId,
+    finalPrice: contact.proposedPrice
+  }, { new: true })
+
+  // Desactivar todos los otros contacts
+  await DriverContact.updateMany(
+    { rideId, driverId: { $ne: driverId } },
+    { isActive: false }
+  )
+
+  // Crear mensaje del sistema
+  const message = new Message({
+    rideId,
+    senderId: 'system',
+    content: `✅ Precio aceptado: $${contact.proposedPrice}. ¡Contrato iniciado!`
+  })
+  await message.save()
+
+  // Emitir via WebSocket a todos
+  broadcastToRide(rideId, {
+    type: 'price_accepted',
+    data: {
+      message,
+      driverId,
+      finalPrice: contact.proposedPrice,
+      ride: updatedRide
+    }
+  })
+
+  return c.json({
+    success: true,
+    ride: updatedRide,
+    message
+  })
+})
+
+// Rechazar precio (cliente)
+messages.post('/reject-price', authMiddleware, async (c) => {
+  const body = await c.req.json()
+  const { rideId, driverId } = body
+  const currentUser = c.get('user')
+
+  if (!currentUser) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const clientId = currentUser.clerkId
+
+  // Obtener el ride
+  const ride = await Ride.findById(rideId)
+  if (!ride) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
+
+  // Solo el cliente puede rechazar
+  if (ride.clientId !== clientId) {
+    return c.json({ error: 'Only the client can reject a proposal' }, 403)
+  }
+
+  // Solo en estado 'requested'
+  if (ride.status !== 'requested') {
+    return c.json({ error: 'Can only reject price when ride is pending' }, 400)
+  }
+
+  // Buscar contact del driver
+  const contact = await DriverContact.findOne({ driverId, rideId, isActive: true })
+  if (!contact) {
+    return c.json({ error: 'Driver has no active contact' }, 404)
+  }
+
+  // Limpiar la propuesta (pero mantener el contact activo)
+  contact.proposedPrice = undefined
+  contact.priceProposedAt = undefined
+  await contact.save()
+
+  // Crear mensaje del sistema
+  const message = new Message({
+    rideId,
+    senderId: 'system',
+    content: `❌ Precio rechazado. El conductor puede enviar una nueva propuesta.`
+  })
+  await message.save()
+
+  // Emitir via WebSocket
+  broadcastToRide(rideId, {
+    type: 'price_rejected',
+    data: {
+      message,
+      driverId,
+      canProposeMore: contact.proposalCount < MAX_PROPOSALS
+    }
+  })
+
+  return c.json({
+    success: true,
+    canProposeMore: contact.proposalCount < MAX_PROPOSALS,
+    proposalCount: contact.proposalCount
+  })
 })
 
 // Marcar mensajes como leídos
@@ -175,7 +388,7 @@ messages.patch('/ride/:rideId/read', async (c) => {
   return c.json({ success: true })
 })
 
-// Obtener conteo de mensajes no leídos para un usuario (todos sus rides)
+// Obtener conteo de mensajes no leídos para un usuario
 messages.get('/unread-count', authMiddleware, async (c) => {
   const userId = c.get('user')?.clerkId
 

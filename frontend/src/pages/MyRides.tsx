@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { ridesAPI } from '../services/api'
 import { useNotifications } from '../contexts/NotificationsContext'
+import { wsService } from '../services/api'
 import type { PaginatedResponse } from '../types'
 
 interface Ride {
@@ -23,7 +24,7 @@ function MyRides() {
   const { user } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
-  const { getUnreadCount } = useNotifications()
+  const { unreadCounts } = useNotifications()
   const [rides, setRides] = useState<Ride[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -40,6 +41,34 @@ function MyRides() {
       loadRides()
     }
   }, [user, filter, page])
+
+  // Escuchar eventos WebSocket para recargar cuando lleguen mensajes
+  // También recargar cuando el tab vuelve a estar visible
+  useEffect(() => {
+    if (!user) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadRides()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // También recargar periódicamente para captar cambios
+    const refreshInterval = setInterval(loadRides, 10000)
+
+    const unsubscribe = wsService.onMessage((data) => {
+      if (data.type === 'new_message' && data.data) {
+        loadRides()
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      clearInterval(refreshInterval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [user])
 
   async function loadRides() {
     try {
@@ -84,7 +113,6 @@ function MyRides() {
 
   const statusLabels: Record<string, string> = {
     requested: 'Pendiente',
-    negotiating: 'Negociando',
     accepted: 'Aceptado',
     in_progress: 'En Progreso',
     completed: 'Completado',
@@ -94,7 +122,6 @@ function MyRides() {
 
   const statusColors: Record<string, string> = {
     requested: '#f59e0b',
-    negotiating: '#8b5cf6',
     accepted: '#22c55e',
     in_progress: '#3b82f6',
     completed: '#22c55e',
@@ -121,7 +148,7 @@ function MyRides() {
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {['all', 'requested', 'negotiating', 'accepted', 'in_progress', 'completed'].map((s) => (
+        {['all', 'requested', 'accepted', 'in_progress', 'completed'].map((s) => (
           <button
             key={s}
             className={`btn ${filter === s ? 'btn-primary' : 'btn-outline'}`}
@@ -148,7 +175,7 @@ function MyRides() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {rides.map((ride) => {
-            const unreadCount = getUnreadCount(ride._id)
+            const unreadCount = unreadCounts[ride._id] || 0
 
             return (
               <div

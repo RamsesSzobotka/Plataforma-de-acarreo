@@ -272,7 +272,7 @@ function Chat() {
     }
 
     initChat()
-  }, [rideId, handleNewMessage, handleWsError, userRole])
+  }, [rideId, userRole])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
