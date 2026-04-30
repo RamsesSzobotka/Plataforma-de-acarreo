@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import ChatButton from '../components/ChatButton'
 import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
@@ -39,6 +39,7 @@ interface Ride {
 function DriverDashboard() {
   const { user } = useUser()
   const { getToken } = useAuth()
+  const navigate = useNavigate()
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableRides, setAvailableRides] = useState<Ride[]>([])
   const [myRides, setMyRides] = useState<Ride[]>([])
@@ -53,8 +54,28 @@ function DriverDashboard() {
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
 
   useEffect(() => {
-    loadDriver()
+    const params = new URLSearchParams(window.location.search)
+    const connected = params.get('connected')
+    const refresh = params.get('refresh')
+    
+    if (connected === '1' || refresh === '1') {
+      refreshStripeStatus()
+      window.history.replaceState({}, '', window.location.pathname)
+    } else {
+      loadDriver()
+    }
   }, [user])
+
+  async function refreshStripeStatus() {
+    try {
+      const token = await getToken()
+      await paymentsAPI.getConnectStatus(token || undefined)
+      loadDriver()
+    } catch (error) {
+      console.error('Error refreshing Stripe status:', error)
+      loadDriver()
+    }
+  }
 
   useEffect(() => {
     if (driver?.verificationStatus === 'verified') {
@@ -141,7 +162,12 @@ function DriverDashboard() {
     }
   }
 
-  const connectLabel = driver?.payoutsEnabled ? 'Pagos habilitados' : 'Activar cuenta para recibir pagos'
+  function handleStripeHistory() {
+    navigate('/driver/payments/history')
+  }
+
+  const hasStripeAccount = !!driver?.stripeAccountId
+  const canReceivePayments = driver?.payoutsEnabled === true
 
   // Estado de verificación
   const verificationStatus = driver?.verificationStatus
@@ -344,20 +370,29 @@ function DriverDashboard() {
               <span className="material-symbols-rounded">edit</span>
               Editar Perfil
             </Link>
-            {!driver?.payoutsEnabled ? (
+            {canReceivePayments ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
+                <span className="material-symbols-rounded">check_circle</span>
+                Pagos habilitados en Stripe
+              </div>
+            ) : hasStripeAccount ? (
+              <button 
+                className="btn btn-outline"
+                onClick={handleStripeHistory}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <span className="material-symbols-rounded">history</span>
+                Historial
+              </button>
+            ) : (
               <button 
                 className="btn btn-secondary"
                 onClick={handleConnectStripe}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <span className="material-symbols-rounded">payments</span>
-                {connectLabel}
+                Activar cuenta para recibir pagos
               </button>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)' }}>
-                <span className="material-symbols-rounded">check_circle</span>
-                Pagos habilitados en Stripe
-              </div>
             )}
           </div>
         </div>

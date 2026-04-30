@@ -402,6 +402,27 @@ export const paymentsAPI = {
       token
     ),
 
+  getPaymentHistory: (params?: { page?: number; limit?: number }, token?: string) =>
+    fetchAPI<{
+      data: Array<{
+        _id: string
+        title: string
+        finalPrice: number
+        driverAmount: number
+        platformFee: number
+        paidAt: string
+        pickupLocation: { address: string }
+        dropoffLocation: { address: string }
+        createdAt: string
+      }>
+      summary: { totalEarnings: number; totalRides: number }
+      pagination: { page: number; limit: number; total: number; pages: number }
+    }>(
+      `/api/payments/history?page=${params?.page || 1}&limit=${params?.limit || 20}`,
+      { method: 'GET' },
+      token
+    ),
+
   handleStripeCallback: (token?: string) =>
     fetchAPI<{ success: boolean; message?: string; stripeAccountId?: string }>(
       '/api/payments/stripe-callback',

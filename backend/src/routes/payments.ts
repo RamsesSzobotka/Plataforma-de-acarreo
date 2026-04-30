@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
+import { Ride } from '../models/ride'
 import {
   createDriverConnectAccount,
   createMarketplaceCharge,
@@ -316,6 +317,58 @@ payments.get('/stripe-callback', async (c) => {
   }
 
   return c.json({ success: false, message: 'Unknown callback state' })
+})
+
+payments.get('/history', authMiddleware, async (c) => {
+  try {
+    const currentUser = c.get('user') as AuthUser
+
+    if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
+      return c.json({ error: 'Solo conductores pueden ver historial de pagos' }, 403)
+    }
+
+    const page = parseInt(c.req.query('page') || '1')
+    const limit = parseInt(c.req.query('limit') || '20')
+
+    const query = {
+      driverId: currentUser.clerkId,
+      status: 'paid'
+    }
+
+    const skip = (page - 1) * limit
+
+    const [rides, total] = await Promise.all([
+      Ride.find(query)
+        .select('title finalPrice driverAmount platformFee paidAt pickupLocation dropoffLocation createdAt')
+        .sort({ paidAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Ride.countDocuments(query)
+    ])
+
+    const summary = await Ride.aggregate([
+      { $match: { driverId: currentUser.clerkId, status: 'paid' } },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: '$driverAmount' },
+          totalRides: { $sum: 1 }
+        }
+      }
+    ])
+
+    return c.json({
+      data: rides,
+      summary: {
+        totalEarnings: summary[0]?.totalEarnings || 0,
+        totalRides: summary[0]?.totalRides || 0
+      },
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    })
+  } catch (error: any) {
+    console.error('Error fetching payment history:', error)
+    return c.json({ error: 'Error obteniendo historial de pagos' }, 500)
+  }
 })
 
 export default payments

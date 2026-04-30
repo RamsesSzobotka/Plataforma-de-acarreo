@@ -11,6 +11,7 @@ import DriverProfile from './pages/DriverProfile'
 import Chat from './pages/Chat'
 import RegisterDriver from './pages/RegisterDriver'
 import AddPaymentMethodPage from './pages/AddPaymentMethod'
+import PaymentHistory from './pages/PaymentHistory'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 
 // Protected route wrapper
@@ -95,6 +96,11 @@ function App() {
         <Route path="driver/profile" element={
           <ProtectedRoute>
             <DriverProfile />
+          </ProtectedRoute>
+        } />
+        <Route path="driver/payments/history" element={
+          <ProtectedRoute>
+            <PaymentHistory />
           </ProtectedRoute>
         } />
         <Route path="register-driver" element={
