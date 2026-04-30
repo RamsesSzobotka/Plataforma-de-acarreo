@@ -11,6 +11,7 @@ import DriverProfile from './pages/DriverProfile'
 import Chat from './pages/Chat'
 import RegisterDriver from './pages/RegisterDriver'
 import AddPaymentMethodPage from './pages/AddPaymentMethod'
+import { NotificationsProvider } from './contexts/NotificationsContext'
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -56,7 +57,11 @@ function App() {
       />
       
       {/* Rutas protegidas con Layout */}
-      <Route path="/" element={<Layout />}>
+      <Route path="/" element={
+        <NotificationsProvider>
+          <Layout />
+        </NotificationsProvider>
+      }>
         <Route index element={<Home />} />
         
         {/* Client routes */}

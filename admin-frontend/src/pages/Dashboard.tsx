@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState<any>(null)
 
   useEffect(() => {
+    if (!localStorage.adminToken) {
+      navigate('/login')
+      return
+    }
     api.getStats().then(setStats).catch(console.error)
-  }, [])
+  }, [navigate])
 
   if (!stats) {
     return (

@@ -2,6 +2,7 @@ import { Hono } from 'hono/tiny'
 import Stripe from 'stripe'
 import { Ride } from '../models/ride'
 import { Rating } from '../models/rating'
+import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 
@@ -190,7 +191,7 @@ rides.get('/:id', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
   const id = c.req.param('id')
   const ride = await Ride.findById(id)
-  
+
   if (!ride) {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
@@ -198,8 +199,50 @@ rides.get('/:id', authMiddleware, async (c) => {
   if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
     return c.json({ error: 'No tienes permiso para ver este pedido' }, 403)
   }
-  
+
   return c.json(ride)
+})
+
+// Obtener contacts (drivers que han iniciado chat) para un ride
+rides.get('/:id/contacts', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const currentUser = (c as any).get('user') as AuthUser
+
+  // Obtener el ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Solo el cliente puede ver los contacts de su ride
+  if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
+    return c.json({ error: 'No tienes permiso para ver los contactos de este pedido' }, 403)
+  }
+
+  // Obtener los contacts activos ordenados por fecha
+  const contacts = await DriverContact.find({ rideId: id, isActive: true })
+    .sort({ createdAt: 1 })
+
+  // Obtener info de los drivers
+  const { User } = await import('../models/user')
+  const contactsWithDriverInfo = await Promise.all(
+    contacts.map(async (contact) => {
+      const driver = await User.findOne({ clerkId: contact.driverId })
+      return {
+        _id: contact._id,
+        driverId: contact.driverId,
+        createdAt: contact.createdAt,
+        driver: driver ? {
+          firstName: driver.firstName,
+          lastName: driver.lastName,
+          imageUrl: driver.imageUrl,
+          email: driver.email
+        } : null
+      }
+    })
+  )
+
+  return c.json({ data: contactsWithDriverInfo })
 })
 
 // Actualizar ride - requiere autenticación
@@ -322,18 +365,23 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Precio válido requerido' }, 400)
   }
   
-  // Verificar que el ride aún está disponible (otro driver no lo aceptó)
+// Verificar que el ride aún está disponible (otro driver no lo aceptó)
   const ride = await Ride.findByIdAndUpdate(id, {
     driverId,
     status: 'accepted',
-    finalPrice: agreedPrice,
     chatEnabled: true
   }, { new: true })
-  
+
   if (!ride) {
     return c.json({ error: 'El pedido ya fue aceptado por otro conductor' }, 409)
   }
-  
+
+  // Desactivar todos los contacts excepto el del driver que aceptó
+  await DriverContact.updateMany(
+    { rideId: id, driverId: { $ne: driverId } },
+    { isActive: false }
+  )
+
   return c.json(ride)
 })
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
+import ChatButton from '../components/ChatButton'
 import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
 
 interface Driver {
@@ -504,10 +505,7 @@ function DriverDashboard() {
                         <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>visibility</span>
                         Ver
                       </Link>
-                      <Link to={`/chat/${ride._id}`} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chat</span>
-                        Chat
-                      </Link>
+                      <ChatButton rideId={ride._id} variant="outline" />
                     </div>
                     <div>
                       <span style={{ 

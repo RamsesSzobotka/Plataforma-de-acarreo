@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
 import { ridesAPI, usersAPI } from '../services/api'
+import type { DriverContact } from '../types'
+import { useNotifications } from '../contexts/NotificationsContext'
 
 interface Ride {
   _id: string
@@ -47,9 +49,12 @@ function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
   const { getToken } = useAuth()
+  const navigate = useNavigate()
+  const { getUnreadCount } = useNotifications()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
+  const [contacts, setContacts] = useState<DriverContact[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -80,6 +85,17 @@ function RideDetails() {
         const driverProfile = await usersAPI.getDriver(data.driverId, token || undefined)
         setDriver(driverProfile)
       }
+
+      // Cargar contacts si está en requested o negotiating (cliente puede ver drivers que le escribieron)
+      if ((data.status === 'requested' || data.status === 'negotiating') && user?.id === data.clientId) {
+        const contactsResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/contacts`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (contactsResponse.ok) {
+          const contactsData = await contactsResponse.json()
+          setContacts(contactsData.data || [])
+        }
+      }
     } catch (error) {
       console.error('Error loading ride:', error)
     } finally {
@@ -90,7 +106,7 @@ function RideDetails() {
   async function handleCancel() {
     if (!id) return
     if (!confirm('Estas seguro de cancelar este pedido?')) return
-    
+
     try {
       const token = await getToken()
       await ridesAPI.cancel(id, 'Cancelado por el cliente', token || undefined)
@@ -102,11 +118,11 @@ function RideDetails() {
 
   async function handleConfirmDelivery() {
     if (!user || !ride || !id) return
-    
-    const confirmMessage = ride.stripePaymentMethodId 
+
+    const confirmMessage = ride.stripePaymentMethodId
       ? '¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.'
       : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
-    
+
     if (!confirm(confirmMessage)) {
       return
     }
@@ -130,14 +146,14 @@ function RideDetails() {
       }
 
       const result = await response.json()
-      
+
       // Mostrar mensaje según el resultado
       if (result.message?.includes('pagado')) {
         alert('✅ Entrega confirmada y pago procesado exitosamente')
       } else {
         alert('✅ Entrega confirmada. Puedes proceder con el pago.')
       }
-      
+
       loadRide()
     } catch (error) {
       console.error('Error confirming delivery:', error)
@@ -184,6 +200,10 @@ function RideDetails() {
     }
   }
 
+  const handleChatClick = (contact: DriverContact) => {
+    navigate(`/chat/${id}?contactId=${contact._id}&driverId=${contact.driverId}`)
+  }
+
   if (loading) return <div>Cargando...</div>
   if (!ride) return <div>Pedido no encontrado</div>
 
@@ -192,7 +212,7 @@ function RideDetails() {
   const isOwner = isClientOwner
   const canClientCancel = isClientOwner && (ride.status === 'requested' || ride.status === 'negotiating')
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
-  
+
   // Badge de estado con colores
   const statusColors: Record<string, string> = {
     requested: '#F59E0B',
@@ -204,7 +224,7 @@ function RideDetails() {
     cancelled: '#EF4444',
   }
   const statusColor = statusColors[ride.status] || '#64748B'
-  
+
   const statusLabels: Record<string, string> = {
     requested: 'Pendiente',
     negotiating: 'En negociación',
@@ -215,6 +235,9 @@ function RideDetails() {
     cancelled: 'Cancelado',
   }
 
+  // Obtener unread count para este ride
+  const unreadCount = getUnreadCount(ride._id)
+
   return (
     <div>
       <Link to="/my-rides" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -222,7 +245,33 @@ function RideDetails() {
         Volver a Mis Pedidos
       </Link>
 
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <div className="card" style={{ marginBottom: '1.5rem', position: 'relative' }}>
+        {/* Badge de mensajes no leídos en la esquina */}
+        {unreadCount > 0 && isClientOwner && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '-8px',
+              right: '-8px',
+              minWidth: '22px',
+              height: '22px',
+              padding: '0 6px',
+              borderRadius: '999px',
+              background: 'var(--error)',
+              color: 'white',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              zIndex: 10,
+            }}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
           <h1>{ride.title}</h1>
           <span style={{
@@ -248,13 +297,13 @@ function RideDetails() {
               <span className="material-symbols-rounded">image</span>
               Imágenes ({ride.images.length})
             </strong>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(180px, 1fr))', 
-              gap: '1rem' 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: '1rem'
             }}>
               {ride.images.map((img, idx) => (
-                <div 
+                <div
                   key={idx}
                   style={{
                     position: 'relative',
@@ -264,11 +313,11 @@ function RideDetails() {
                     background: '#f8fafc'
                   }}
                 >
-                  <img 
-                    src={img.url} 
+                  <img
+                    src={img.url}
                     alt={`Imagen ${idx + 1}`}
-                    style={{ 
-                      width: '100%', 
+                    style={{
+                      width: '100%',
                       height: 'auto',
                       aspectRatio: '4/3',
                       objectFit: 'cover',
@@ -290,8 +339,8 @@ function RideDetails() {
             </strong>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
               {driverUser.imageUrl && (
-                <img 
-                  src={driverUser.imageUrl} 
+                <img
+                  src={driverUser.imageUrl}
                   alt={driverUser.firstName}
                   style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover' }}
                 />
@@ -310,6 +359,101 @@ function RideDetails() {
             </div>
           </div>
         )}
+
+        {/* Contacts (drivers que escribieron) - solo para cliente */}
+        {isClientOwner && contacts.length > 0 && (ride.status === 'requested' || ride.status === 'negotiating') && (
+          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <span className="material-symbols-rounded">chat</span>
+              Conductores que te han escrito
+            </strong>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {contacts.map((contact, index) => (
+                <div
+                  key={contact._id}
+                  onClick={() => handleChatClick(contact)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    padding: '0.75rem',
+                    borderRadius: 'var(--radius)',
+                    background: 'white',
+                    border: '1px solid var(--border)',
+                    transition: 'all 0.2s',
+                    minWidth: '80px',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--primary)'
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(13, 148, 136, 0.2)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    <div
+                      style={{
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '50%',
+                        border: '2px solid var(--primary)',
+                        overflow: 'hidden',
+                        background: contact.driver?.imageUrl ? 'transparent' : 'var(--primary)',
+                      }}
+                    >
+                      {contact.driver?.imageUrl ? (
+                        <img
+                          src={contact.driver.imageUrl}
+                          alt={`${contact.driver.firstName} ${contact.driver.lastName}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '100%',
+                          height: '100%',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '1.25rem',
+                        }}>
+                          {contact.driver?.firstName?.charAt(0) || 'D'}
+                        </div>
+                      )}
+                    </div>
+                    {/* Indicador de mensaje no leído */}
+                    {index === 0 && unreadCount > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '0',
+                          right: '0',
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          background: 'var(--error)',
+                          border: '2px solid white',
+                        }}
+                      />
+                    )}
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                    {contact.driver?.firstName || 'Driver'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Click en un conductor para chatear
+            </p>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
             <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -335,7 +479,7 @@ function RideDetails() {
               ${ride.finalPrice || ride.estimatedPrice}
             </p>
           </div>
-          
+
           {/* Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {(canClientCancel || canDriverCancel) && (
@@ -396,7 +540,7 @@ function RideDetails() {
             </div>
           </div>
         )}
-        
+
         {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
           <div
             style={{
@@ -430,12 +574,12 @@ function RideDetails() {
                 {paymentError}
               </div>
             )}
-            <PaymentForm 
+            <PaymentForm
               ride={ride}
               onPaymentSuccess={handlePaymentSuccess}
               onPaymentError={handlePaymentError}
             />
-            <button 
+            <button
               onClick={() => {
                 setShowPaymentForm(false)
                 setPaymentError(null)
@@ -455,12 +599,12 @@ function RideDetails() {
           </div>
         )}
 
-        {/* Chat */}
-        {(ride.status === 'negotiating' || ride.status === 'accepted' || ride.status === 'in_progress') && (
+        {/* Chat button - solo para driver o cuando ya hay driver asignado */}
+        {isDriverOwner && (
           <div style={{ marginTop: '1.5rem' }}>
             <Link to={`/chat/${ride._id}`} className="btn btn-secondary">
               <span className="material-symbols-rounded">chat</span>
-              Abrir Chat
+              Chatear con Cliente
             </Link>
           </div>
         )}
@@ -478,11 +622,11 @@ function RideDetails() {
               border: '1px solid var(--border)',
               maxWidth: '400px'
             }}>
-              <img 
-                src={ride.deliveryPhoto.url} 
+              <img
+                src={ride.deliveryPhoto.url}
                 alt="Entrega"
-                style={{ 
-                  width: '100%', 
+                style={{
+                  width: '100%',
                   height: 'auto',
                   aspectRatio: '4/3',
                   objectFit: 'cover',
@@ -533,7 +677,7 @@ function RideDetails() {
                   marginBottom: '0.75rem',
                 }}
               />
-              <button 
+              <button
                 onClick={handleRate}
                 disabled={rating === 0}
                 className="btn btn-primary"

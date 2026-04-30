@@ -92,6 +92,19 @@ export interface Message {
   createdAt: string
 }
 
+// Driver Contact types
+export interface DriverContact {
+  _id: string
+  driverId: string
+  createdAt: string
+  driver: {
+    firstName?: string
+    lastName?: string
+    imageUrl?: string
+    email?: string
+  } | null
+}
+
 // API Response types
 export interface PaginatedResponse<T> {
   data: T[]

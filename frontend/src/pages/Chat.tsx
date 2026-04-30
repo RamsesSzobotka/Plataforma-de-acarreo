@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
+import type { UserRole } from '../types'
 
 interface Message {
   _id: string
@@ -12,6 +13,8 @@ interface Message {
 
 function Chat() {
   const { rideId } = useParams<{ rideId: string }>()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { user } = useUser()
   const { getToken } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
@@ -19,21 +22,50 @@ function Chat() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  
+
+  // Get contact info from URL params
+  const contactId = searchParams.get('contactId')
+  const driverId = searchParams.get('driverId')
+
   // Refs para mantener los callbacks sin re-renders
   const userRef = useRef(user)
   const getTokenRef = useRef(getToken)
   const rideIdRef = useRef(rideId)
-  
+  const contactIdRef = useRef(contactId)
+  const driverIdRef = useRef(driverId)
+
   // Actualizar refs cuando cambian
   useEffect(() => {
     userRef.current = user
     getTokenRef.current = getToken
     rideIdRef.current = rideId
-  }, [user, getToken, rideId])
+    contactIdRef.current = contactId
+    driverIdRef.current = driverId
+  }, [user, getToken, rideId, contactId, driverId])
 
-  // Función para manejar nuevos mensajes (useCallback para stability)
+  // Cargar rol del usuario
+  useEffect(() => {
+    async function loadUserRole() {
+      if (!user) return
+      try {
+        const token = await getToken()
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/users/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setUserRole(data.role)
+        }
+      } catch (err) {
+        console.error('Error loading user role:', err)
+      }
+    }
+    loadUserRole()
+  }, [user, getToken])
+
+  // Función para manejar nuevos mensajes
   const handleNewMessage = useCallback((data: any) => {
     if (data.type === 'new_message') {
       setMessages((prev) => {
@@ -43,12 +75,12 @@ function Chat() {
         }
         return [...prev, data.data]
       })
-      
+
       // Marcar como leído
       const token = getTokenRef.current()
       const currentUserId = userRef.current?.id
       const currentRideId = rideIdRef.current
-      
+
       if (token && currentUserId && currentRideId) {
         fetch(`${import.meta.env.VITE_API_URL || ''}/api/messages/ride/${currentRideId}/read`, {
           method: 'PATCH',
@@ -60,6 +92,12 @@ function Chat() {
         }).catch(err => console.error('Error marking as read:', err))
       }
     }
+
+    // Handle auth success
+    if (data.type === 'auth_success') {
+      console.log('WebSocket authenticated successfully')
+      setIsConnected(true)
+    }
   }, [])
 
   const handleWsError = useCallback((err: any) => {
@@ -67,15 +105,40 @@ function Chat() {
     setIsConnected(false)
   }, [])
 
+  // Monitor connection state
+  useEffect(() => {
+    // Check initial state
+    const state = wsService.getState()
+    setIsConnected(state.isConnected && state.rideId === rideId)
+
+    // Subscribe to connection updates via polling (simple approach)
+    const interval = setInterval(() => {
+      const currentState = wsService.getState()
+      setIsConnected(currentState.isConnected && currentState.rideId === rideId)
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [rideId])
+
   useEffect(() => {
     async function initChat() {
       const currentRideId = rideIdRef.current
       const currentUser = userRef.current
       const token = await getTokenRef.current()
-      
+
       if (!currentRideId || !currentUser || !token) {
         setLoading(false)
         return
+      }
+
+      // Si el usuario es CLIENTE, necesita contactId y driverId
+      // Si es DRIVER, puede entrar directamente
+      if (userRole === 'client') {
+        if (!contactIdRef.current || !driverIdRef.current) {
+          setError('No se ha seleccionado un conductor para chatear')
+          setLoading(false)
+          return
+        }
       }
 
       try {
@@ -89,11 +152,18 @@ function Chat() {
         setMessages(data.data || [])
         setLoading(false)
 
-        // Conectar WebSocket solo una vez al montar
-        wsService.onMessage(handleNewMessage)
-        wsService.onError(handleWsError)
+        // Conectar WebSocket - NO desconectar al unmount (el servicio es global)
+        const unsubscribeMessage = wsService.onMessage(handleNewMessage)
+        const unsubscribeError = wsService.onError(handleWsError)
         wsService.connect(currentRideId, token)
-        setIsConnected(true)
+
+        // Cleanup: solo quitar callbacks, NO desconectar
+        return () => {
+          unsubscribeMessage()
+          unsubscribeError()
+          // Note: We don't call wsService.disconnect() because the service persists
+          // across the entire app session. Only disconnect if explicitly needed.
+        }
       } catch (err: any) {
         setError(err.message || 'Error loading chat')
         setLoading(false)
@@ -101,15 +171,7 @@ function Chat() {
     }
 
     initChat()
-
-    // Cleanup: desconectar y quitar callbacks
-    return () => {
-      wsService.offMessage(handleNewMessage)
-      wsService.offError(handleWsError)
-      wsService.disconnect()
-      setIsConnected(false)
-    }
-  }, [rideId, handleNewMessage, handleWsError]) // Quitamos 'user' de las deps
+  }, [rideId, handleNewMessage, handleWsError, userRole])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -126,14 +188,22 @@ function Chat() {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
       }
 
+      const body: any = {
+        rideId,
+        senderId: user.id,
+        content: newMessage,
+      }
+
+      // Si es cliente, enviar contactId y driverId
+      if (userRole === 'client' && contactIdRef.current && driverIdRef.current) {
+        body.contactId = contactIdRef.current
+        body.driverId = driverIdRef.current
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/messages`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          rideId,
-          senderId: user.id,
-          content: newMessage,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -157,9 +227,65 @@ function Chat() {
 
   if (loading) return <div>Cargando chat...</div>
 
+  if (error) {
+    return (
+      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', padding: '2rem' }}>
+        <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: 'var(--error)' }}>
+          error
+        </span>
+        <p style={{ marginTop: '1rem', color: 'var(--error)' }}>{error}</p>
+        <button
+          className="btn btn-outline"
+          onClick={() => navigate(userRole === 'driver' ? '/driver' : '/my-rides')}
+          style={{ marginTop: '1rem' }}
+        >
+          {userRole === 'driver' ? 'Volver al Panel' : 'Volver a Mis Pedidos'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <h2 style={{ marginBottom: '1rem' }}>Chat</h2>
+      {/* Header con estado de conexión y volver */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            onClick={() => navigate(userRole === 'driver' ? '/driver' : '/my-rides')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              color: 'var(--text-secondary)',
+              fontSize: '0.9rem',
+            }}
+          >
+            <span className="material-symbols-rounded">arrow_back</span>
+            Volver
+          </button>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '0.25rem 0.75rem',
+          borderRadius: '999px',
+          background: isConnected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          color: isConnected ? 'var(--success)' : 'var(--error)',
+          fontSize: '0.875rem'
+        }}>
+          <span style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: isConnected ? 'var(--success)' : 'var(--error)'
+          }} />
+          {isConnected ? 'Conectado' : 'Desconectado'}
+        </div>
+      </div>
 
       {/* Messages */}
       <div
@@ -178,7 +304,7 @@ function Chat() {
         {messages.length === 0 ? (
           <p style={{ textAlign: 'center', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
             <span className="material-symbols-rounded">chat_bubble</span>
-            No hay mensajes. Escribe el primero!
+            No hay mensajes. {userRole === 'driver' ? 'Envía el primero para iniciar contacto con el cliente!' : 'Escribe el primero!'}
           </p>
         ) : (
           messages.map((msg) => (
@@ -223,12 +349,12 @@ function Chat() {
         <input
           type="text"
           className="input"
-          placeholder="Escribe un mensaje..."
+          placeholder={userRole === 'driver' ? 'Envía un mensaje al cliente...' : 'Escribe un mensaje...'}
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           style={{ flex: 1 }}
         />
-        <button type="submit" className="btn btn-primary">
+        <button type="submit" className="btn btn-primary" disabled={!isConnected}>
           Enviar
         </button>
       </form>
