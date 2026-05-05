@@ -8,6 +8,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
+import { showConfirm, showError, showSuccess } from '../services/alerts'
 
 interface Ride {
   _id: string
@@ -133,7 +134,14 @@ function RideDetails() {
 
   async function handleCancel() {
     if (!id) return
-    if (!confirm('Estas seguro de cancelar este pedido?')) return
+    const confirmed = await showConfirm({
+      title: 'Cancelar pedido',
+      text: 'Estas seguro de cancelar este pedido?',
+      icon: 'warning',
+      confirmText: 'Si, cancelar'
+    })
+
+    if (!confirmed) return
 
     try {
       const token = await getToken()
@@ -148,10 +156,15 @@ function RideDetails() {
     if (!user || !ride || !id) return
 
     const confirmMessage = ride.stripePaymentMethodId
-      ? '¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.'
+      ? '¿Confirmas que la entrega está completa?\n\n. Se cobrará automáticamente a tu forma de pago guardada.'
       : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
 
-    if (!confirm(confirmMessage)) return
+    const confirmed = await showConfirm({
+      title: 'Confirmar entrega',
+      text: confirmMessage
+    })
+
+    if (!confirmed) return
 
     try {
       const token = await getToken()
@@ -173,15 +186,15 @@ function RideDetails() {
       const result = await response.json()
 
       if (result.message?.includes('pagado')) {
-        alert('Entrega confirmada y pago procesado exitosamente')
+        await showSuccess('Entrega confirmada y pago procesado exitosamente')
       } else {
-        alert('Entrega confirmada. Puedes proceder con el pago.')
+        await showSuccess('Entrega confirmada. Pago realizado con exito')
       }
 
       loadRide()
     } catch (error) {
       console.error('Error confirming delivery:', error)
-      alert(`Error: ${error instanceof Error ? error.message : 'Error al confirmar entrega'}`)
+      await showError(error instanceof Error ? error.message : 'Error al confirmar entrega')
     }
   }
 
@@ -213,7 +226,7 @@ function RideDetails() {
         }),
       })
       if (response.ok) {
-        alert('Calificacion enviada')
+        await showSuccess('Calificacion enviada')
         setRating(0)
         setComment('')
         loadRide()

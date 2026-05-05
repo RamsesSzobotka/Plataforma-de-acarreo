@@ -9,7 +9,8 @@
     "db:up": "docker compose -f docker-compose.yml up -d",
     "db:down": "docker compose -f docker-compose.yml down",
     "db:logs": "docker compose -f docker-compose.yml logs -f",
-    "db:init": "bun run src/scripts/create-admin.ts"
+    "db:init": "bun run src/scripts/create-admin.ts",
+    "db:dedupe:ratings": "bun run src/scripts/cleanup-duplicate-ratings.ts"
   },
   "dependencies": {
     "hono": "^4.0.0",

@@ -5,6 +5,7 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements } from '@stripe/react-stripe-js'
 import App from './App'
+import 'sweetalert2/dist/sweetalert2.min.css'
 import './styles/index.css'
 
 // Import your publishable keys

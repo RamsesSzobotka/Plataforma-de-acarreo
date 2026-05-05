@@ -5,6 +5,7 @@ import ChatButton from '../components/ChatButton'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
+import { showConfirm } from '../services/alerts'
 
 interface Driver {
   _id: string
@@ -1023,7 +1024,12 @@ function DriverDashboard() {
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={async () => {
-                          if (!confirm('¿Confirmas que tienes la mercancia cargada?')) return
+                          const confirmed = await showConfirm({
+                            title: 'Confirmar carga',
+                            text: '¿Confirmas que tienes la mercancia cargada?'
+                          })
+
+                          if (!confirmed) return
                           try {
                             const token = await getToken()
                             await ridesAPI.start(ride._id, token || undefined)

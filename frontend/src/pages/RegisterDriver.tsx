@@ -4,6 +4,7 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import { usersAPI } from '../services/api'
 import FileUpload from '../components/FileUpload'
 import AddressInput from '../components/AddressInput'
+import { hideLoading, showLoading } from '../services/alerts'
 
 interface DriverProfile {
   verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
@@ -107,6 +108,18 @@ export default function RegisterDriver() {
 
     checkDriverStatus()
   }, [isSignedIn, navigate, redirectUrl])
+
+  useEffect(() => {
+    if (isLoadingStatus) {
+      showLoading('Verificando tu estado...')
+    } else {
+      hideLoading()
+    }
+
+    return () => {
+      hideLoading()
+    }
+  }, [isLoadingStatus])
 
   const [formData, setFormData] = useState<FormData>({
     vehicleType: '',
@@ -233,24 +246,7 @@ export default function RegisterDriver() {
   const showStatus = driverStatus && (driverStatus.verificationStatus === 'pending' || driverStatus.verificationStatus === 'in_review' || driverStatus.verificationStatus === 'rejected')
 
   if (isLoadingStatus) {
-    return (
-      <div style={{
-        maxWidth: '600px',
-        margin: '0 auto',
-        padding: '4rem 0',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 'var(--space-4)',
-        }}>
-          <div className="spinner" style={{ width: '48px', height: '48px' }} />
-          <p style={{ color: 'var(--text-muted)' }}>Verificando tu estado...</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   if (showStatus) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { paymentsAPI } from '../services/api'
+import { hideLoading, showLoading } from '../services/alerts'
 
 interface PaymentHistoryItem {
   _id: string
@@ -33,6 +34,18 @@ function PaymentHistory() {
     loadHistory()
   }, [page])
 
+  useEffect(() => {
+    if (loading) {
+      showLoading('Cargando historial...')
+    } else {
+      hideLoading()
+    }
+
+    return () => {
+      hideLoading()
+    }
+  }, [loading])
+
   async function loadHistory() {
     try {
       const token = await getToken()
@@ -63,14 +76,7 @@ function PaymentHistory() {
   }
 
   if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '3rem' }}>
-        <span className="material-symbols-rounded" style={{ fontSize: '3rem', animation: 'spin 1s linear infinite' }}>
-          sync
-        </span>
-        <p style={{ marginTop: '1rem', color: '#64748B' }}>Cargando historial...</p>
-      </div>
-    )
+    return null
   }
 
   return (

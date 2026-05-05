@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
+import { showConfirm, showError, showSuccess, showWarning } from '../services/alerts'
 import type { UserRole, Ride } from '../types'
 import { StatusBadge } from '../components/StatusBadge'
 
@@ -258,7 +259,7 @@ function Chat() {
 
     const price = parseFloat(proposedPrice)
     if (isNaN(price) || price <= 0) {
-      alert('Ingresa un precio valido')
+      await showWarning('Ingresa un precio valido')
       return
     }
 
@@ -277,7 +278,7 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
-        alert(data.error || 'Error al proponer precio')
+        await showError(data.error || 'Error al proponer precio')
         return
       }
 
@@ -292,7 +293,7 @@ function Chat() {
       })
     } catch (err) {
       console.error('Error proposing price:', err)
-      alert('Error al proponer precio')
+      await showError('Error al proponer precio')
     } finally {
       setSubmittingProposal(false)
     }
@@ -301,7 +302,12 @@ function Chat() {
   async function handleAcceptPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
-    if (!confirm('¿Aceptas este precio y contratas al conductor?')) return
+    const accepted = await showConfirm({
+      title: 'Confirmar precio',
+      text: '¿Aceptas este precio y contratas al conductor?'
+    })
+
+    if (!accepted) return
 
     try {
       const token = await getToken()
@@ -317,23 +323,28 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
-        alert(data.error || 'Error al aceptar precio')
+        await showError(data.error || 'Error al aceptar precio')
         return
       }
 
       setProposalInfo(prev => prev ? { ...prev, status: 'accepted' } : null)
       setRideInfo(data.ride)
-      alert('¡Precio aceptado! El contrato ha iniciado.')
+      await showSuccess('¡Precio aceptado! El contrato ha iniciado.')
     } catch (err) {
       console.error('Error accepting price:', err)
-      alert('Error al aceptar precio')
+      await showError('Error al aceptar precio')
     }
   }
 
   async function handleRejectPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
-    if (!confirm('¿Rechazas este precio?')) return
+    const rejected = await showConfirm({
+      title: 'Rechazar precio',
+      text: '¿Rechazas este precio?'
+    })
+
+    if (!rejected) return
 
     try {
       const token = await getToken()
@@ -349,7 +360,7 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
-        alert(data.error || 'Error al rechazar precio')
+        await showError(data.error || 'Error al rechazar precio')
         return
       }
 
@@ -361,7 +372,7 @@ function Chat() {
       } : null)
     } catch (err) {
       console.error('Error rejecting price:', err)
-      alert('Error al rechazar precio')
+      await showError('Error al rechazar precio')
     }
   }
 

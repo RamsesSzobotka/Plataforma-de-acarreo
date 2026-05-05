@@ -5,6 +5,7 @@ import AddressInput from '../components/AddressInput'
 import MultiFileUpload from '../components/MultiFileUpload'
 import { ridesAPI, usersAPI } from '../services/api'
 import { SectionHeader } from '../components/SectionHeader'
+import { showError, showWarning } from '../services/alerts'
 
 interface UploadedImage {
   url: string
@@ -109,17 +110,17 @@ function CreateRide() {
     if (!user) return
 
     if (!formData.pickupCoordinates || !formData.dropoffCoordinates) {
-      alert('Por favor selecciona una direccion de la lista de sugerencias')
+      await showWarning('Por favor selecciona una direccion de la lista de sugerencias')
       return
     }
 
     if (formData.images.length === 0) {
-      alert('Sube al menos una imagen del pedido')
+      await showWarning('Sube al menos una imagen del pedido')
       return
     }
 
     if (!formData.type) {
-      alert('Selecciona un tipo de pedido')
+      await showWarning('Selecciona un tipo de pedido')
       return
     }
 
@@ -164,7 +165,7 @@ function CreateRide() {
     } catch (error) {
       console.error('Error creating ride:', error)
       const message = error instanceof Error ? error.message : 'Error al crear el pedido'
-      alert(message)
+      await showError(message)
     } finally {
       setLoading(false)
     }

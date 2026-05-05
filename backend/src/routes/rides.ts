@@ -581,7 +581,30 @@ rides.post('/:id/rate', authMiddleware, async (c) => {
     { rating, comment, createdAt: new Date() },
     { upsert: true, new: true }
   )
-  
+
+  // Si la calificación es para un driver, recalcular promedio y total
+  if (role === 'driver') {
+    try {
+      const agg = await Rating.aggregate([
+        { $match: { ratedId: ratedId, role: 'driver' } },
+        { $group: { _id: '$ratedId', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+      ])
+
+      if (agg && agg.length > 0) {
+        const { avg, count } = agg[0]
+        // Actualizar el Driver.rating y totalRides
+        const { Driver } = await import('../models/driver')
+        await Driver.findOneAndUpdate(
+          { userId: ratedId },
+          { rating: Number(avg.toFixed(2)), totalRides: count },
+          { new: true }
+        )
+      }
+    } catch (err) {
+      console.error('Error actualizando promedio de driver:', err)
+    }
+  }
+
   return c.json(ratingRecord)
 })
 

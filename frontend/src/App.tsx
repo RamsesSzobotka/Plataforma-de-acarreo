@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import Layout from './components/Layout'
@@ -13,13 +14,25 @@ import RegisterDriver from './pages/RegisterDriver'
 import AddPaymentMethodPage from './pages/AddPaymentMethod'
 import PaymentHistory from './pages/PaymentHistory'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+import { hideLoading, showLoading } from './services/alerts'
+
+function SessionLoading({ message }: { message: string }) {
+  useEffect(() => {
+    showLoading(message)
+    return () => {
+      hideLoading()
+    }
+  }, [message])
+
+  return null
+}
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
 
   if (!isLoaded) {
-    return <div>Cargando sesion...</div>
+    return <SessionLoading message="Cargando sesion..." />
   }
   
   if (!isSignedIn) {
@@ -34,7 +47,7 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth()
 
   if (!isLoaded) {
-    return <div>Cargando sesion...</div>
+    return <SessionLoading message="Cargando sesion..." />
   }
 
   if (isSignedIn) {
