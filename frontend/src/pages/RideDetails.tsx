@@ -4,6 +4,8 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
 import { ridesAPI, usersAPI } from '../services/api'
 import { wsService } from '../services/api'
+import { StatusBadge } from '../components/StatusBadge'
+import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 
@@ -19,7 +21,7 @@ interface Ride {
   dropoffLocation: { address: string; type?: string; coordinates: [number, number] }
   estimatedPrice: number
   finalPrice?: number
-  status: 'requested' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
+  status: 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
   deliveryPhoto?: { url: string }
   createdAt: string
   updatedAt: string
@@ -46,6 +48,15 @@ interface User {
   imageUrl?: string
 }
 
+const timelineSteps = [
+  { status: 'requested', label: 'Solicitado' },
+  { status: 'negotiating', label: 'Negociando' },
+  { status: 'accepted', label: 'Aceptado' },
+  { status: 'in_progress', label: 'En Viaje' },
+  { status: 'completed', label: 'Completado' },
+  { status: 'paid', label: 'Pagado' },
+]
+
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
@@ -61,10 +72,12 @@ function RideDetails() {
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!id || !user) return
     loadRide()
-  }, [id])
+  }, [id, user, getToken])
 
   async function loadRide() {
     if (!id) {
@@ -74,20 +87,22 @@ function RideDetails() {
 
     try {
       const token = await getToken()
-      const data = await ridesAPI.get(id, token || undefined)
+      if (!token) {
+        console.warn('No token available yet, skipping loadRide')
+        setLoading(false)
+        return
+      }
+      const data = await ridesAPI.get(id, token)
       setRide(data)
 
-      // Cargar info del conductor si existe
       if (data.driverId) {
-        const driverData = await usersAPI.get(data.driverId, token || undefined)
+        const driverData = await usersAPI.get(data.driverId, token)
         setDriverUser(driverData)
 
-        // Cargar perfil del conductor
-        const driverProfile = await usersAPI.getDriver(data.driverId, token || undefined)
+        const driverProfile = await usersAPI.getDriver(data.driverId, token)
         setDriver(driverProfile)
       }
 
-      // Cargar contacts si está en requested (cliente puede ver drivers que le escribieron)
       if (data.status === 'requested' && user?.id === data.clientId) {
         const contactsResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/contacts`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -104,13 +119,11 @@ function RideDetails() {
     }
   }
 
-  // Escuchar eventos WebSocket para recargar cuando lleguen mensajes
   useEffect(() => {
     if (!id || !user) return
 
     const unsubscribe = wsService.onMessage((data) => {
       if (data.type === 'new_message' && data.data && data.data.rideId === id) {
-        // Recargar el ride y los contacts cuando llegue un mensaje
         loadRide()
       }
     })
@@ -138,15 +151,12 @@ function RideDetails() {
       ? '¿Confirmas que la entrega está completa?\n\nNota: Se cobrará automáticamente a tu forma de pago guardada.'
       : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
 
-    if (!confirm(confirmMessage)) {
-      return
-    }
+    if (!confirm(confirmMessage)) return
 
     try {
       const token = await getToken()
       if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
 
-      // Usar el nuevo endpoint confirm-delivery
       const response = await fetch(`/api/rides/${id}/confirm-delivery`, {
         method: 'POST',
         headers: {
@@ -162,11 +172,10 @@ function RideDetails() {
 
       const result = await response.json()
 
-      // Mostrar mensaje según el resultado
       if (result.message?.includes('pagado')) {
-        alert('✅ Entrega confirmada y pago procesado exitosamente')
+        alert('Entrega confirmada y pago procesado exitosamente')
       } else {
-        alert('✅ Entrega confirmada. Puedes proceder con el pago.')
+        alert('Entrega confirmada. Puedes proceder con el pago.')
       }
 
       loadRide()
@@ -179,7 +188,6 @@ function RideDetails() {
   async function handlePaymentSuccess(updatedRide: Ride) {
     setRide(updatedRide)
     setShowPaymentForm(false)
-    // Recargar después de un momento para asegurar que el webhook procesó
     setTimeout(() => loadRide(), 2000)
   }
 
@@ -205,7 +213,7 @@ function RideDetails() {
         }),
       })
       if (response.ok) {
-        alert('Calificación enviada')
+        alert('Calificacion enviada')
         setRating(0)
         setComment('')
         loadRide()
@@ -219,238 +227,682 @@ function RideDetails() {
     navigate(`/chat/${id}?contactId=${contact._id}&driverId=${contact.driverId}`)
   }
 
-  if (loading) return <div>Cargando...</div>
+  if (loading) {
+    return (
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <div className="skeleton" style={{ height: '200px', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-4)' }} />
+        <div className="skeleton" style={{ height: '300px', borderRadius: 'var(--radius-lg)' }} />
+      </div>
+    )
+  }
+
   if (!ride) return <div>Pedido no encontrado</div>
 
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
   const isOwner = isClientOwner
-  const canClientCancel = isClientOwner && ride.status === 'requested'
+  const canClientCancel = isClientOwner && (ride.status === 'requested' || ride.status === 'negotiating')
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
 
-  // Badge de estado con colores
-  const statusColors: Record<string, string> = {
-    requested: '#F59E0B',
-    accepted: '#F97316',
-    in_progress: '#0D9488',
-    completed: '#22C55E',
-    paid: '#22C55E',
-    cancelled: '#EF4444',
-  }
-  const statusColor = statusColors[ride.status] || '#64748B'
-
-  const statusLabels: Record<string, string> = {
-    requested: 'Pendiente',
-    accepted: 'Aceptado',
-    in_progress: 'En camino',
-    completed: 'Completado',
-    paid: 'Pagado',
-    cancelled: 'Cancelado',
-  }
-
-  // Obtener unread count para este ride
   const unreadCount = unreadCounts[ride._id] || 0
 
+  const typeLabels: Record<string, string> = {
+    mudanza: 'Mudanza',
+    electrodomesticos: 'Electrodomesticos',
+    muebles: 'Muebles',
+    productos: 'Productos',
+    otros: 'Otros',
+  }
+
   return (
-    <div>
-      <Link to="/my-rides" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      {/* Back button */}
+      <Link
+        to="/my-rides"
+        className="btn btn-ghost"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          marginBottom: 'var(--space-6)',
+          color: 'var(--text-muted)',
+        }}
+      >
         <span className="material-symbols-rounded">arrow_back</span>
         Volver a Mis Pedidos
       </Link>
 
-      <div className="card" style={{ marginBottom: '1.5rem', position: 'relative' }}>
-        {/* Badge de mensajes no leídos en la esquina */}
-        {unreadCount > 0 && isClientOwner && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '-8px',
-              right: '-8px',
-              minWidth: '22px',
-              height: '22px',
-              padding: '0 6px',
-              borderRadius: '999px',
-              background: 'var(--error)',
-              color: 'white',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              zIndex: 10,
-            }}
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </div>
-        )}
+      {/* Hero Section with Status */}
+      <div
+        className="card"
+        style={{
+          marginBottom: 'var(--space-6)',
+          padding: 0,
+          overflow: 'hidden',
+          animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+        }}
+      >
+        {/* Header with gradient */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%)',
+          padding: 'var(--space-6)',
+          borderBottom: '1px solid var(--border-subtle)',
+          position: 'relative',
+        }}>
+          {/* Unread badge */}
+          {unreadCount > 0 && (isClientOwner || isDriverOwner) && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'var(--space-4)',
+                right: 'var(--space-4)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                padding: 'var(--space-1) var(--space-3)',
+                background: 'var(--error)',
+                color: 'white',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-bold)',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>chat</span>
+              {unreadCount > 99 ? '99+' : unreadCount} mensajes
+            </div>
+          )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-          <h1>{ride.title}</h1>
-          <span style={{
-            padding: '0.5rem 1rem',
-            borderRadius: '999px',
-            background: statusColor,
-            color: 'white',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-          }}>
-            {statusLabels[ride.status] || ride.status}
-          </span>
-        </div>
-
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-          {ride.description}
-        </p>
-
-        {/* Images */}
-        {ride.images && ride.images.length > 0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <span className="material-symbols-rounded">image</span>
-              Imágenes ({ride.images.length})
-            </strong>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '1rem'
-            }}>
-              {ride.images.map((img, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    position: 'relative',
-                    borderRadius: 'var(--radius)',
-                    overflow: 'hidden',
-                    border: '1px solid var(--border)',
-                    background: '#f8fafc'
-                  }}
-                >
-                  <img
-                    src={img.url}
-                    alt={`Imagen ${idx + 1}`}
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      aspectRatio: '4/3',
-                      objectFit: 'cover',
-                      display: 'block'
-                    }}
-                  />
-                </div>
-              ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)',
+                  padding: 'var(--space-1) var(--space-3)',
+                  background: 'var(--surface-3)',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>category</span>
+                  {typeLabels[ride.type] || ride.type}
+                </span>
+              </div>
+              <h1 style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'var(--text-2xl)',
+                fontWeight: 'var(--font-bold)',
+                marginBottom: 'var(--space-2)',
+              }}>
+                {ride.title}
+              </h1>
+              <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                {ride.description}
+              </p>
             </div>
           </div>
-        )}
 
-        {/* Driver info */}
-        {(ride.status === 'accepted' || ride.status === 'in_progress') && driverUser && driver && (
-          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <span className="material-symbols-rounded">person</span>
-              Conductor Asignado
-            </strong>
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              {driverUser.imageUrl && (
-                <img
-                  src={driverUser.imageUrl}
-                  alt={driverUser.firstName}
-                  style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover' }}
-                />
-              )}
-              <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 'bold' }}>
-                  {driverUser.firstName} {driverUser.lastName}
-                </p>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  ⭐ {driver.rating} ({driver.totalRides} viajes)
-                </p>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  🚗 {driver.vehicleType} - {driver.plate}
-                </p>
+          {/* Status Badge - posicionado arriba a la derecha, separado del unread badge */}
+          <div style={{
+            position: 'absolute',
+            top: 'var(--space-4)',
+            right: unreadCount > 0 ? 'calc(var(--space-4) + 120px)' : 'var(--space-4)',
+            zIndex: 10,
+          }}>
+            <StatusBadge status={ride.status} size="lg" />
+          </div>
+        </div>
+
+        {/* Timeline */}
+        <div style={{ padding: 'var(--space-6)' }}>
+          <TimelineStepper
+            steps={timelineSteps}
+            currentStatus={ride.status === 'negotiating' ? 'requested' : ride.status}
+            orientation="horizontal"
+          />
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gap: 'var(--space-6)',
+      }}>
+        {/* Left Column - Images & Locations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          {/* Images */}
+          {ride.images && ride.images.length > 0 && (
+            <div
+              className="card"
+              style={{
+                animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                animationDelay: '100ms',
+                animationFillMode: 'both',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                marginBottom: 'var(--space-4)',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--primary-subtle)',
+                  color: 'var(--primary)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <span className="material-symbols-rounded">photo_library</span>
+                </div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-semibold)',
+                    margin: 0,
+                  }}>
+                    Imagenes del Pedido
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    {ride.images.length} imagen{ride.images.length !== 1 ? 'es' : ''}
+                  </span>
+                </div>
               </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(120px, 1fr))',
+                gap: 'var(--space-3)',
+              }}>
+                {ride.images.map((img, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedImage(img.url)}
+                    style={{
+                      position: 'relative',
+                      borderRadius: 'var(--radius)',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      aspectRatio: '4/3',
+                      background: 'var(--surface-1)',
+                      transition: 'transform var(--duration-fast) var(--ease-out)',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  >
+                    <img
+                      src={img.url}
+                      alt={`Imagen ${idx + 1}`}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Locations */}
+          <div
+            className="card"
+            style={{
+              animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+              animationDelay: '150ms',
+              animationFillMode: 'both',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              marginBottom: 'var(--space-5)',
+            }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--info-subtle)',
+                color: 'var(--info)',
+                borderRadius: 'var(--radius)',
+              }}>
+                <span className="material-symbols-rounded">map</span>
+              </div>
+              <h3 style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'var(--text-base)',
+                fontWeight: 'var(--font-semibold)',
+                margin: 0,
+              }}>
+                Ubicaciones
+              </h3>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              {/* Pickup */}
+              <div style={{
+                display: 'flex',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-4)',
+                background: 'var(--success-subtle)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid rgba(34, 197, 94, 0.2)',
+              }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--success)',
+                  color: 'white',
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>circle</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--success)',
+                    fontWeight: 'var(--font-semibold)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: 'var(--space-1)',
+                  }}>
+                    Recogida
+                  </div>
+                  <div style={{
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-primary)',
+                    lineHeight: 1.5,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                  }}>
+                    {ride.pickupLocation.address}
+                  </div>
+                </div>
+              </div>
+
+              {/* Arrow */}
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-1) 0' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--surface-2)',
+                  color: 'var(--text-muted)',
+                  borderRadius: '50%',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>south</span>
+                </div>
+              </div>
+
+              {/* Dropoff */}
+              <div style={{
+                display: 'flex',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-4)',
+                background: 'var(--error-subtle)',
+                borderRadius: 'var(--radius)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+              }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--error)',
+                  color: 'white',
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>location_on</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--error)',
+                    fontWeight: 'var(--font-semibold)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: 'var(--space-1)',
+                  }}>
+                    Entrega
+                  </div>
+                  <div style={{
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-primary)',
+                    lineHeight: 1.5,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                  }}>
+                    {ride.dropoffLocation.address}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Delivery Photo */}
+          {ride.deliveryPhoto && (
+            <div
+              className="card"
+              style={{
+                animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                animationDelay: '200ms',
+                animationFillMode: 'both',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                marginBottom: 'var(--space-4)',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--secondary)',
+                  color: 'white',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <span className="material-symbols-rounded">photo_camera</span>
+                </div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-semibold)',
+                    margin: 0,
+                  }}>
+                    Foto de Entrega
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    Confirmacion visual del servicio
+                  </span>
+                </div>
+              </div>
+
+              <div style={{
+                borderRadius: 'var(--radius-lg)',
+                overflow: 'hidden',
+                border: '1px solid var(--border-subtle)',
+              }}>
+                <img
+                  src={ride.deliveryPhoto.url}
+                  alt="Entrega"
+                  style={{
+                    width: '100%',
+                    aspectRatio: '16/9',
+                    objectFit: 'cover',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Driver/Contacts & Actions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          {/* Driver Info or Contacts */}
+          {(ride.status === 'accepted' || ride.status === 'in_progress' || ride.status === 'completed' || ride.status === 'paid') && driverUser && driver ? (
+            <div
+              className="card"
+              style={{
+                animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                animationDelay: '100ms',
+                animationFillMode: 'both',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                marginBottom: 'var(--space-5)',
+                paddingBottom: 'var(--space-4)',
+                borderBottom: '1px solid var(--border-subtle)',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--primary-subtle)',
+                  color: 'var(--primary)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <span className="material-symbols-rounded">person</span>
+                </div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-semibold)',
+                    margin: 0,
+                  }}>
+                    Conductor Asignado
+                  </h3>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
+                {driverUser.imageUrl ? (
+                  <img
+                    src={driverUser.imageUrl}
+                    alt={driverUser.firstName}
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '3px solid var(--primary-subtle)',
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'var(--primary)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 'var(--text-xl)',
+                    fontWeight: 'var(--font-bold)',
+                    border: '3px solid var(--primary-subtle)',
+                  }}>
+                    {driverUser.firstName?.charAt(0) || 'D'}
+                  </div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-lg)',
+                    fontWeight: 'var(--font-semibold)',
+                    marginBottom: 'var(--space-1)',
+                  }}>
+                    {driverUser.firstName} {driverUser.lastName}
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-secondary)',
+                    marginBottom: 'var(--space-2)',
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--warning)' }}>
+                        star
+                      </span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{driver.rating}</strong>
+                      ({driver.totalRides} viajes)
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-secondary)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>local_shipping</span>
+                    {driver.vehicleType} - {driver.plate}
+                  </div>
+                </div>
+              </div>
+
               {isClientOwner && (
                 <Link
                   to={`/chat/${ride._id}?contactId=${ride.driverId}&driverId=${ride.driverId}`}
                   className="btn btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  style={{
+                    width: '100%',
+                    marginTop: 'var(--space-4)',
+                  }}
                 >
                   <span className="material-symbols-rounded">chat</span>
-                  Chatear
+                  Chatear con Conductor
+                </Link>
+              )}
+
+              {isDriverOwner && (
+                <Link
+                  to={`/chat/${ride._id}`}
+                  className="btn btn-secondary"
+                  style={{
+                    width: '100%',
+                    marginTop: 'var(--space-4)',
+                  }}
+                >
+                  <span className="material-symbols-rounded">chat</span>
+                  Chatear con Cliente
                 </Link>
               )}
             </div>
-          </div>
-        )}
+          ) : isClientOwner && contacts.length > 0 && (
+            <div
+              className="card"
+              style={{
+                animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                animationDelay: '100ms',
+                animationFillMode: 'both',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                marginBottom: 'var(--space-5)',
+                paddingBottom: 'var(--space-4)',
+                borderBottom: '1px solid var(--border-subtle)',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--warning-subtle)',
+                  color: 'var(--warning)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <span className="material-symbols-rounded">chat</span>
+                </div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-semibold)',
+                    margin: 0,
+                  }}>
+                    Conductores Interesados
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    {contacts.length} conductor{contacts.length !== 1 ? 'es' : ''} te ha escrito
+                  </span>
+                </div>
+              </div>
 
-        {/* Contacts (drivers que escribieron) - solo para cliente */}
-        {isClientOwner && contacts.length > 0 && ride.status === 'requested' && (
-          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <span className="material-symbols-rounded">chat</span>
-              Conductores que te han escrito
-            </strong>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {contacts.map((contact, index) => (
-                <div
-                  key={contact._id}
-                  onClick={() => handleChatClick(contact)}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    cursor: 'pointer',
-                    padding: '0.75rem',
-                    borderRadius: 'var(--radius)',
-                    background: 'white',
-                    border: '1px solid var(--border)',
-                    transition: 'all 0.2s',
-                    minWidth: '80px',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--primary)'
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(13, 148, 136, 0.2)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)'
-                    e.currentTarget.style.boxShadow = 'none'
-                  }}
-                >
-                  <div style={{ position: 'relative' }}>
-                    <div
-                      style={{
-                        width: '50px',
-                        height: '50px',
-                        borderRadius: '50%',
-                        border: '2px solid var(--primary)',
-                        overflow: 'hidden',
-                        background: contact.driver?.imageUrl ? 'transparent' : 'var(--primary)',
-                      }}
-                    >
-                      {contact.driver?.imageUrl ? (
-                        <img
-                          src={contact.driver.imageUrl}
-                          alt={`${contact.driver.firstName} ${contact.driver.lastName}`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '100%',
-                          height: '100%',
-                          color: 'white',
-                          fontWeight: 600,
-                          fontSize: '1.25rem',
-                        }}>
-                          {contact.driver?.firstName?.charAt(0) || 'D'}
-                        </div>
-                      )}
-                    </div>
-                    {/* Indicador de mensaje no leído */}
-                    {index === 0 && unreadCount > 0 && (
+              <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                {contacts.map((contact) => (
+                  <div
+                    key={contact._id}
+                    onClick={() => handleChatClick(contact)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      cursor: 'pointer',
+                      padding: 'var(--space-4)',
+                      background: 'var(--surface-1)',
+                      borderRadius: 'var(--radius)',
+                      border: '2px solid transparent',
+                      transition: 'all var(--duration-fast) var(--ease-out)',
+                      minWidth: '80px',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--primary)'
+                      e.currentTarget.style.background = 'var(--primary-subtle)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'transparent'
+                      e.currentTarget.style.background = 'var(--surface-1)'
+                    }}
+                  >
+                    <div style={{ position: 'relative' }}>
+                      <div
+                        style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          border: '2px solid var(--primary)',
+                        }}
+                      >
+                        {contact.driver?.imageUrl ? (
+                          <img
+                            src={contact.driver.imageUrl}
+                            alt={`${contact.driver.firstName} ${contact.driver.lastName}`}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '100%',
+                            height: '100%',
+                            background: 'var(--primary)',
+                            color: 'white',
+                            fontSize: 'var(--text-lg)',
+                            fontWeight: 'var(--font-bold)',
+                          }}>
+                            {contact.driver?.firstName?.charAt(0) || 'D'}
+                          </div>
+                        )}
+                      </div>
                       <div
                         style={{
                           position: 'absolute',
@@ -459,216 +911,307 @@ function RideDetails() {
                           width: '16px',
                           height: '16px',
                           borderRadius: '50%',
-                          background: 'var(--error)',
-                          border: '2px solid white',
+                          background: 'var(--success)',
+                          border: '2px solid var(--surface-card)',
                         }}
                       />
-                    )}
+                    </div>
+                    <span style={{
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--font-medium)',
+                      color: 'var(--text-primary)',
+                    }}>
+                      {contact.driver?.firstName || 'Driver'}
+                    </span>
                   </div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                    {contact.driver?.firstName || 'Driver'}
+                ))}
+              </div>
+
+              <p style={{
+                marginTop: 'var(--space-4)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+              }}>
+                Haz click en un conductor para iniciar conversacion
+              </p>
+            </div>
+          )}
+
+          {/* Price & Actions Card */}
+          <div
+            className="card"
+            style={{
+              animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+              animationDelay: '200ms',
+              animationFillMode: 'both',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              marginBottom: 'var(--space-5)',
+              paddingBottom: 'var(--space-4)',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--secondary)',
+                color: 'white',
+                borderRadius: 'var(--radius)',
+              }}>
+                <span className="material-symbols-rounded">payments</span>
+              </div>
+              <div>
+                <h3 style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-semibold)',
+                  margin: 0,
+                }}>
+                  Resumen del Pago
+                </h3>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 'var(--space-5)',
+            }}>
+              <div>
+                <div style={{
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: 'var(--space-1)',
+                }}>
+                  Precio {ride.finalPrice ? 'final' : 'sugerido'}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'clamp(1.5rem, 4vw, var(--text-3xl))',
+                  fontWeight: 'var(--font-bold)',
+                  color: 'var(--secondary)',
+                }}>
+                  ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()}
+                </div>
+              </div>
+              {ride.finalPrice && ride.finalPrice !== ride.estimatedPrice && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>done</span>
+                  Precio negociado
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {(canClientCancel || canDriverCancel) && (
+                <button
+                  className="btn btn-outline"
+                  onClick={handleCancel}
+                  style={{
+                    width: '100%',
+                    borderColor: 'var(--error)',
+                    color: 'var(--error)',
+                  }}
+                >
+                  <span className="material-symbols-rounded">cancel</span>
+                  Cancelar Pedido
+                </button>
+              )}
+
+              {ride.status === 'in_progress' && isClientOwner && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleConfirmDelivery}
+                  style={{ width: '100%' }}
+                >
+                  <span className="material-symbols-rounded">check_circle</span>
+                  Confirmar Entrega
+                </button>
+              )}
+
+              {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !showPaymentForm && (
+                <Link
+                  to={`/add-payment-method?rideId=${ride._id}`}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', textAlign: 'center' }}
+                >
+                  <span className="material-symbols-rounded">credit_card</span>
+                  Agregar Metodo de Pago
+                </Link>
+              )}
+
+              {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !showPaymentForm && (
+                <button
+                  className="btn btn-accent"
+                  onClick={() => setShowPaymentForm(true)}
+                  style={{ width: '100%' }}
+                >
+                  <span className="material-symbols-rounded">payment</span>
+                  Pagar ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()}
+                </button>
+              )}
+
+              {(ride.status === 'paid' || ride.paidAt) && isClientOwner && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 'var(--space-2)',
+                  padding: 'var(--space-4)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  color: 'var(--success)',
+                  fontWeight: 'var(--font-semibold)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
+                  Pago Confirmado
+                </div>
+              )}
+            </div>
+
+            {/* Payment Form */}
+            {showPaymentForm && ride.status === 'completed' && isClientOwner && (
+              <div style={{ marginTop: 'var(--space-5)', paddingTop: 'var(--space-5)', borderTop: '1px solid var(--border-subtle)' }}>
+                {paymentError && (
+                  <div style={{
+                    marginBottom: 'var(--space-4)',
+                    padding: 'var(--space-3) var(--space-4)',
+                    background: 'var(--error-subtle)',
+                    color: 'var(--error)',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 'var(--text-sm)',
+                  }}>
+                    {paymentError}
+                  </div>
+                )}
+                <PaymentForm
+                  ride={ride}
+                  onPaymentSuccess={handlePaymentSuccess}
+                  onPaymentError={handlePaymentError}
+                />
+                <button
+                  onClick={() => {
+                    setShowPaymentForm(false)
+                    setPaymentError(null)
+                  }}
+                  className="btn btn-ghost"
+                  style={{ width: '100%', marginTop: 'var(--space-3)' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+
+            {/* Info notifications */}
+            {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !ride.paidAt && (
+              <div style={{
+                marginTop: 'var(--space-4)',
+                padding: 'var(--space-4)',
+                background: 'var(--info-subtle)',
+                borderRadius: 'var(--radius)',
+                display: 'flex',
+                gap: 'var(--space-3)',
+                alignItems: 'flex-start',
+              }}>
+                <span className="material-symbols-rounded" style={{ color: 'var(--info)', flexShrink: 0 }}>
+                  info
+                </span>
+                <div style={{ fontSize: 'var(--text-sm)' }}>
+                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Pago Automatico</strong>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Se cobrara automaticamente ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()} a tu forma de pago guardada.
                   </span>
                 </div>
-              ))}
-            </div>
-            <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Click en un conductor para chatear
-            </p>
-          </div>
-        )}
+              </div>
+            )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-symbols-rounded" style={{ color: '#0D9488' }}>location_on</span>
-              Recogida
-            </strong>
-            <p>{ride.pickupLocation.address}</p>
-          </div>
-          <div>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-symbols-rounded" style={{ color: '#F97316' }}>flag</span>
-              Entrega
-            </strong>
-            <p>{ride.dropoffLocation.address}</p>
-          </div>
-        </div>
-
-        {/* Price */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <div>
-            <p>Tipo: {ride.type}</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-              ${ride.finalPrice || ride.estimatedPrice}
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {(canClientCancel || canDriverCancel) && (
-              <button className="btn btn-outline" onClick={handleCancel}>
-                <span className="material-symbols-rounded">cancel</span>
-                Cancelar
-              </button>
-            )}
-            {ride.status === 'in_progress' && isClientOwner && (
-              <button className="btn btn-primary" onClick={handleConfirmDelivery}>
-                <span className="material-symbols-rounded">check_circle</span>
-                Confirmar Entrega
-              </button>
-            )}
-            {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !showPaymentForm && (
-              <Link to={`/add-payment-method?rideId=${ride._id}`} className="btn btn-secondary" style={{ textAlign: 'center' }}>
-                <span className="material-symbols-rounded">credit_card</span>
-                Agregar Método de Pago
-              </Link>
-            )}
-            {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !showPaymentForm && (
-              <button className="btn btn-primary" onClick={() => setShowPaymentForm(true)}>
-                <span className="material-symbols-rounded">payment</span>
-                Pagar ${ride.finalPrice || ride.estimatedPrice}
-              </button>
-            )}
-            {(ride.status === 'paid' || (ride.status === 'completed' && ride.paidAt)) && isClientOwner && (
-              <div style={{ padding: '0.5rem 1rem', backgroundColor: '#DCFCE7', borderRadius: '6px', textAlign: 'center', color: '#166534', fontWeight: 600 }}>
-                ✅ Pagado
+            {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
+              <div style={{
+                marginTop: 'var(--space-4)',
+                padding: 'var(--space-4)',
+                background: 'var(--warning-subtle)',
+                borderRadius: 'var(--radius)',
+                display: 'flex',
+                gap: 'var(--space-3)',
+                alignItems: 'flex-start',
+              }}>
+                <span className="material-symbols-rounded" style={{ color: 'var(--warning)', flexShrink: 0 }}>
+                  warning
+                </span>
+                <div style={{ fontSize: 'var(--text-sm)' }}>
+                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Metodo de Pago Requerido</strong>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Debes agregar un metodo de pago para completar el pedido.
+                  </span>
+                </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Info: Auto-charge notification */}
-        {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !ride.paidAt && (
-          <div
-            style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              backgroundColor: '#DBEAFE',
-              borderRadius: '8px',
-              border: '1px solid #93C5FD',
-              display: 'flex',
-              gap: '1rem',
-              alignItems: 'flex-start',
-            }}
-          >
-            <span style={{ color: '#1E40AF', fontSize: '20px' }}>ℹ️</span>
-            <div>
-              <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600, color: '#1E40AF' }}>
-                Pago Automático
-              </p>
-              <p style={{ margin: 0, fontSize: '14px', color: '#1E40AF' }}>
-                Se cobró automáticamente ${ride.finalPrice || ride.estimatedPrice} a tu forma de pago guardada.
-                Si hubo algún problema, puedes hacer clic en "Pagar" arriba para intentar nuevamente.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
-          <div
-            style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              backgroundColor: '#FEF3C7',
-              borderRadius: '8px',
-              border: '1px solid #FCD34D',
-              display: 'flex',
-              gap: '1rem',
-              alignItems: 'flex-start',
-            }}
-          >
-            <span style={{ color: '#92400E', fontSize: '20px' }}>⚠️</span>
-            <div>
-              <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600, color: '#92400E' }}>
-                Método de Pago Requerido
-              </p>
-              <p style={{ margin: 0, fontSize: '14px', color: '#92400E' }}>
-                Debes agregar un método de pago para completar el pedido.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Form */}
-        {showPaymentForm && ride.status === 'completed' && isClientOwner && (
-          <div style={{ marginTop: '1.5rem' }}>
-            {paymentError && (
-              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '6px', border: '1px solid #FECACA' }}>
-                {paymentError}
-              </div>
-            )}
-            <PaymentForm
-              ride={ride}
-              onPaymentSuccess={handlePaymentSuccess}
-              onPaymentError={handlePaymentError}
-            />
-            <button
-              onClick={() => {
-                setShowPaymentForm(false)
-                setPaymentError(null)
-              }}
+          {/* Rating */}
+          {ride.status === 'paid' && isOwner && (
+            <div
+              className="card"
               style={{
-                marginTop: '1rem',
-                padding: '0.75rem 1rem',
-                backgroundColor: '#E2E8F0',
-                color: '#0F172A',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
+                animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                animationDelay: '250ms',
+                animationFillMode: 'both',
               }}
             >
-              Cancelar
-            </button>
-          </div>
-        )}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                marginBottom: 'var(--space-5)',
+                paddingBottom: 'var(--space-4)',
+                borderBottom: '1px solid var(--border-subtle)',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--warning-subtle)',
+                  color: 'var(--warning)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <span className="material-symbols-rounded">star</span>
+                </div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-semibold)',
+                    margin: 0,
+                  }}>
+                    Calificar Servicio
+                  </h3>
+                </div>
+              </div>
 
-        {/* Chat button - solo para driver o cuando ya hay driver asignado */}
-        {isDriverOwner && (
-          <div style={{ marginTop: '1.5rem' }}>
-            <Link to={`/chat/${ride._id}`} className="btn btn-secondary">
-              <span className="material-symbols-rounded">chat</span>
-              Chatear con Cliente
-            </Link>
-          </div>
-        )}
-
-        {/* Delivery photo */}
-        {ride.deliveryPhoto && (
-          <div style={{ marginTop: '1.5rem' }}>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <span className="material-symbols-rounded">photo_camera</span>
-              Foto de Entrega
-            </strong>
-            <div style={{
-              borderRadius: 'var(--radius)',
-              overflow: 'hidden',
-              border: '1px solid var(--border)',
-              maxWidth: '400px'
-            }}>
-              <img
-                src={ride.deliveryPhoto.url}
-                alt="Entrega"
-                style={{
-                  width: '100%',
-                  height: 'auto',
-                  aspectRatio: '4/3',
-                  objectFit: 'cover',
-                  display: 'block'
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Rating */}
-        {ride.status === 'paid' && isOwner && (
-          <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-            <strong style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <span className="material-symbols-rounded">star</span>
-              Calificar Conductor
-            </strong>
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              {/* Star rating */}
+              <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
@@ -676,43 +1219,100 @@ function RideDetails() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      fontSize: '1.5rem',
+                      padding: 'var(--space-1)',
                       cursor: 'pointer',
-                      opacity: rating >= star ? 1 : 0.3,
-                      transition: 'opacity 0.2s',
+                      transition: 'transform var(--duration-fast) var(--ease-out)',
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   >
-                    ⭐
+                    <span
+                      className="material-symbols-rounded"
+                      style={{
+                        fontSize: '2rem',
+                        color: rating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                        transition: 'color var(--duration-fast)',
+                      }}
+                    >
+                      star
+                    </span>
                   </button>
                 ))}
               </div>
+
               <textarea
+                className="input"
                 placeholder="Comentario (opcional)"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                style={{
-                  width: '100%',
-                  minHeight: '80px',
-                  padding: '0.5rem',
-                  borderRadius: 'var(--radius)',
-                  border: '1px solid var(--border)',
-                  fontFamily: 'var(--font-body)',
-                  marginBottom: '0.75rem',
-                }}
+                style={{ marginBottom: 'var(--space-4)' }}
               />
+
               <button
                 onClick={handleRate}
                 disabled={rating === 0}
                 className="btn btn-primary"
-                style={{ opacity: rating === 0 ? 0.5 : 1 }}
+                style={{ width: '100%' }}
               >
-                <span className="material-symbols-rounded">check</span>
-                Enviar Calificación
+                <span className="material-symbols-rounded">send</span>
+                Enviar Calificacion
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Image Lightbox Modal */}
+      {selectedImage && (
+        <div
+          onClick={() => setSelectedImage(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 'var(--space-6)',
+            cursor: 'pointer',
+            animation: 'fadeIn var(--duration-fast) var(--ease-out)',
+          }}
+        >
+          <button
+            onClick={() => setSelectedImage(null)}
+            style={{
+              position: 'absolute',
+              top: 'var(--space-6)',
+              right: 'var(--space-6)',
+              background: 'var(--surface-2)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '48px',
+              height: '48px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <span className="material-symbols-rounded">close</span>
+          </button>
+          <img
+            src={selectedImage}
+            alt="Imagen enlarged"
+            style={{
+              maxWidth: '100%',
+              maxHeight: '90vh',
+              objectFit: 'contain',
+              borderRadius: 'var(--radius-lg)',
+              animation: 'scaleIn var(--duration-normal) var(--ease-out)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

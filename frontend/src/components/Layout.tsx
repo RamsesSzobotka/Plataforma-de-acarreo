@@ -1,54 +1,186 @@
 import { Outlet, Link } from 'react-router-dom'
 import { useAuth, UserButton } from '@clerk/clerk-react'
+import { useState } from 'react'
 
 function Layout() {
   const { isSignedIn } = useAuth()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <header style={{
-        background: '#0F172A',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        padding: '1rem',
+        background: 'var(--surface-0)',
+        borderBottom: '1px solid var(--border-subtle)',
+        padding: 'var(--space-3) 0',
+        position: 'sticky',
+        top: 0,
+        zIndex: 'var(--z-sticky)',
+        backdropFilter: 'blur(12px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.85)',
       }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 clamp(1rem, 4vw, 5rem)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link to="/" style={{ fontSize: '1.25rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#FFFFFF' }}>
-            <span className="material-symbols-rounded" style={{ color: '#0D9488' }}>local_shipping</span>
-            <span style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>Carglyn</span>
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+          padding: '0 clamp(1rem, 4vw, 5rem)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 'var(--space-6)',
+        }}>
+          {/* Logo */}
+          <Link
+            to="/"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              textDecoration: 'none',
+            }}
+          >
+            <img
+              src="/logos/Carglylogo.png"
+              alt="Carglyn"
+              style={{
+                height: '40px',
+                width: 'auto',
+              }}
+            />
+            <span style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 'var(--font-extrabold)',
+              fontSize: 'var(--text-xl)',
+              color: 'var(--text-primary)',
+            }}>
+              Cargly
+            </span>
           </Link>
-          
-          <nav style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+
+          {/* Navigation */}
+          <nav className="desktop-nav" style={{
+            display: 'flex',
+            gap: 'var(--space-2)',
+            alignItems: 'center',
+          }}>
             {isSignedIn ? (
               <>
-                <Link 
-                  to="/driver" 
-                  style={{ 
-                    color: 'rgba(255,255,255,0.8)', 
-                    textDecoration: 'none', 
-                    fontFamily: '"Inter", sans-serif', 
-                    fontSize: '0.9rem' 
+                {/* Nav Links */}
+                <Link
+                  to="/driver"
+                  style={{
+                    color: 'var(--text-secondary)',
+                    textDecoration: 'none',
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--font-medium)',
+                    padding: 'var(--space-2) var(--space-4)',
+                    borderRadius: 'var(--radius)',
+                    transition: 'all var(--duration-fast) var(--ease-out)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
                   }}
                 >
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>dashboard</span>
                   Panel Conductor
                 </Link>
-                <Link to="/my-rides" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontFamily: '"Inter", sans-serif', fontSize: '0.9rem' }}>Mis Pedidos</Link>
-                <Link to="/create-ride" style={{ background: '#0D9488', color: 'white', padding: '0.625rem 1.25rem', borderRadius: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: '"Plus Jakarta Sans", sans-serif', fontWeight: '600', fontSize: '0.9rem' }}>
+
+                <Link
+                  to="/my-rides"
+                  style={{
+                    color: 'var(--text-secondary)',
+                    textDecoration: 'none',
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--font-medium)',
+                    padding: 'var(--space-2) var(--space-4)',
+                    borderRadius: 'var(--radius)',
+                    transition: 'all var(--duration-fast) var(--ease-out)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>local_shipping</span>
+                  Mis Pedidos
+                </Link>
+
+                {/* CTA - Nuevo Pedido */}
+                <Link
+                  to="/create-ride"
+                  className="btn btn-primary"
+                  style={{
+                    marginLeft: 'var(--space-2)',
+                    animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                  }}
+                >
                   <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
                   Nuevo Pedido
                 </Link>
-                
-                <UserButton 
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      avatarBox: { width: '36px', height: '36px' }
-                    }
+
+                {/* Hamburger Button - Mobile Only */}
+                <button
+                  onClick={() => setMobileMenuOpen(true)}
+                  style={{
+                    display: 'none',
+                    padding: 'var(--space-2)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    marginLeft: 'var(--space-2)',
                   }}
-                />
+                  className="hamburger-btn"
+                  aria-label="Abrir menu"
+                >
+                  <span className="material-symbols-rounded">menu</span>
+                </button>
+
+                {/* User Button */}
+                <div style={{
+                  marginLeft: 'var(--space-3)',
+                  paddingLeft: 'var(--space-3)',
+                  borderLeft: '1px solid var(--border-subtle)',
+                }}>
+                  <UserButton
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        avatarBox: {
+                          width: '40px',
+                          height: '40px',
+                          border: '2px solid var(--border)',
+                          transition: 'border-color var(--duration-fast)',
+                        },
+                        rootBox: {
+                          cursor: 'pointer',
+                        },
+                      },
+                    }}
+                  />
+                </div>
               </>
             ) : (
-              <Link to="/sign-in" style={{ background: '#0D9488', color: 'white', padding: '0.625rem 1.25rem', borderRadius: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: '"Plus Jakarta Sans", sans-serif', fontWeight: '600', fontSize: '0.9rem' }}>
+              <Link
+                to="/sign-in"
+                className="btn btn-primary"
+              >
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>login</span>
                 Iniciar Sesion
               </Link>
@@ -57,27 +189,186 @@ function Layout() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main style={{ flex: 1, padding: '2rem 0', background: '#0F172A' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 clamp(1rem, 4vw, 5rem)' }}>
+      {/* Main Content */}
+      <main style={{
+        flex: 1,
+        padding: 'var(--space-8) 0',
+        background: 'var(--surface-0)',
+      }}>
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+          padding: '0 clamp(1rem, 4vw, 5rem)',
+        }}>
           <Outlet />
         </div>
       </main>
 
       {/* Footer */}
       <footer style={{
-        background: '#0F172A',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
-        padding: '1.5rem',
-        textAlign: 'center',
-        color: 'rgba(255,255,255,0.5)',
-        fontFamily: '"Inter", sans-serif',
-        fontSize: '0.875rem'
+        background: 'var(--surface-0)',
+        borderTop: '1px solid var(--border-subtle)',
+        padding: 'var(--space-6) 0',
+        color: 'var(--text-muted)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 'var(--text-sm)',
       }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 clamp(1rem, 4vw, 5rem)' }}>
-          <p>2026 Carglyn</p>
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+          padding: '0 clamp(1rem, 4vw, 5rem)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 'var(--space-4)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <img src="/logos/Carglylogo.png" alt="Carglyn" style={{ height: '24px', width: 'auto' }} />
+          </div>
+          <p>2026 Plataforma de Acarreos. Todos los derechos reservados.</p>
         </div>
       </footer>
+
+      {/* Mobile Menu Overlay & Drawer */}
+      {mobileMenuOpen && (
+        <>
+          <div
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.7)',
+              zIndex: 299,
+            }}
+          />
+          <nav style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: '280px',
+            background: 'var(--surface-1)',
+            zIndex: 300,
+            padding: 'var(--space-6)',
+            transform: 'translateX(0)',
+            transition: 'transform var(--duration-normal) var(--ease-out)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-4)',
+          }}>
+            {/* Close button */}
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                alignSelf: 'flex-end',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                padding: 'var(--space-2)',
+              }}
+              aria-label="Cerrar menu"
+            >
+              <span className="material-symbols-rounded">close</span>
+            </button>
+
+            {/* Logo en drawer */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+              <img src="/logos/Carglylogo.png" alt="Carglyn" style={{ height: '32px', width: 'auto' }} />
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 'var(--font-extrabold)', fontSize: 'var(--text-lg)', color: 'var(--text-primary)' }}>Cargly</span>
+            </div>
+
+            {/* Menu items */}
+            <Link
+              to="/driver"
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                color: 'var(--text-secondary)',
+                textDecoration: 'none',
+                fontFamily: 'var(--font-display)',
+                fontSize: 'var(--text-base)',
+                fontWeight: 'var(--font-medium)',
+                padding: 'var(--space-3) var(--space-4)',
+                borderRadius: 'var(--radius)',
+                transition: 'all var(--duration-fast) var(--ease-out)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)'
+                e.currentTarget.style.background = 'var(--surface-2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>dashboard</span>
+              Panel Conductor
+            </Link>
+
+            <Link
+              to="/my-rides"
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                color: 'var(--text-secondary)',
+                textDecoration: 'none',
+                fontFamily: 'var(--font-display)',
+                fontSize: 'var(--text-base)',
+                fontWeight: 'var(--font-medium)',
+                padding: 'var(--space-3) var(--space-4)',
+                borderRadius: 'var(--radius)',
+                transition: 'all var(--duration-fast) var(--ease-out)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)'
+                e.currentTarget.style.background = 'var(--surface-2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
+              Mis Pedidos
+            </Link>
+
+            <Link
+              to="/create-ride"
+              onClick={() => setMobileMenuOpen(false)}
+              className="btn btn-primary"
+              style={{
+                marginTop: 'var(--space-2)',
+                justifyContent: 'center',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
+              Nuevo Pedido
+            </Link>
+
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)' }}>
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: {
+                      width: '36px',
+                      height: '36px',
+                      border: '2px solid var(--border)',
+                    },
+                  },
+                }}
+              />
+            </div>
+          </nav>
+        </>
+      )}
     </div>
   )
 }

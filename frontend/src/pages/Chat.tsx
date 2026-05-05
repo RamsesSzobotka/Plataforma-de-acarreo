@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
 import type { UserRole, Ride } from '../types'
+import { StatusBadge } from '../components/StatusBadge'
 
 interface Message {
   _id: string
@@ -39,18 +40,15 @@ function Chat() {
   const [submittingProposal, setSubmittingProposal] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Get contact info from URL params
   const contactId = searchParams.get('contactId')
   const driverId = searchParams.get('driverId')
 
-  // Refs para mantener los callbacks sin re-renders
   const userRef = useRef(user)
   const getTokenRef = useRef(getToken)
   const rideIdRef = useRef(rideId)
   const contactIdRef = useRef(contactId)
   const driverIdRef = useRef(driverId)
 
-  // Actualizar refs cuando cambian
   useEffect(() => {
     userRef.current = user
     getTokenRef.current = getToken
@@ -59,49 +57,45 @@ function Chat() {
     driverIdRef.current = driverId
   }, [user, getToken, rideId, contactId, driverId])
 
-  // Cargar rol del usuario y info del ride
   useEffect(() => {
     async function loadUserRoleAndRide() {
       if (!user) return
       try {
         const token = await getToken()
 
-        // Cargar info del usuario
         const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/users/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (response.ok) {
           const data = await response.json()
           setUserRole(data.role)
-        }
 
-        // Cargar info del ride si tenemos rideId
-        if (rideId) {
-          const rideResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${rideId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          if (rideResponse.ok) {
-            const rideData = await rideResponse.json()
-            setRideInfo(rideData)
-          }
-
-          // Si somos cliente y tenemos driverId, cargar proposal info
-          if (data.role === 'client' && driverId) {
-            const contactResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${rideId}/contacts`, {
+          if (rideId) {
+            const rideResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${rideId}`, {
               headers: { Authorization: `Bearer ${token}` }
             })
-            if (contactResponse.ok) {
-              const contactsData = await contactResponse.json()
-              const driverContact = contactsData.data?.find((c: any) => c.driverId === driverId)
-              if (driverContact) {
-                setProposalInfo({
-                  driverId: driverContact.driverId,
-                  proposedPrice: driverContact.proposedPrice,
-                  proposalCount: driverContact.proposalCount || 0,
-                  remainingProposals: 3 - (driverContact.proposalCount || 0),
-                  canProposeMore: (driverContact.proposalCount || 0) < 3,
-                  status: driverContact.proposedPrice ? 'pending' : undefined
-                })
+            if (rideResponse.ok) {
+              const rideData = await rideResponse.json()
+              setRideInfo(rideData)
+            }
+
+            if (data.role === 'client' && driverId) {
+              const contactResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${rideId}/contacts`, {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+              if (contactResponse.ok) {
+                const contactsData = await contactResponse.json()
+                const driverContact = contactsData.data?.find((c: any) => c.driverId === driverId)
+                if (driverContact) {
+                  setProposalInfo({
+                    driverId: driverContact.driverId,
+                    proposedPrice: driverContact.proposedPrice,
+                    proposalCount: driverContact.proposalCount || 0,
+                    remainingProposals: 3 - (driverContact.proposalCount || 0),
+                    canProposeMore: (driverContact.proposalCount || 0) < 3,
+                    status: driverContact.proposedPrice ? 'pending' : undefined
+                  })
+                }
               }
             }
           }
@@ -113,18 +107,15 @@ function Chat() {
     loadUserRoleAndRide()
   }, [user, getToken, rideId, driverId])
 
-  // Función para manejar nuevos mensajes y eventos de propuesta
   const handleNewMessage = useCallback((data: any) => {
     if (data.type === 'new_message' && data.data) {
       const message = data.data
 
-      // Ignorar mensajes duplicados usando función update para evitar stale closure
       setMessages(prev => {
         if (prev.some(msg => msg._id === message._id)) return prev
         return [...prev, message]
       })
 
-      // Marcar como leído
       const token = getTokenRef.current()
       const currentUserId = userRef.current?.id
       const currentRideId = rideIdRef.current
@@ -141,7 +132,6 @@ function Chat() {
       }
     }
 
-    // Handle price proposed event
     if (data.type === 'price_proposed' && data.data) {
       const proposalData = data.data
       setProposalInfo({
@@ -154,13 +144,9 @@ function Chat() {
       })
     }
 
-    // Handle price accepted event
     if (data.type === 'price_accepted' && data.data) {
       const acceptedData = data.data
-      setProposalInfo(prev => prev ? {
-        ...prev,
-        status: 'accepted'
-      } : null)
+      setProposalInfo(prev => prev ? { ...prev, status: 'accepted' } : null)
       setRideInfo(prev => prev ? {
         ...prev,
         status: 'accepted',
@@ -169,7 +155,6 @@ function Chat() {
       } : null)
     }
 
-    // Handle price rejected event
     if (data.type === 'price_rejected' && data.data) {
       const rejectedData = data.data
       setProposalInfo(prev => prev ? {
@@ -180,7 +165,6 @@ function Chat() {
       } : null)
     }
 
-    // Handle auth success
     if (data.type === 'auth_success') {
       console.log('WebSocket authenticated successfully')
       setIsConnected(true)
@@ -192,7 +176,6 @@ function Chat() {
     setIsConnected(false)
   }, [])
 
-  // Monitor connection state
   useEffect(() => {
     const state = wsService.getState()
     setIsConnected(state.isConnected && state.rideId === rideId)
@@ -216,24 +199,18 @@ function Chat() {
         return
       }
 
-      // Si el usuario es CLIENTE y el ride está en 'requested', necesita contactId y driverId
-      // Si el ride está en 'accepted', 'in_progress' o 'completed', puede entrar libremente
-      // Si es DRIVER, puede entrar directamente
       if (userRole === 'client') {
-        // Primero cargar info del ride para saber su estado
         const rideResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${currentRideId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (!rideResponse.ok) {
-          setError('No se pudo cargar la información del pedido')
+          setError('No se pudo cargar la informacion del pedido')
           setLoading(false)
           return
         }
         const rideData = await rideResponse.json()
         setRideInfo(rideData)
 
-        // Si está en 'requested', necesita contactId y driverId
-        // Si está en otros estados, puede entrar libremente
         if (rideData.status === 'requested') {
           if (!contactIdRef.current || !driverIdRef.current) {
             setError('No se ha seleccionado un conductor para chatear')
@@ -241,11 +218,9 @@ function Chat() {
             return
           }
         }
-        // Para 'accepted', 'in_progress', 'completed' puede entrar sin contactId
       }
 
       try {
-        // Cargar mensajes iniciales
         const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/messages/ride/${currentRideId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -255,7 +230,6 @@ function Chat() {
         setMessages(data.data || [])
         setLoading(false)
 
-        // Conectar WebSocket
         const unsubscribeMessage = wsService.onMessage(handleNewMessage)
         const unsubscribeError = wsService.onError(handleWsError)
         wsService.connect(currentRideId, token)
@@ -278,14 +252,13 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Proponer precio (driver)
   async function handleProposePrice(e: React.FormEvent) {
     e.preventDefault()
     if (!proposedPrice || !user || !rideId || !userRole) return
 
     const price = parseFloat(proposedPrice)
     if (isNaN(price) || price <= 0) {
-      alert('Ingresa un precio válido')
+      alert('Ingresa un precio valido')
       return
     }
 
@@ -325,7 +298,6 @@ function Chat() {
     }
   }
 
-  // Aceptar precio (cliente)
   async function handleAcceptPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
@@ -358,7 +330,6 @@ function Chat() {
     }
   }
 
-  // Rechazar precio (cliente)
   async function handleRejectPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
@@ -434,33 +405,63 @@ function Chat() {
     }
   }
 
-  function formatTime(dateStr: string) {
-    return new Date(dateStr).toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+  function formatRelativeTime(dateStr: string) {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 1) return 'Ahora'
+    if (diffMins < 60) return `hace ${diffMins}m`
+    if (diffHours < 24) return `hace ${diffHours}h`
+    if (diffDays < 7) return `hace ${diffDays}d`
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
   }
 
   function isSystemMessage(senderId: string) {
     return senderId === 'system'
   }
 
-  if (loading) return <div>Cargando chat...</div>
+  if (loading) {
+    return (
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-6)',
+        }}>
+          <div className="skeleton" style={{ height: '60px', borderRadius: 'var(--radius-lg)' }} />
+          <div className="skeleton" style={{ height: '400px', borderRadius: 'var(--radius-lg)' }} />
+          <div className="skeleton" style={{ height: '60px', borderRadius: 'var(--radius-lg)' }} />
+        </div>
+      </div>
+    )
+  }
 
   if (error) {
     return (
-      <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', padding: '2rem' }}>
-        <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: 'var(--error)' }}>
-          error
-        </span>
-        <p style={{ marginTop: '1rem', color: 'var(--error)' }}>{error}</p>
-        <button
-          className="btn btn-outline"
-          onClick={() => navigate(userRole === 'driver' ? '/driver' : '/my-rides')}
-          style={{ marginTop: '1rem' }}
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: 'var(--space-8) 0', textAlign: 'center' }}>
+        <div
+          className="card"
+          style={{
+            animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+          }}
         >
-          {userRole === 'driver' ? 'Volver al Panel' : 'Volver a Mis Pedidos'}
-        </button>
+          <span className="material-symbols-rounded" style={{ fontSize: '4rem', color: 'var(--error)', marginBottom: 'var(--space-4)' }}>
+            error
+          </span>
+          <p style={{ color: 'var(--error)', marginBottom: 'var(--space-5)' }}>{error}</p>
+          <button
+            className="btn btn-outline"
+            onClick={() => navigate(userRole === 'driver' ? '/driver' : '/my-rides')}
+          >
+            <span className="material-symbols-rounded">arrow_back</span>
+            {userRole === 'driver' ? 'Volver al Panel' : 'Volver a Mis Pedidos'}
+          </button>
+        </div>
       </div>
     )
   }
@@ -472,285 +473,503 @@ function Chat() {
   const canChat = isRequested || isAccepted || rideInfo?.status === 'in_progress' || rideInfo?.status === 'completed'
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            onClick={() => navigate(isDriver ? '/driver' : '/my-rides')}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem',
-              color: 'var(--text-secondary)',
-              fontSize: '0.9rem',
-            }}
-          >
-            <span className="material-symbols-rounded">arrow_back</span>
-            Volver
-          </button>
-        </div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 'var(--space-4)',
+        flexWrap: 'wrap',
+        gap: 'var(--space-3)',
+      }}>
+        <button
+          onClick={() => navigate(isDriver ? '/driver' : '/my-rides')}
+          className="btn btn-ghost"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <span className="material-symbols-rounded">arrow_back</span>
+          Volver
+        </button>
+
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.25rem 0.75rem',
-          borderRadius: '999px',
-          background: isConnected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          gap: 'var(--space-2)',
+          padding: 'var(--space-2) var(--space-4)',
+          borderRadius: 'var(--radius-full)',
+          background: isConnected ? 'var(--success-subtle)' : 'var(--error-subtle)',
           color: isConnected ? 'var(--success)' : 'var(--error)',
-          fontSize: '0.875rem'
+          fontSize: 'var(--text-sm)',
+          fontWeight: 'var(--font-medium)',
         }}>
           <span style={{
             width: '8px',
             height: '8px',
             borderRadius: '50%',
-            background: isConnected ? 'var(--success)' : 'var(--error)'
+            background: isConnected ? 'var(--success)' : 'var(--error)',
+            animation: isConnected ? 'pulse 2s ease-in-out infinite' : 'none',
           }} />
           {isConnected ? 'Conectado' : 'Desconectado'}
         </div>
       </div>
 
-      {/* Ride Info Card (para driver) */}
+      {/* Ride Info Card for Driver */}
       {isDriver && rideInfo && (
-        <div style={{
-          background: 'var(--bg-secondary)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1rem',
-          border: '1px solid var(--border)'
-        }}>
-          <h3 style={{ marginBottom: '0.5rem' }}>{rideInfo.title}</h3>
-          <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <p><strong>Desde:</strong> {rideInfo.pickupLocation?.address}</p>
-            <p><strong>Hasta:</strong> {rideInfo.dropoffLocation?.address}</p>
-            <p><strong>Precio estimado:</strong> ${rideInfo.estimatedPrice}</p>
+        <div
+          className="card"
+          style={{
+            marginBottom: 'var(--space-4)',
+            padding: 'var(--space-4)',
+            background: 'linear-gradient(135deg, var(--primary-subtle) 0%, var(--surface-1) 100%)',
+            border: '1px solid var(--border-accent)',
+            animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+                <span className="material-symbols-rounded" style={{ color: 'var(--primary)' }}>local_shipping</span>
+                <h3 style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--text-lg)',
+                  fontWeight: 'var(--font-semibold)',
+                  margin: 0,
+                }}>
+                  {rideInfo.title}
+                </h3>
+              </div>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-1)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--text-secondary)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--success)' }}>circle</span>
+                  <span className="truncate">{rideInfo.pickupLocation?.address}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--error)' }}>location_on</span>
+                  <span className="truncate">{rideInfo.dropoffLocation?.address}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <StatusBadge status={rideInfo.status} size="sm" />
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--text-xl)',
+                fontWeight: 'var(--font-bold)',
+                color: 'var(--secondary)',
+                marginTop: 'var(--space-2)',
+              }}>
+                ${rideInfo.estimatedPrice}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Proposal Section */}
       {canChat && isRequested && (
-        <div style={{
-          background: 'var(--bg-secondary)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1rem',
-          border: '1px solid var(--border)'
-        }}>
+        <div
+          className="card"
+          style={{
+            marginBottom: 'var(--space-4)',
+            animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+            animationDelay: '50ms',
+            animationFillMode: 'both',
+          }}
+        >
           {isDriver && (
-            <>
-              {/* Panel del Driver - Proponer precio */}
+            <div>
               {proposalInfo?.status === 'pending' ? (
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ color: 'var(--primary)', fontWeight: 600, marginBottom: '0.5rem' }}>
-                    💰 Precio propuesto: ${proposalInfo.proposedPrice}
+                <div style={{ textAlign: 'center', padding: 'var(--space-4)' }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'var(--primary-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto var(--space-4)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: 'var(--primary)' }}>payments</span>
+                  </div>
+                  <p style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-lg)',
+                    fontWeight: 'var(--font-bold)',
+                    color: 'var(--primary)',
+                    marginBottom: 'var(--space-2)',
+                  }}>
+                    Precio propuesto: ${proposalInfo.proposedPrice}
                   </p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
                     Esperando respuesta del cliente...
                   </p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)' }}>
                     Propuestas restantes: {proposalInfo.remainingProposals}
                   </p>
                 </div>
               ) : proposalInfo?.status === 'accepted' ? (
-                <div style={{ textAlign: 'center', color: 'var(--success)' }}>
-                  <p style={{ fontWeight: 600 }}>✅ ¡Precio aceptado! El contrato está activo.</p>
+                <div style={{
+                  textAlign: 'center',
+                  padding: 'var(--space-5)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)' }}>check_circle</span>
+                  <p style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)' }}>¡Precio aceptado!</p>
+                  <p style={{ fontSize: 'var(--text-sm)' }}>El contrato esta activo.</p>
                 </div>
               ) : proposalInfo?.status === 'rejected' && !proposalInfo.canProposeMore ? (
-                <div style={{ textAlign: 'center', color: 'var(--error)' }}>
-                  <p style={{ fontWeight: 600 }}>❌ Precio rechazado.</p>
-                  <p style={{ fontSize: '0.9rem' }}>Has alcanzado el máximo de propuestas.</p>
+                <div style={{
+                  textAlign: 'center',
+                  padding: 'var(--space-5)',
+                  background: 'var(--error-subtle)',
+                  borderRadius: 'var(--radius)',
+                  color: 'var(--error)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)' }}>cancel</span>
+                  <p style={{ fontWeight: 'var(--font-bold)' }}>Precio rechazado</p>
+                  <p style={{ fontSize: 'var(--text-sm)' }}>Has alcanzado el maximo de propuestas.</p>
                 </div>
               ) : proposalInfo?.status === 'rejected' ? (
                 <div>
-                  <p style={{ color: 'var(--warning)', textAlign: 'center', marginBottom: '0.5rem' }}>
-                    ❌ Precio rechazado. Puedes enviar otra propuesta.
-                  </p>
-                  <form onSubmit={handleProposePrice} style={{ display: 'flex', gap: '0.5rem' }}>
-                    <input
-                      type="number"
-                      className="input"
-                      placeholder="Tu precio..."
-                      value={proposedPrice}
-                      onChange={(e) => setProposedPrice(e.target.value)}
-                      style={{ flex: 1 }}
-                      disabled={submittingProposal}
-                    />
+                  <div style={{
+                    textAlign: 'center',
+                    marginBottom: 'var(--space-4)',
+                    color: 'var(--warning)',
+                  }}>
+                    <p style={{ fontWeight: 'var(--font-semibold)' }}>Precio rechazado</p>
+                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                      Puedes enviar otra propuesta.
+                    </p>
+                  </div>
+                  <form onSubmit={handleProposePrice} style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+                      <span style={{
+                        position: 'absolute',
+                        left: 'var(--space-4)',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                      }}>$</span>
+                      <input
+                        type="number"
+                        className="input"
+                        placeholder="Tu precio..."
+                        value={proposedPrice}
+                        onChange={(e) => setProposedPrice(e.target.value)}
+                        style={{ paddingLeft: 'var(--space-8)', fontFamily: 'var(--font-mono)' }}
+                        disabled={submittingProposal}
+                      />
+                    </div>
                     <button type="submit" className="btn btn-primary" disabled={submittingProposal}>
-                      {submittingProposal ? 'Enviando...' : 'Proponer'}
+                      {submittingProposal ? (
+                        <div className="spinner" style={{ width: '18px', height: '18px' }} />
+                      ) : (
+                        <span className="material-symbols-rounded">send</span>
+                      )}
+                      Proponer
                     </button>
                   </form>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.5rem', textAlign: 'center' }}>
-                    Propuestas restantes: {proposalInfo?.remainingProposals || 3}
+                  <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)', textAlign: 'center' }}>
+                    Maximo 3 propuestas | Restantes: {proposalInfo?.remainingProposals || 3}
                   </p>
                 </div>
               ) : (
                 <div>
-                  <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>💰 ¿Quieres proponer un precio?</p>
-                  <form onSubmit={handleProposePrice} style={{ display: 'flex', gap: '0.5rem' }}>
-                    <input
-                      type="number"
-                      className="input"
-                      placeholder="Tu precio..."
-                      value={proposedPrice}
-                      onChange={(e) => setProposedPrice(e.target.value)}
-                      style={{ flex: 1 }}
-                      disabled={submittingProposal}
-                    />
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-3)',
+                    marginBottom: 'var(--space-4)',
+                  }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      background: 'var(--warning-subtle)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <span className="material-symbols-rounded" style={{ color: 'var(--warning)' }}>payments</span>
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 'var(--font-semibold)', margin: 0 }}>¿Quieres proponer un precio?</p>
+                      <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 }}>El cliente recibira tu propuesta.</p>
+                    </div>
+                  </div>
+                  <form onSubmit={handleProposePrice} style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+                      <span style={{
+                        position: 'absolute',
+                        left: 'var(--space-4)',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                      }}>$</span>
+                      <input
+                        type="number"
+                        className="input"
+                        placeholder="Tu precio..."
+                        value={proposedPrice}
+                        onChange={(e) => setProposedPrice(e.target.value)}
+                        style={{ paddingLeft: 'var(--space-8)', fontFamily: 'var(--font-mono)' }}
+                        disabled={submittingProposal}
+                      />
+                    </div>
                     <button type="submit" className="btn btn-primary" disabled={submittingProposal}>
-                      {submittingProposal ? 'Enviando...' : 'Proponer'}
+                      {submittingProposal ? (
+                        <div className="spinner" style={{ width: '18px', height: '18px' }} />
+                      ) : (
+                        <span className="material-symbols-rounded">send</span>
+                      )}
+                      Proponer
                     </button>
                   </form>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.5rem', textAlign: 'center' }}>
-                    Máximo 3 propuestas
+                  <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)', textAlign: 'center' }}>
+                    Maximo 3 propuestas
                   </p>
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {isClient && proposalInfo && proposalInfo.proposedPrice && (
-            <>
-              {/* Panel del Cliente - Aceptar/Rechazar precio */}
+            <div>
               {proposalInfo.status === 'pending' && (
-                <div>
-                  <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                    <p style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>
-                      💰 Propuesta de precio: ${proposalInfo.proposedPrice}
-                    </p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                      El conductor ha propuesto este precio para el servicio.
-                    </p>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    background: 'var(--primary-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto var(--space-4)',
+                    boxShadow: '0 0 24px var(--primary-glow)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '2.5rem', color: 'var(--primary)' }}>payments</span>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                    <button onClick={handleRejectPrice} className="btn btn-outline" style={{ background: 'var(--error)', color: 'white', borderColor: 'var(--error)' }}>
+                  <p style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-2xl)',
+                    fontWeight: 'var(--font-bold)',
+                    color: 'var(--primary)',
+                    marginBottom: 'var(--space-2)',
+                  }}>
+                    ${proposalInfo.proposedPrice}
+                  </p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-5)' }}>
+                    El conductor ha propuesto este precio para el servicio.
+                  </p>
+                  <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+                    <button onClick={handleRejectPrice} className="btn btn-outline" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>
+                      <span className="material-symbols-rounded">close</span>
                       Rechazar
                     </button>
                     <button onClick={handleAcceptPrice} className="btn btn-primary">
+                      <span className="material-symbols-rounded">check</span>
                       Aceptar Precio
                     </button>
                   </div>
                 </div>
               )}
               {proposalInfo.status === 'accepted' && (
-                <div style={{ textAlign: 'center', color: 'var(--success)' }}>
-                  <p style={{ fontWeight: 600 }}>✅ ¡Precio aceptado! El contrato está activo.</p>
+                <div style={{
+                  textAlign: 'center',
+                  padding: 'var(--space-5)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)' }}>check_circle</span>
+                  <p style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)' }}>¡Precio aceptado!</p>
+                  <p style={{ fontSize: 'var(--text-sm)' }}>El contrato esta activo.</p>
                 </div>
               )}
               {proposalInfo.status === 'rejected' && (
-                <div style={{ textAlign: 'center', color: 'var(--warning)' }}>
-                  <p>❌ Has rechazado esta propuesta.</p>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                <div style={{
+                  textAlign: 'center',
+                  padding: 'var(--space-4)',
+                  background: 'var(--warning-subtle)',
+                  borderRadius: 'var(--radius)',
+                  color: 'var(--warning)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)' }}>cancel</span>
+                  <p style={{ fontWeight: 'var(--font-semibold)' }}>Has rechazado esta propuesta.</p>
+                  <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
                     El conductor puede enviar una nueva propuesta.
                   </p>
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {isClient && (!proposalInfo || !proposalInfo.proposedPrice) && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              Espera la propuesta de precio del conductor para contratarlo...
-            </p>
+            <div style={{
+              textAlign: 'center',
+              padding: 'var(--space-5)',
+              color: 'var(--text-muted)',
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)' }}>hourglass_empty</span>
+              <p>Espera la propuesta de precio del conductor para contratarlo...</p>
+            </div>
           )}
         </div>
       )}
 
-      {/* Accepted Status */}
+      {/* Accepted Status Banner */}
       {canChat && isAccepted && (
         <div style={{
-          background: 'rgba(34, 197, 94, 0.1)',
+          background: 'var(--success-subtle)',
           borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1rem',
-          border: '1px solid var(--success)',
-          textAlign: 'center'
+          padding: 'var(--space-4)',
+          marginBottom: 'var(--space-4)',
+          border: '1px solid rgba(34, 197, 94, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 'var(--space-3)',
+          animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
         }}>
-          <p style={{ color: 'var(--success)', fontWeight: 600 }}>
-            ✅ Contrato activo - Precio: ${rideInfo?.finalPrice}
-          </p>
+          <span className="material-symbols-rounded" style={{ color: 'var(--success)', fontSize: '1.5rem' }}>check_circle</span>
+          <span style={{ color: 'var(--success)', fontWeight: 'var(--font-semibold)' }}>
+            Contrato activo - Precio: ${rideInfo?.finalPrice}
+          </span>
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages Container */}
       <div
         style={{
-          height: '400px',
+          height: 'min(450px, 50vh)',
+          maxHeight: '50vh',
           overflowY: 'auto',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1rem',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
+          marginBottom: 'var(--space-4)',
+          background: 'var(--surface-card)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.75rem',
+          gap: 'var(--space-3)',
         }}
       >
         {messages.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            <span className="material-symbols-rounded">chat_bubble</span>
-            {isDriver ? 'Envía un mensaje al cliente para iniciar contacto!' : 'No hay mensajes aún.'}
-          </p>
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-muted)',
+            gap: 'var(--space-3)',
+          }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '3rem', opacity: 0.5 }}>chat_bubble</span>
+            <p style={{ fontSize: 'var(--text-sm)' }}>
+              {isDriver ? 'Envía un mensaje al cliente para iniciar contacto!' : 'No hay mensajes aun. Inicia la conversacion!'}
+            </p>
+          </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg._id}
-              style={{
-                display: 'flex',
-                justifyContent: isSystemMessage(msg.senderId) ? 'center' : (msg.senderId === user?.id ? 'flex-end' : 'flex-start'),
-              }}
-            >
+          messages.map((msg, index) => {
+            const isOwn = msg.senderId === user?.id
+            const isSystem = isSystemMessage(msg.senderId)
+
+            return (
               <div
+                key={msg._id}
                 style={{
-                  maxWidth: '70%',
-                  padding: '0.75rem 1rem',
-                  borderRadius: 'var(--radius)',
-                  background: isSystemMessage(msg.senderId)
-                    ? 'var(--bg-tertiary)'
-                    : (msg.senderId === user?.id ? 'var(--primary)' : 'var(--bg-tertiary)'),
-                  color: isSystemMessage(msg.senderId) ? 'var(--text-secondary)' : (msg.senderId === user?.id ? 'white' : 'var(--text-primary)'),
-                  fontStyle: isSystemMessage(msg.senderId) ? 'italic' : 'normal',
-                  textAlign: isSystemMessage(msg.senderId) ? 'center' : 'left',
+                  display: 'flex',
+                  justifyContent: isSystem ? 'center' : (isOwn ? 'flex-end' : 'flex-start'),
+                  animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                  animationDelay: `${Math.min(index * 30, 300)}ms`,
+                  animationFillMode: 'both',
                 }}
               >
-                <p>{msg.content}</p>
-                <p
+                <div
                   style={{
-                    fontSize: '0.75rem',
-                    marginTop: '0.25rem',
-                    opacity: 0.7,
+                    maxWidth: '85%',
+                    padding: 'var(--space-3) var(--space-4)',
+                    borderRadius: isSystem ? 'var(--radius)' : (isOwn ? 'var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)' : 'var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px'),
+                    background: isSystem
+                      ? 'var(--surface-2)'
+                      : (isOwn ? 'var(--primary)' : 'var(--surface-2)'),
+                    color: isSystem ? 'var(--text-secondary)' : (isOwn ? 'white' : 'var(--text-primary)'),
+                    fontStyle: isSystem ? 'italic' : 'normal',
+                    textAlign: isSystem ? 'center' : 'left',
+                    boxShadow: isOwn ? 'var(--shadow-glow)' : 'none',
+                    position: 'relative',
                   }}
                 >
-                  {formatTime(msg.createdAt)}
-                </p>
+                  {!isSystem && !isOwn && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: '-8px',
+                      width: 0,
+                      height: 0,
+                      borderTop: '8px solid var(--surface-2)',
+                      borderRight: '8px solid transparent',
+                    }} />
+                  )}
+                  <p style={{
+                    margin: 0,
+                    lineHeight: 1.5,
+                    fontSize: 'var(--text-sm)',
+                  }}>{msg.content}</p>
+                  <p style={{
+                    fontSize: 'var(--text-xs)',
+                    marginTop: 'var(--space-1)',
+                    opacity: 0.7,
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    {formatRelativeTime(msg.createdAt)}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input - solo si puede chatear */}
+      {/* Input */}
       {canChat ? (
-        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.5rem' }}>
+        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 'var(--space-3)' }}>
           <input
             type="text"
             className="input"
-            placeholder={isDriver ? 'Envía un mensaje al cliente...' : 'Escribe un mensaje...'}
+            placeholder={isDriver ? 'Escribe un mensaje al cliente...' : 'Escribe un mensaje...'}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             style={{ flex: 1 }}
           />
-          <button type="submit" className="btn btn-primary" disabled={!isConnected}>
-            Enviar
+          <button type="submit" className="btn btn-primary btn-lg" disabled={!isConnected}>
+            <span className="material-symbols-rounded">send</span>
           </button>
         </form>
       ) : (
-        <div style={{ textAlign: 'center', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', color: 'var(--text-muted)' }}>
-          Chat no disponible en este estado del pedido.
+        <div style={{
+          textAlign: 'center',
+          padding: 'var(--space-5)',
+          background: 'var(--surface-card)',
+          borderRadius: 'var(--radius)',
+          color: 'var(--text-muted)',
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', marginBottom: 'var(--space-2)' }}>chat_bubble_disabled</span>
+          <p>Chat no disponible en este estado del pedido.</p>
         </div>
       )}
     </div>

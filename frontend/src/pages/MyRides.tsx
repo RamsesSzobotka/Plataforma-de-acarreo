@@ -4,6 +4,8 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import { ridesAPI } from '../services/api'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { wsService } from '../services/api'
+import { StatusBadge } from '../components/StatusBadge'
+import { EmptyState } from '../components/EmptyState'
 import type { PaginatedResponse } from '../types'
 
 interface Ride {
@@ -12,6 +14,7 @@ interface Ride {
   type: string
   status: string
   estimatedPrice: number
+  images?: Array<{ url: string }>
   pickupLocation: { address: string }
   dropoffLocation: { address: string }
   createdAt: string
@@ -19,6 +22,15 @@ interface Ride {
 }
 
 const PAGE_LIMIT = 10
+
+const filterOptions = [
+  { value: 'all', label: 'Todos', icon: 'list' },
+  { value: 'requested', label: 'Pendientes', icon: 'inbox' },
+  { value: 'negotiating', label: 'Negociando', icon: 'chat' },
+  { value: 'accepted', label: 'Aceptados', icon: 'check_circle' },
+  { value: 'in_progress', label: 'En Viaje', icon: 'delivery_truck_speed' },
+  { value: 'completed', label: 'Completados', icon: 'task_alt' },
+]
 
 function MyRides() {
   const { user } = useUser()
@@ -33,7 +45,7 @@ function MyRides() {
   const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
-    setPage(1) // Reset page when filter changes
+    setPage(1)
   }, [filter])
 
   useEffect(() => {
@@ -42,8 +54,6 @@ function MyRides() {
     }
   }, [user, filter, page])
 
-  // Escuchar eventos WebSocket para recargar cuando lleguen mensajes
-  // También recargar cuando el tab vuelve a estar visible
   useEffect(() => {
     if (!user) return
 
@@ -53,8 +63,6 @@ function MyRides() {
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // También recargar periódicamente para captar cambios
     const refreshInterval = setInterval(loadRides, 10000)
 
     const unsubscribe = wsService.onMessage((data) => {
@@ -104,180 +112,393 @@ function MyRides() {
   const handleChatClick = (e: React.MouseEvent, rideId: string) => {
     e.preventDefault()
     e.stopPropagation()
-    // Navigate to ride details - from there user can select a driver to chat with
     navigate(`/ride/${rideId}`)
   }
 
   const startRange = total === 0 ? 0 : (page - 1) * PAGE_LIMIT + 1
   const endRange = Math.min(page * PAGE_LIMIT, total)
 
-  const statusLabels: Record<string, string> = {
-    requested: 'Pendiente',
-    accepted: 'Aceptado',
-    in_progress: 'En Progreso',
-    completed: 'Completado',
-    paid: 'Pagado',
-    cancelled: 'Cancelado',
-  }
-
-  const statusColors: Record<string, string> = {
-    requested: '#f59e0b',
-    accepted: '#22c55e',
-    in_progress: '#3b82f6',
-    completed: '#22c55e',
-    paid: '#22c55e',
-    cancelled: '#ef4444',
-  }
-
   if (loading) {
-    return <div>Cargando...</div>
+    return (
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        {/* Loading skeleton */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 'var(--space-6)',
+        }}>
+          <div className="skeleton" style={{ width: '200px', height: '40px' }} />
+          <div className="skeleton" style={{ width: '140px', height: '40px', borderRadius: 'var(--radius)' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-6)' }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="skeleton" style={{ width: '100px', height: '36px', borderRadius: 'var(--radius)' }} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton" style={{ height: '140px', borderRadius: 'var(--radius-lg)' }} />
+          ))}
+        </div>
+      </div>
+    )
   }
+
+  const activeFilterLabel = filterOptions.find(f => f.value === filter)?.label || 'Todos'
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="material-symbols-rounded">local_shipping</span>
-          Mis Pedidos
-        </h1>
-        <Link to="/create-ride" className="btn btn-primary">
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 'var(--space-6)',
+        gap: 'var(--space-4)',
+        flexWrap: 'wrap',
+      }}>
+        <div>
+          <h1 style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            marginBottom: 'var(--space-2)',
+            fontFamily: 'var(--font-display)',
+            fontSize: 'var(--text-2xl)',
+            fontWeight: 'var(--font-bold)',
+          }}>
+            <span style={{
+              width: '48px',
+              height: '48px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--primary-subtle)',
+              color: 'var(--primary)',
+              borderRadius: 'var(--radius)',
+            }}>
+              <span className="material-symbols-rounded">local_shipping</span>
+            </span>
+            Mis Pedidos
+          </h1>
+          <p style={{
+            color: 'var(--text-muted)',
+            fontSize: 'var(--text-sm)',
+          }}>
+            {total > 0
+              ? `Tienes ${total} pedido${total !== 1 ? 's' : ''} en total`
+              : 'Gestiona tus pedidos de acarreo'
+            }
+          </p>
+        </div>
+        <Link to="/create-ride" className="btn btn-primary" style={{ flexShrink: 0 }}>
           <span className="material-symbols-rounded">add</span>
           Nuevo Pedido
         </Link>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {['all', 'requested', 'accepted', 'in_progress', 'completed'].map((s) => (
-          <button
-            key={s}
-            className={`btn ${filter === s ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setFilter(s)}
-          >
-            {s === 'all' ? 'Todos' : statusLabels[s] || s}
-          </button>
-        ))}
+      {/* Filter Chips */}
+      <div style={{
+        display: 'flex',
+        gap: 'var(--space-2)',
+        marginBottom: 'var(--space-6)',
+        overflowX: 'auto',
+        paddingBottom: 'var(--space-2)',
+      }}>
+        {filterOptions.map((option) => {
+          const isActive = filter === option.value
+          return (
+            <button
+              key={option.value}
+              onClick={() => setFilter(option.value)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-4)',
+                background: isActive ? 'var(--primary)' : 'var(--surface-card)',
+                color: isActive ? 'white' : 'var(--text-secondary)',
+                border: '1px solid',
+                borderColor: isActive ? 'var(--primary)' : 'var(--border-subtle)',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--font-medium)',
+                cursor: 'pointer',
+                transition: 'all var(--duration-fast) var(--ease-out)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
+                {option.icon}
+              </span>
+              {option.label}
+            </button>
+          )
+        })}
       </div>
+
+      {/* Results info */}
+      {total > 0 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 'var(--space-4)',
+          padding: 'var(--space-3) var(--space-4)',
+          background: 'var(--surface-card)',
+          borderRadius: 'var(--radius)',
+          fontSize: 'var(--text-sm)',
+          color: 'var(--text-muted)',
+        }}>
+          <span>
+            Mostrando <strong style={{ color: 'var(--text-primary)' }}>{startRange}-{endRange}</strong> de <strong style={{ color: 'var(--text-primary)' }}>{total}</strong> pedidos
+          </span>
+          <span style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-1)',
+          }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>filter_list</span>
+            Filtro: {activeFilterLabel}
+          </span>
+        </div>
+      )}
 
       {/* Rides list */}
       {rides.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-          <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: '#64748B', marginBottom: '1rem', display: 'block' }}>
-            inventory_2
-          </span>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            No tienes pedidos
-          </p>
-          <Link to="/create-ride" className="btn btn-primary">
-            Crear tu primer pedido
-          </Link>
-        </div>
+        <EmptyState
+          icon={filter === 'all' ? 'inventory_2' : 'search_off'}
+          title={filter === 'all' ? 'No tienes pedidos todavia' : `No hay pedidos ${activeFilterLabel.toLowerCase()}`}
+          description={
+            filter === 'all'
+              ? 'Crea tu primer pedido de acarreo y conecta con conductores cercanos.'
+              : `No tienes pedidos en estado "${activeFilterLabel}". Prueba cambiar el filtro.`
+          }
+          action={{
+            label: filter === 'all' ? 'Crear Nuevo Pedido' : 'Ver Todos',
+            href: filter === 'all' ? '/create-ride' : undefined,
+            onClick: filter !== 'all' ? () => setFilter('all') : undefined,
+          }}
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: 'var(--space-4)',
+        }} className="stagger-children">
           {rides.map((ride) => {
             const unreadCount = unreadCounts[ride._id] || 0
+            const firstImage = ride.images?.[0]?.url
 
             return (
-              <div
+              <Link
                 key={ride._id}
-                className="card"
-                style={{ display: 'block', textDecoration: 'none', color: 'inherit', cursor: 'pointer', position: 'relative' }}
+                to={`/ride/${ride._id}`}
+                style={{
+                  textDecoration: 'none',
+                  color: 'inherit',
+                }}
               >
-                {/* Badge de mensajes no leídos en la esquina superior */}
-                {unreadCount > 0 && (
-                  <div
-                    onClick={(e) => handleChatClick(e, ride._id)}
-                    style={{
-                      position: 'absolute',
-                      top: '-8px',
-                      right: '-8px',
-                      minWidth: '22px',
-                      height: '22px',
-                      padding: '0 6px',
-                      borderRadius: '999px',
-                      background: 'var(--error)',
-                      color: 'white',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
+                <div
+                  className="card card-hover"
+                  style={{
+                    padding: 0,
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}
+                >
+                  {/* Unread messages badge */}
+                  {unreadCount > 0 && (
+                    <div
+                      onClick={(e) => handleChatClick(e, ride._id)}
+                      style={{
+                        position: 'absolute',
+                        top: 'var(--space-3)',
+                        right: 'var(--space-3)',
+                        minWidth: '24px',
+                        height: '24px',
+                        padding: '0 var(--space-2)',
+                        borderRadius: 'var(--radius-full)',
+                        background: 'var(--error)',
+                        color: 'white',
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 'var(--font-bold)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
+                        zIndex: 10,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '0.875rem', marginRight: '2px' }}>
+                        chat
+                      </span>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </div>
+                  )}
+
+                  {/* Image */}
+                  {firstImage ? (
+                    <div style={{
+                      height: '160px',
+                      background: 'linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}>
+                      <img
+                        src={firstImage}
+                        alt={ride.title}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                      {/* Status overlay */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 'var(--space-3)',
+                        left: 'var(--space-3)',
+                      }}>
+                        <StatusBadge status={ride.status} size="sm" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      height: '100px',
+                      background: 'linear-gradient(135deg, var(--surface-1) 0%, var(--surface-2) 100%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                      zIndex: 10,
-                      cursor: 'pointer',
-                    }}
-                    title="Tienes mensajes nuevos"
-                  >
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </div>
-                )}
-
-                <Link
-                  to={`/ride/${ride._id}`}
-                  style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div style={{ flex: 1 }}>
-                      <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
-                        {ride.title}
-                      </h3>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>location_on</span>
-                        {ride.pickupLocation.address}
-                        <span style={{ margin: '0 0.5rem' }}>→</span>
-                        <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>flag</span>
-                        {ride.dropoffLocation.address}
-                      </p>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '0.25rem 0.75rem',
-                          borderRadius: '999px',
-                          fontSize: '0.8rem',
-                          background: statusColors[ride.status] || '#64748b',
-                          color: 'white',
-                        }}
-                      >
-                        {statusLabels[ride.status] || ride.status}
+                    }}>
+                      <span className="material-symbols-rounded" style={{ fontSize: '2.5rem', color: 'var(--text-muted)' }}>
+                        image
                       </span>
-                      <p style={{ marginTop: '0.5rem', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
-                        ${ride.estimatedPrice}
-                      </p>
+                    </div>
+                  )}
+
+                  {/* Content */}
+                  <div style={{ padding: 'var(--space-4)' }}>
+                    <h3 style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: 'var(--text-base)',
+                      fontWeight: 'var(--font-semibold)',
+                      marginBottom: 'var(--space-3)',
+                      lineHeight: 1.3,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}>
+                      {ride.title}
+                    </h3>
+
+                    {/* Route */}
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 'var(--space-2)',
+                      marginBottom: 'var(--space-4)',
+                      padding: 'var(--space-3)',
+                      background: 'var(--surface-0)',
+                      borderRadius: 'var(--radius)',
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        fontSize: 'var(--text-xs)',
+                      }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--success)' }}>
+                          circle
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ride.pickupLocation.address}
+                        </span>
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        fontSize: 'var(--text-xs)',
+                      }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--error)' }}>
+                          location_on
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ride.dropoffLocation.address}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingTop: 'var(--space-3)',
+                      borderTop: '1px solid var(--border-subtle)',
+                    }}>
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-1)',
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-muted)',
+                      }}>
+                        <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>
+                          schedule
+                        </span>
+                        {new Date(ride.createdAt).toLocaleDateString('es-ES', {
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </span>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 'var(--text-lg)',
+                        fontWeight: 'var(--font-bold)',
+                        color: 'var(--secondary)',
+                      }}>
+                        ${ride.estimatedPrice.toLocaleString()}
+                      </span>
                     </div>
                   </div>
-                </Link>
-              </div>
+                </div>
+              </Link>
             )
           })}
         </div>
       )}
 
-      {/* Pagination Info */}
-      {total > 0 && (
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Mostrando {startRange}-{endRange} de {total} pedidos
-        </div>
-      )}
-
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          marginTop: 'var(--space-8)',
+          flexWrap: 'wrap',
+        }}>
           <button
             className="btn btn-outline"
             onClick={() => handlePageChange(page - 1)}
             disabled={page === 1}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '1.1rem' }}>chevron_left</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chevron_left</span>
             Anterior
           </button>
 
-          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+          <div style={{
+            display: 'flex',
+            gap: 'var(--space-1)',
+            alignItems: 'center',
+          }}>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-              // Show first, last, current, and neighbors
               if (
                 pageNum === 1 ||
                 pageNum === totalPages ||
@@ -288,15 +509,21 @@ function MyRides() {
                     key={pageNum}
                     className={`btn ${pageNum === page ? 'btn-primary' : 'btn-outline'}`}
                     onClick={() => handlePageChange(pageNum)}
-                    style={{ minWidth: '2.5rem', padding: '0.5rem' }}
+                    style={{ minWidth: '40px', padding: 'var(--space-2)' }}
                   >
                     {pageNum}
                   </button>
                 )
               }
-              // Show ellipsis
               if (pageNum === page - 2 || pageNum === page + 2) {
-                return <span key={pageNum} style={{ color: 'var(--text-muted)' }}>...</span>
+                return (
+                  <span key={pageNum} style={{
+                    color: 'var(--text-muted)',
+                    padding: '0 var(--space-2)',
+                  }}>
+                    ...
+                  </span>
+                )
               }
               return null
             })}
@@ -306,10 +533,10 @@ function MyRides() {
             className="btn btn-outline"
             onClick={() => handlePageChange(page + 1)}
             disabled={page === totalPages}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
           >
             Siguiente
-            <span className="material-symbols-rounded" style={{ fontSize: '1.1rem' }}>chevron_right</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chevron_right</span>
           </button>
         </div>
       )}

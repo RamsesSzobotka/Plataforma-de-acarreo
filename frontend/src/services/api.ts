@@ -45,8 +45,10 @@ export class WebSocketService {
     this.ws.onopen = () => {
       console.log('WebSocket connected successfully')
       this.reconnectAttempts = 0
-      // Send auth token
-      this.ws?.send(JSON.stringify({ type: 'auth', token }))
+      // Send auth token after connection is open
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'auth', token }))
+      }
       // Start heartbeat
       this.startHeartbeat()
     }

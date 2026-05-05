@@ -28,7 +28,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
     e.preventDefault()
 
     if (!stripe || !elements) {
-      setError('Stripe no está cargado correctamente')
+      setError('Stripe no esta cargado correctamente')
       return
     }
 
@@ -58,30 +58,26 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
       }
 
       if (!setupIntent || typeof setupIntent.payment_method !== 'string') {
-        throw new Error('No se pudo confirmar el método de pago')
+        throw new Error('No se pudo confirmar el metodo de pago')
       }
 
-      console.log('✅ PaymentMethod confirmed:', setupIntent.payment_method)
+      console.log('PaymentMethod confirmed:', setupIntent.payment_method)
       setSavedMethodId(setupIntent.payment_method)
 
-      // 💳 Adjuntar PaymentMethod al Customer
-      console.log('💳 Adjuntando PaymentMethod al Customer...')
       try {
         const attachResponse = await paymentsAPI.attachPaymentMethod(
           setupIntent.payment_method,
           setupIntentResponse.setupIntentId,
           token || undefined
         )
-        console.log('✅ PaymentMethod adjuntado exitosamente:', attachResponse.brand, '****', attachResponse.last4)
+        console.log('PaymentMethod adjuntado:', attachResponse.brand, '****', attachResponse.last4)
       } catch (attachError) {
         const attachMessage = attachError instanceof Error ? attachError.message : 'Error desconocido'
-        console.warn('⚠️ Error adjuntando PaymentMethod (continuando):', attachMessage)
-        // Continuar de todas formas - el fallback del backend lo habrá adjuntado
+        console.warn('Error adjuntando PaymentMethod (continuando):', attachMessage)
       }
 
-      console.log('💾 Saving payment method to user profile...')
       await usersAPI.savePaymentMethod(setupIntent.payment_method, token || undefined)
-      console.log('✅ Payment method saved to user profile')
+      console.log('Payment method saved to user profile')
 
       setSuccess(true)
 
@@ -98,7 +94,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconocido'
-      console.error('❌ Error:', message)
+      console.error('Error:', message)
       setError(message)
     } finally {
       setLoading(false)
@@ -107,103 +103,203 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
 
   return (
     <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-      <Link 
-        to="/my-rides" 
-        style={{ 
-          display: 'inline-flex', 
-          alignItems: 'center', 
-          gap: '0.5rem',
-          marginBottom: '1.5rem',
-          color: '#64748B',
-          textDecoration: 'none',
+      <Link
+        to="/my-rides"
+        className="btn btn-ghost"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          marginBottom: 'var(--space-6)',
+          color: 'var(--text-muted)',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
         Volver a Mis Pedidos
       </Link>
 
-      <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <span className="material-symbols-rounded">credit_card</span>
-        Agregar Método de Pago
-      </h1>
+      {/* Header */}
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <h1 style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          fontFamily: 'var(--font-display)',
+          fontSize: 'var(--text-2xl)',
+          fontWeight: 'var(--font-bold)',
+          marginBottom: 'var(--space-2)',
+        }}>
+          <span style={{
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--primary-subtle)',
+            color: 'var(--primary)',
+            borderRadius: 'var(--radius)',
+          }}>
+            <span className="material-symbols-rounded">credit_card</span>
+          </span>
+          Agregar Metodo de Pago
+        </h1>
+        <p style={{
+          color: 'var(--text-muted)',
+          fontSize: 'var(--text-sm)',
+          lineHeight: 1.6,
+        }}>
+          Guarda tu metodo de pago para usarlo en tus pedidos. Tu informacion se procesa de forma segura con Stripe.
+        </p>
+      </div>
 
-      <p style={{ color: '#64748B', marginBottom: '1.5rem' }}>
-        Guarda tu método de pago para usarlo en tus pedidos. Tu información se procesa de forma segura con Stripe.
-      </p>
+      {/* Security badges */}
+      <div style={{
+        display: 'flex',
+        gap: 'var(--space-4)',
+        justifyContent: 'center',
+        marginBottom: 'var(--space-6)',
+        padding: 'var(--space-4)',
+        background: 'var(--surface-card)',
+        borderRadius: 'var(--radius)',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          color: 'var(--success)',
+          fontSize: 'var(--text-sm)',
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>lock</span>
+          <span>Encriptado</span>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          color: 'var(--text-muted)',
+          fontSize: 'var(--text-sm)',
+        }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>verified</span>
+          <span>Stripe</span>
+        </div>
+      </div>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Card Form */}
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
         <div
+          className="card"
           style={{
-            padding: '1rem',
-            border: '1px solid #E2E8F0',
-            borderRadius: '8px',
-            backgroundColor: '#FFFFFF',
+            padding: 'var(--space-5)',
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border-subtle)',
           }}
         >
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#0F172A',
-                  '::placeholder': {
-                    color: '#64748B',
+          <label style={{
+            display: 'block',
+            fontSize: 'var(--text-sm)',
+            fontWeight: 'var(--font-medium)',
+            color: 'var(--text-secondary)',
+            marginBottom: 'var(--space-3)',
+          }}>
+            Informacion de la tarjeta
+          </label>
+          <div
+            style={{
+              padding: 'var(--space-4)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              background: 'var(--surface-0)',
+              transition: 'all var(--duration-fast) var(--ease-out)',
+            }}
+          >
+            <CardElement
+              options={{
+                style: {
+                  base: {
+                    fontSize: '16px',
+                    color: 'var(--text-primary)',
+                    '::placeholder': {
+                      color: 'var(--text-muted)',
+                    },
+                  },
+                  invalid: {
+                    color: 'var(--error)',
                   },
                 },
-                invalid: {
-                  color: '#EF4444',
-                },
-              },
-            }}
-          />
+              }}
+            />
+          </div>
         </div>
 
         {error && (
           <div
             style={{
-              padding: '0.75rem 1rem',
-              backgroundColor: '#FEE2E2',
-              color: '#991B1B',
-              borderRadius: '6px',
-              fontSize: '14px',
-              border: '1px solid #FECACA',
+              padding: 'var(--space-4)',
+              background: 'var(--error-subtle)',
+              color: 'var(--error)',
+              borderRadius: 'var(--radius)',
+              fontSize: 'var(--text-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
             }}
           >
-            ❌ {error}
+            <span className="material-symbols-rounded">error</span>
+            {error}
           </div>
         )}
 
         {success && (
           <div
             style={{
-              padding: '0.75rem 1rem',
-              backgroundColor: '#DCFCE7',
-              color: '#166534',
-              borderRadius: '6px',
-              fontSize: '14px',
-              border: '1px solid #BBF7D0',
+              padding: 'var(--space-4)',
+              background: 'var(--success-subtle)',
+              color: 'var(--success)',
+              borderRadius: 'var(--radius)',
+              fontSize: 'var(--text-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-3)',
+              animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
             }}
           >
-            ✅ ¡Método de pago guardado exitosamente!
+            <span className="material-symbols-rounded">check_circle</span>
+            Metodo de pago guardado exitosamente!
           </div>
         )}
 
         <button
           type="submit"
           disabled={loading || !stripe || !elements}
-          className="btn btn-primary"
+          className="btn btn-primary btn-lg"
+          style={{ width: '100%' }}
         >
-          {loading ? '🔄 Guardando...' : '💳 Guardar Método de Pago'}
+          {loading ? (
+            <>
+              <div className="spinner" style={{ width: '18px', height: '18px' }} />
+              Guardando...
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-rounded">save</span>
+              Guardar Metodo de Pago
+            </>
+          )}
         </button>
 
         <div
           style={{
-            fontSize: '12px',
-            color: '#64748B',
-            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'var(--space-2)',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--text-muted)',
           }}
         >
-          💡 Tu información de pago es procesada de forma segura por Stripe
+          <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>info</span>
+          Tu informacion de pago es procesada de forma segura por Stripe
         </div>
       </form>
     </div>
