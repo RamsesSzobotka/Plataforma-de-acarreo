@@ -2,6 +2,7 @@ import { Hono } from 'hono/tiny'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
+import { getClerkUserProfiles } from '../utils/clerk'
 
 const admin = new Hono()
 
@@ -161,8 +162,27 @@ admin.get('/users', async (c) => {
     User.countDocuments(query),
   ])
 
+  // Enrich with Clerk data for imageUrl and fresh names
+  const clerkIds = users.map((u: any) => u.clerkId).filter(Boolean) as string[]
+
+  let clerkProfiles = new Map()
+  if (clerkIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(clerkIds)
+  }
+
+  const enrichedUsers = users.map((user: any) => {
+    const clerkData = clerkProfiles.get(user.clerkId)
+    if (clerkData) {
+      user.imageUrl = clerkData.imageUrl || user.imageUrl
+      user.firstName = clerkData.firstName || user.firstName
+      user.lastName = clerkData.lastName || user.lastName
+      user.email = clerkData.email || user.email
+    }
+    return user
+  })
+
   return c.json({
-    data: users,
+    data: enrichedUsers,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   })
 })
@@ -240,24 +260,28 @@ admin.get('/drivers', async (c) => {
     Driver.countDocuments(query),
   ])
 
-  // Agregar info del usuario
-  const driversWithUser = await Promise.all(
-    drivers.map(async (driver) => {
-      const user = await User.findOne({ clerkId: driver.userId })
-      return {
-        ...driver.toObject(),
-        user: user
-          ? {
-              firstName: user.firstName,
-              lastName: user.lastName,
-              email: user.email,
-              imageUrl: user.imageUrl,
-              role: user.role,
-            }
-          : null,
-      }
-    })
-  )
+  // Get Clerk data for all driver userIds
+  const driverUserIds = drivers.map((d: any) => d.userId).filter(Boolean) as string[]
+  let clerkProfiles = new Map()
+  if (driverUserIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(driverUserIds)
+  }
+
+  // Merge Clerk data into drivers
+  const driversWithUser = drivers.map((driver: any) => {
+    const clerkData = clerkProfiles.get(driver.userId)
+    return {
+      ...driver.toObject(),
+      user: clerkData
+        ? {
+            firstName: clerkData.firstName,
+            lastName: clerkData.lastName,
+            imageUrl: clerkData.imageUrl,
+            email: clerkData.email,
+          }
+        : { firstName: driver.firstName, lastName: driver.lastName, imageUrl: driver.imageUrl },
+    }
+  })
 
   return c.json({
     data: driversWithUser,
@@ -274,16 +298,17 @@ admin.get('/drivers/:userId', async (c) => {
     return c.json({ error: 'Driver no encontrado' }, 404)
   }
 
-  const user = await User.findOne({ clerkId: userId })
+  // Get fresh data from Clerk
+  const clerkData = await getClerkUserProfiles([userId]).then((profiles) => profiles.get(userId))
 
   return c.json({
     ...driver.toObject(),
-    user: user
+    user: clerkData
       ? {
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          imageUrl: user.imageUrl,
+          firstName: clerkData.firstName,
+          lastName: clerkData.lastName,
+          imageUrl: clerkData.imageUrl,
+          email: clerkData.email,
         }
       : null,
   })
@@ -442,14 +467,50 @@ admin.get('/rides', async (c) => {
     Ride.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
-      .populate('clientId', 'firstName lastName email')
-      .populate('driverId', 'firstName lastName'),
+      .limit(limit),
     Ride.countDocuments(query),
   ])
 
+  // Get fresh user data from Clerk
+  const clientIds = rides.map((r: any) => r.clientId).filter(Boolean) as string[]
+  const driverIds = rides.map((r: any) => r.driverId).filter(Boolean) as string[]
+  const allClerkIds = [...new Set([...clientIds, ...driverIds])]
+
+  let clerkProfiles = new Map<string, { firstName: string | null; lastName: string | null; imageUrl: string | null; email: string | null }>()
+  if (allClerkIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(allClerkIds)
+  }
+
+  // Build response with Clerk data
+  const enrichedRides = rides.map((ride: any) => {
+    const clientClerkId = ride.clientId
+    const driverClerkId = ride.driverId
+
+    const clientData = clientClerkId ? clerkProfiles.get(clientClerkId) : null
+    const driverData = driverClerkId ? clerkProfiles.get(driverClerkId) : null
+
+    return {
+      ...ride.toObject(),
+      clientId: {
+        clerkId: clientClerkId,
+        firstName: clientData?.firstName || null,
+        lastName: clientData?.lastName || null,
+        imageUrl: clientData?.imageUrl || null,
+        email: clientData?.email || null,
+      },
+      driverId: driverClerkId
+        ? {
+            clerkId: driverClerkId,
+            firstName: driverData?.firstName || null,
+            lastName: driverData?.lastName || null,
+            imageUrl: driverData?.imageUrl || null,
+          }
+        : null,
+    }
+  })
+
   return c.json({
-    data: rides,
+    data: enrichedRides,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   })
 })
@@ -458,15 +519,46 @@ admin.get('/rides', async (c) => {
 admin.get('/rides/:id', async (c) => {
   const id = c.req.param('id')
 
-  const ride = await Ride.findById(id)
-    .populate('clientId', 'firstName lastName email imageUrl')
-    .populate('driverId', 'firstName lastName email imageUrl')
+  const ride: any = await Ride.findById(id)
 
   if (!ride) {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
-  return c.json(ride)
+  // Get fresh user data from Clerk
+  const clientClerkId = ride.clientId
+  const driverClerkId = ride.driverId
+
+  const allClerkIds = [clientClerkId, driverClerkId].filter(Boolean) as string[]
+  let clerkProfiles = new Map<string, { firstName: string | null; lastName: string | null; imageUrl: string | null; email: string | null }>()
+
+  if (allClerkIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(allClerkIds)
+  }
+
+  const clientData = clientClerkId ? clerkProfiles.get(clientClerkId) : null
+  const driverData = driverClerkId ? clerkProfiles.get(driverClerkId) : null
+
+  const enrichedRide = {
+    ...ride.toObject(),
+    clientId: {
+      clerkId: clientClerkId,
+      firstName: clientData?.firstName || null,
+      lastName: clientData?.lastName || null,
+      imageUrl: clientData?.imageUrl || null,
+      email: clientData?.email || null,
+    },
+    driverId: driverClerkId
+      ? {
+          clerkId: driverClerkId,
+          firstName: driverData?.firstName || null,
+          lastName: driverData?.lastName || null,
+          imageUrl: driverData?.imageUrl || null,
+        }
+      : null,
+  }
+
+  return c.json(enrichedRide)
 })
 
 // Actualizar ride

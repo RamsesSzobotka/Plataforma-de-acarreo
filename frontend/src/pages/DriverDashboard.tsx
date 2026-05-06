@@ -911,16 +911,7 @@ function DriverDashboard() {
                           ${ride.estimatedPrice.toLocaleString()}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                        <ChatButton rideId={ride._id} variant="outline" size="sm" />
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => handleAcceptRide(ride._id, ride.estimatedPrice)}
-                        >
-                          <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>check</span>
-                          Aceptar
-                        </button>
-                      </div>
+                      <ChatButton rideId={ride._id} variant="outline" size="sm" />
                     </div>
                   </div>
                 </div>

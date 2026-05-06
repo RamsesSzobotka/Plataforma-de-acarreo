@@ -286,7 +286,7 @@ export default function AddressInput({
   return (
     <div ref={dropdownRef} style={{ position: 'relative' }}>
       <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-        {label} {required && '*'}
+        {label} {required && <span style={{ color: 'var(--error)' }}>*</span>}
       </label>
 
       {coordinates ? (

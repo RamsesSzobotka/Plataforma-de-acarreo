@@ -7,6 +7,7 @@ interface User {
   email: string
   firstName?: string
   lastName?: string
+  imageUrl?: string
   role: string
   isActive: boolean
   createdAt: string
@@ -83,9 +84,18 @@ export default function Users() {
               <tr key={user.clerkId}>
                 <td>
                   <div className="user-cell">
-                    <div className="user-avatar">
-                      {getInitials(user.firstName, user.lastName)}
-                    </div>
+                    {user.imageUrl ? (
+                      <img
+                        src={user.imageUrl}
+                        alt="Avatar"
+                        className="user-avatar"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <div className="user-avatar">
+                        {getInitials(user.firstName, user.lastName)}
+                      </div>
+                    )}
                     <div className="user-info">
                       <span className="name">
                         {user.firstName || user.lastName

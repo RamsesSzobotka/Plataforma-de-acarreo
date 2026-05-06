@@ -10,11 +10,27 @@ interface Ride {
   status: string
   estimatedPrice: number
   finalPrice?: number
-  clientId?: { firstName?: string; lastName?: string; email: string }
-  driverId?: { firstName?: string; lastName?: string }
+  clientId: {
+    clerkId: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    imageUrl: string | null
+  } | null
+  driverId: {
+    clerkId: string
+    firstName: string | null
+    lastName: string | null
+    imageUrl: string | null
+  } | null
   pickupLocation: { address: string }
   dropoffLocation: { address: string }
   createdAt: string
+}
+
+function truncateAddress(address: string, maxLength = 40) {
+  if (address.length <= maxLength) return address
+  return address.substring(0, maxLength) + '...'
 }
 
 export default function Rides() {
@@ -148,10 +164,12 @@ export default function Rides() {
               rides.map((ride) => (
                 <tr key={ride._id}>
                   <td>
-                    <div>
+                    <div style={{ maxWidth: '280px' }}>
                       <strong>{ride.title}</strong>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {ride.pickupLocation.address} → {ride.dropoffLocation.address}
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        <div>{truncateAddress(ride.pickupLocation.address, 35)}</div>
+                        <div style={{ color: 'var(--primary)', margin: '2px 0' }}>↓</div>
+                        <div>{truncateAddress(ride.dropoffLocation.address, 35)}</div>
                       </div>
                     </div>
                   </td>
@@ -159,16 +177,25 @@ export default function Rides() {
                   <td>
                     {ride.clientId ? (
                       <div className="user-cell">
-                        <div className="user-avatar">
-                          {ride.clientId.firstName?.[0] || '?'}
-                        </div>
+                        {ride.clientId.imageUrl ? (
+                          <img
+                            src={ride.clientId.imageUrl}
+                            alt="Avatar"
+                            className="user-avatar"
+                            style={{ objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div className="user-avatar">
+                            {ride.clientId.firstName?.[0] || ride.clientId.email?.[0]?.toUpperCase() || '?'}
+                          </div>
+                        )}
                         <div className="user-info">
                           <span className="name">
                             {ride.clientId.firstName || ride.clientId.lastName
                               ? `${ride.clientId.firstName || ''} ${ride.clientId.lastName || ''}`.trim()
                               : 'Sin nombre'}
                           </span>
-                          <span className="email">{ride.clientId.email}</span>
+                          <span className="email">{ride.clientId.email || 'Sin email'}</span>
                         </div>
                       </div>
                     ) : (
@@ -177,9 +204,27 @@ export default function Rides() {
                   </td>
                   <td>
                     {ride.driverId ? (
-                      <span>
-                        {ride.driverId.firstName} {ride.driverId.lastName || ''}
-                      </span>
+                      <div className="user-cell">
+                        {ride.driverId.imageUrl ? (
+                          <img
+                            src={ride.driverId.imageUrl}
+                            alt="Avatar"
+                            className="user-avatar"
+                            style={{ objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div className="user-avatar">
+                            {ride.driverId.firstName?.[0] || '?'}
+                          </div>
+                        )}
+                        <div className="user-info">
+                          <span className="name">
+                            {ride.driverId.firstName || ride.driverId.lastName
+                              ? `${ride.driverId.firstName || ''} ${ride.driverId.lastName || ''}`.trim()
+                              : 'Sin nombre'}
+                          </span>
+                        </div>
+                      </div>
                     ) : (
                       <span style={{ color: 'var(--text-muted)' }}>—</span>
                     )}
