@@ -71,7 +71,7 @@ export function PaymentForm({
         backgroundColor: '#F8FAFC',
       }}
     >
-      <h3 style={{ margin: '0 0 1rem 0', fontSize: '18px', fontWeight: 600 }}>
+      <h3 style={{ margin: '0 0 1rem 0', fontSize: '18px', fontWeight: 600, color: '#0F172A' }}>
         💳 Pagar ${finalPrice.toFixed(2)}
       </h3>
 

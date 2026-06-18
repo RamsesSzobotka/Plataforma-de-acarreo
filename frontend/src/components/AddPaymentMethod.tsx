@@ -217,13 +217,13 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
                 style: {
                   base: {
                     fontSize: '16px',
-                    color: 'var(--text-primary)',
+                    color: '#F8FAFC',
                     '::placeholder': {
-                      color: 'var(--text-muted)',
+                      color: '#64748B',
                     },
                   },
                   invalid: {
-                    color: 'var(--error)',
+                    color: '#EF4444',
                   },
                 },
               }}

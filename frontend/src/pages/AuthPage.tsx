@@ -85,7 +85,7 @@ function AuthPage() {
                   fontFamily: '"Plus Jakarta Sans", sans-serif',
                   fontWeight: '700',
                   fontSize: '1.5rem',
-                  color: '#0F172A',
+                  color: '#F8FAFC',
                   margin: 0,
                   lineHeight: 1.2,
                 }}>
@@ -112,7 +112,7 @@ function AuthPage() {
                 fontFamily: '"Plus Jakarta Sans", sans-serif',
                 fontWeight: '700',
                 fontSize: '2rem',
-                color: '#0F172A',
+                color: '#F8FAFC',
                 margin: 0,
                 lineHeight: 1.2,
               }}>
@@ -220,7 +220,7 @@ function AuthPage() {
                   <span style={{
                     fontFamily: '"Inter", sans-serif',
                     fontSize: '0.875rem',
-                    color: '#334155',
+                    color: '#94A3B8',
                   }}>
                     {feature.text}
                   </span>
