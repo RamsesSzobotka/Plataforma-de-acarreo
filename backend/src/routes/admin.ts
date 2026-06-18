@@ -2,7 +2,7 @@ import { Hono } from 'hono/tiny'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
-import { getClerkUserProfiles } from '../utils/clerk'
+
 
 const admin = new Hono()
 
