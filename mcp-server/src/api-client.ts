@@ -22,14 +22,15 @@ export class ApiClient {
     this.timeout = options.timeout ?? 10_000;
   }
 
-  private getHeaders(): Record<string, string> {
+  private getHeaders(authToken?: string): Record<string, string> {
+    const token = authToken ?? this.apiKey;
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'Authorization': `Bearer ${token}`,
     };
   }
 
-  async get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  async get<T>(path: string, params?: Record<string, string | number | undefined>, authToken?: string): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -39,24 +40,24 @@ export class ApiClient {
       });
     }
 
-    return this.request<T>(url.toString(), { method: 'GET' });
+    return this.request<T>(url.toString(), { method: 'GET' }, authToken);
   }
 
-  async post<T>(path: string, body?: unknown): Promise<T> {
+  async post<T>(path: string, body?: unknown, authToken?: string): Promise<T> {
     return this.request<T>(`${this.baseUrl}${path}`, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
-    });
+    }, authToken);
   }
 
-  async patch<T>(path: string, body?: unknown): Promise<T> {
+  async patch<T>(path: string, body?: unknown, authToken?: string): Promise<T> {
     return this.request<T>(`${this.baseUrl}${path}`, {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
-    });
+    }, authToken);
   }
 
-  private async request<T>(url: string, options: { method: string; body?: string }): Promise<T> {
+  private async request<T>(url: string, options: { method: string; body?: string }, authToken?: string): Promise<T> {
     const maxRetries = 2;
     let lastError: Error | null = null;
 
@@ -67,7 +68,7 @@ export class ApiClient {
 
         const response = await fetch(url, {
           method: options.method,
-          headers: this.getHeaders(),
+          headers: this.getHeaders(authToken),
           body: options.body,
           signal: controller.signal,
         });

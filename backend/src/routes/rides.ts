@@ -91,20 +91,15 @@ rides.post('/', authMiddleware, async (c) => {
   const body = await c.req.json()
   
   // Validar campos requeridos
-  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice', 'images']
+  const required = ['clientId', 'title', 'description', 'type', 'pickupLocation', 'dropoffLocation', 'estimatedPrice']
   const missing = required.filter(field => !body[field])
   
   if (missing.length > 0) {
     return c.json({ error: `Campos requeridos faltantes: ${missing.join(', ')}` }, 400)
   }
 
-  // Validar que hay al menos una imagen
-  if (!Array.isArray(body.images) || body.images.length === 0) {
-    return c.json({ error: 'Se requiere al menos una imagen del pedido' }, 400)
-  }
-
-  // Validar máximo 8 imágenes
-  if (body.images.length > 8) {
+  // Validar máximo 8 imágenes (si se proporcionan)
+  if (body.images && Array.isArray(body.images) && body.images.length > 8) {
     return c.json({ error: 'Máximo 8 imágenes permitidas' }, 400)
   }
 
@@ -334,12 +329,17 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Precio válido requerido' }, 400)
   }
   
-// Verificar que el ride aún está disponible (otro driver no lo aceptó)
-  const ride = await Ride.findByIdAndUpdate(id, {
-    driverId,
-    status: 'accepted',
-    chatEnabled: true
-  }, { new: true })
+  // Verificar que el ride aún está disponible (otro driver no lo aceptó)
+  const ride = await Ride.findByIdAndUpdate(
+    { _id: id, status: 'requested' },
+    { $set: {
+      driverId,
+      status: 'accepted',
+      chatEnabled: true,
+      finalPrice: agreedPrice,
+    }},
+    { new: true }
+  )
 
   if (!ride) {
     return c.json({ error: 'El pedido ya fue aceptado por otro conductor' }, 409)

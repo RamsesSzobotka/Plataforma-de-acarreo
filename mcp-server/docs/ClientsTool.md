@@ -241,6 +241,7 @@ Publica una nueva solicitud de acarreo. El cliente proporciona origen, destino, 
 | `INVALID_INPUT` | Se requiere al menos una imagen del pedido | No se incluyeron imágenes |
 | `UNAUTHORIZED` | Token de autenticación inválido o expirado | `authToken` inválido |
 | `FORBIDDEN` | No tienes permiso para crear pedidos para otro usuario | `clientId` no coincide con el token |
+| `PAYMENT_METHOD_REQUIRED` | No tienes un método de pago guardado... | El usuario no ha configurado un método de pago en su perfil de Carglyn |
 | `INVALID_INPUT` | Debes guardar un método de pago primero | Usuario sin `stripePaymentMethodId` |
 | `BACKEND_ERROR` | Error al crear el pedido | Error interno del backend |
 

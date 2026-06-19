@@ -10,7 +10,8 @@ export type ErrorCode =
   | 'INVALID_INPUT'
   | 'CONFLICT'
   | 'BACKEND_ERROR'
-  | 'BACKEND_UNAVAILABLE';
+  | 'BACKEND_UNAVAILABLE'
+  | 'PAYMENT_METHOD_REQUIRED';
 
 export class McpError extends Error {
   public readonly code: ErrorCode;

@@ -18,6 +18,7 @@ const rideStatusEnum = z.enum([
 
 const rideTypeEnum = z.enum([
   'mudanza',
+  'electrodomesticos',
   'electrodomésticos',
   'muebles',
   'productos',
@@ -54,7 +55,7 @@ export const createRideSchema = z.object({
   estimatedPrice: z.number().positive().describe('Precio sugerido en USD'),
   packages: z.number().int().positive().optional().describe('Número aproximado de bultos'),
   notes: z.string().max(1000).optional().describe('Notas especiales (frágil, requiere ayuda, etc.)'),
-  preferredDate: z.string().optional().describe('Fecha preferida en formato ISO 8601'),
+  preferredDate: z.string().datetime().optional().describe('Fecha preferida en formato ISO 8601 (ej: 2026-06-19T14:30:00Z)'),
 });
 
 // === Tool 3: get_ride_details ===
@@ -93,6 +94,7 @@ export const viewOffersSchema = z.object({
 export const acceptOfferSchema = z.object({
   rideId: z.string().min(1).describe('ID del acarreo'),
   driverId: z.string().min(1).describe('ID del conductor (clerkId)'),
+  agreedPrice: z.number().positive().optional().describe('Precio acordado con el conductor'),
 });
 
 // === Tool 9: update_ride_status ===

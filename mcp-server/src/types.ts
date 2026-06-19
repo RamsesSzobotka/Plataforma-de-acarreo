@@ -4,7 +4,7 @@
  */
 
 // === Tipos básicos ===
-export type RideType = 'mudanza' | 'electrodomésticos' | 'muebles' | 'productos' | 'otros';
+export type RideType = 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros';
 
 export type RideStatus =
   | 'requested'

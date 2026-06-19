@@ -273,11 +273,11 @@ messages.post('/accept-price', authMiddleware, async (c) => {
   }
 
   // Aceptar: cambiar ride a 'accepted'
-  const updatedRide = await Ride.findByIdAndUpdate(rideId, {
-    status: 'accepted',
-    driverId: driverId,
-    finalPrice: contact.proposedPrice
-  }, { new: true })
+  const updatedRide = await Ride.findByIdAndUpdate(
+    { _id: rideId, status: 'requested' },
+    { $set: { status: 'accepted', driverId, finalPrice: contact.proposedPrice, chatEnabled: true } },
+    { new: true }
+  )
 
   // Desactivar todos los otros contacts
   await DriverContact.updateMany(
