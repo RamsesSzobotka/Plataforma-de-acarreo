@@ -1,9 +1,3 @@
-/**
- * Interfaces TypeScript compartidas para el MCP Server.
- * Reflejan los modelos del backend de la Plataforma de Acarreos.
- */
-
-// === Tipos básicos ===
 export type RideType = 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros';
 
 export type RideStatus =
@@ -17,13 +11,11 @@ export type RideStatus =
 
 export type UserRole = 'client' | 'driver' | 'admin';
 
-// === Ubicación ===
 export interface GeoLocation {
   address: string;
-  coordinates: [number, number]; // [lng, lat]
+  coordinates: [number, number];
 }
 
-// === Ride (resumen para listas) ===
 export interface RideSummary {
   id: string;
   title: string;
@@ -38,7 +30,6 @@ export interface RideSummary {
   clientName?: string;
 }
 
-// === Ride (completo) ===
 export interface Ride {
   id: string;
   clientId: string;
@@ -61,7 +52,6 @@ export interface Ride {
   updatedAt: string;
 }
 
-// === Oferta ===
 export interface Offer {
   id: string;
   rideId: string;
@@ -72,7 +62,6 @@ export interface Offer {
   createdAt: string;
 }
 
-// === Oferta con perfil del conductor (para vista del cliente) ===
 export interface OfferWithDriver extends Offer {
   driverName: string;
   driverRating: number;
@@ -80,7 +69,6 @@ export interface OfferWithDriver extends Offer {
   driverTotalRides: number;
 }
 
-// === Perfil del cliente (público) ===
 export interface ClientProfile {
   name: string;
   imageUrl?: string;
@@ -88,13 +76,11 @@ export interface ClientProfile {
   totalRides: number;
 }
 
-// === Acarreo disponible (para conductores) ===
 export interface AvailableRide extends RideSummary {
   distanceKm: number;
   clientRating: number;
 }
 
-// === Respuestas paginadas ===
 export interface PaginatedResponse<T> {
   data: T[];
   total: number;

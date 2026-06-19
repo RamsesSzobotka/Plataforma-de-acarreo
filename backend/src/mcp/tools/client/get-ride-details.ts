@@ -1,21 +1,20 @@
 import { z } from 'zod';
-import { ApiClient } from '../api-client';
-import { McpError } from '../errors';
-import { Ride } from '../types';
-import { getRideDetailsSchema } from '../schemas';
+import { ObjectId } from 'mongodb';
+import { db } from '../../../db/mongo';
+import { getRideDetailsSchema } from '../../schemas';
+import { McpError } from '../../errors';
 
 export async function handleGetRideDetails(
   input: z.infer<typeof getRideDetailsSchema>,
-  authToken: string,
-  apiClient: ApiClient,
-  userId: string
+  _authToken: string | undefined,
+  _apiClient: any,
+  _userId: string,
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   try {
-    const response = await apiClient.get<any>(`/api/rides/${input.rideId}`, {}, authToken);
+    const raw = await db.collection('rides').findOne({ _id: new ObjectId(input.rideId) });
+    if (!raw) throw new McpError('NOT_FOUND', 'Acarreo no encontrado', 404);
 
-    const raw = response.data ?? response;
-
-    const ride: Ride = {
+    const ride = {
       id: raw._id?.toString() ?? raw.id,
       clientId: raw.clientId,
       driverId: raw.driverId,
@@ -33,13 +32,11 @@ export async function handleGetRideDetails(
       status: raw.status,
       deliveryPhoto: raw.deliveryPhoto,
       cancellationReason: raw.cancellationReason,
-      createdAt: raw.createdAt?.toString() ?? new Date().toISOString(),
-      updatedAt: raw.updatedAt?.toString() ?? new Date().toISOString(),
+      createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
+      updatedAt: raw.updatedAt?.toISOString?.() ?? raw.updatedAt,
     };
 
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ ride }) }],
-    };
+    return { content: [{ type: 'text', text: JSON.stringify({ ride }) }] };
   } catch (error) {
     if (error instanceof McpError) throw error;
     throw new McpError('BACKEND_ERROR', 'Error al obtener detalles del acarreo: ' + (error as Error).message);

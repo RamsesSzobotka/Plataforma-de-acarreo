@@ -1,17 +1,9 @@
-/**
- * Registry centralizado de tools del MCP Server.
- * 
- * Cada tool se registra aquí vía `registerTool()`.
- * Los handlers los implementará cada persona asignada.
- */
-
 import { z } from 'zod';
-import type { ApiClient } from '../api-client';
 
 export type ToolHandler = (
   input: any,
   authToken?: string,
-  apiClient?: ApiClient,
+  apiClient?: any,
   userId?: string,
 ) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>;
 

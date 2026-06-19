@@ -173,7 +173,15 @@ function Layout() {
                         },
                       },
                     }}
-                  />
+                  >
+                    <UserButton.MenuItems>
+                      <UserButton.Link
+                        label="Conexión MCP"
+                        labelIcon={<span className="material-symbols-rounded">api</span>}
+                        href="/settings/mcp"
+                      />
+                    </UserButton.MenuItems>
+                  </UserButton>
                 </div>
               </>
             ) : (
@@ -364,7 +372,15 @@ function Layout() {
                     },
                   },
                 }}
-              />
+              >
+                <UserButton.MenuItems>
+                  <UserButton.Link
+                    label="Conexión MCP"
+                    labelIcon={<span className="material-symbols-rounded">api</span>}
+                    href="/settings/mcp"
+                  />
+                </UserButton.MenuItems>
+              </UserButton>
             </div>
           </nav>
         </>

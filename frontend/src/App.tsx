@@ -13,6 +13,7 @@ import Chat from './pages/Chat'
 import RegisterDriver from './pages/RegisterDriver'
 import AddPaymentMethodPage from './pages/AddPaymentMethod'
 import PaymentHistory from './pages/PaymentHistory'
+import SettingsMcp from './pages/SettingsMcp'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { hideLoading, showLoading } from './services/alerts'
 
@@ -126,6 +127,13 @@ function App() {
         <Route path="add-payment-method" element={
           <ProtectedRoute>
             <AddPaymentMethodPage />
+          </ProtectedRoute>
+        } />
+        
+        {/* Settings routes */}
+        <Route path="settings/mcp" element={
+          <ProtectedRoute>
+            <SettingsMcp />
           </ProtectedRoute>
         } />
         

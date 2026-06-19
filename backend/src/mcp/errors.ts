@@ -1,8 +1,3 @@
-/**
- * Clases de error personalizadas para el MCP Server.
- * Mapean errores HTTP y de lógica a códigos legibles por el agente IA.
- */
-
 export type ErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
