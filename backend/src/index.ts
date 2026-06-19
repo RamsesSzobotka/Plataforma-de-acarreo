@@ -13,6 +13,7 @@ import webhooks from './routes/webhooks'
 import health from './routes/health'
 import upload from './routes/upload'
 import admin from './routes/admin'
+import mcp from './routes/mcp'
 
 // Session cache (5 min TTL)
 interface CachedSession { clerkId: string; expiresAt: number }
@@ -71,6 +72,7 @@ app.route('/api/payments', payments)
 app.route('/api/webhooks', webhooks)
 app.route('/api/upload', upload)
 app.route('/api/admin', admin)
+app.route('/api/mcp', mcp)
 
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
 app.onError((err, c) => { console.error('Error:', err); return c.json({ error: 'Internal Server Error' }, 500) })
