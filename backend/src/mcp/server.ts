@@ -10,18 +10,13 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { McpError as CustomMcpError } from './errors';
 import { getTool, listTools, registerTool } from './tools/index';
 
-import { listMyRidesSchema, createRideSchema, getRideDetailsSchema, viewOffersSchema, acceptOfferSchema, listAvailableRidesSchema, getAvailableRideDetailsSchema, sendOfferSchema, updateRideStatusSchema, getRideHistorySchema } from './schemas';
+import { listMyRidesSchema, createRideSchema, getRideDetailsSchema, viewOffersSchema, acceptOfferSchema } from './schemas';
 
-import { handleListMyRides } from './tools/list-my-rides';
-import { handleCreateRide } from './tools/create-ride';
-import { handleGetRideDetails } from './tools/get-ride-details';
-import { handleViewOffers } from './tools/view-offers';
-import { handleAcceptOffer } from './tools/accept-offer';
-import { handleListAvailableRides } from './tools/list-available-rides';
-import { handleGetAvailableRideDetails } from './tools/get-available-ride-details';
-import { handleSendOffer } from './tools/send-offer';
-import { handleUpdateRideStatus } from './tools/update-ride-status';
-import { handleGetRideHistory } from './tools/get-ride-history';
+import { handleListMyRides } from './tools/client/list-my-rides';
+import { handleCreateRide } from './tools/client/create-ride';
+import { handleGetRideDetails } from './tools/client/get-ride-details';
+import { handleViewOffers } from './tools/client/view-offers';
+import { handleAcceptOffer } from './tools/client/accept-offer';
 
 let toolsRegistered = false;
 
@@ -37,11 +32,6 @@ export function registerAllTools() {
   register('get_ride_details', 'Obtener detalles completos de un acarreo por su ID.', getRideDetailsSchema, handleGetRideDetails);
   register('view_offers', 'Ver ofertas recibidas para un acarreo.', viewOffersSchema, handleViewOffers);
   register('accept_offer', 'Aceptar la oferta de un conductor para un acarreo.', acceptOfferSchema, handleAcceptOffer);
-  register('list_available_rides', 'Listar acarreos disponibles para conductores.', listAvailableRidesSchema, handleListAvailableRides);
-  register('get_available_ride_details', 'Obtener detalles de un acarreo disponible.', getAvailableRideDetailsSchema, handleGetAvailableRideDetails);
-  register('send_offer', 'Enviar oferta de precio para un acarreo.', sendOfferSchema, handleSendOffer);
-  register('update_ride_status', 'Actualizar estado del acarreo.', updateRideStatusSchema, handleUpdateRideStatus);
-  register('get_ride_history', 'Consultar historial de acarreos.', getRideHistorySchema, handleGetRideHistory);
 }
 
 export function createMcpServer(clerkId: string) {

@@ -1,24 +1,21 @@
 import { z } from 'zod';
-import { db } from '../../db/mongo';
-import { getRideHistorySchema } from '../schemas';
-import { McpError } from '../errors';
+import { db } from '../../../db/mongo';
+import { listMyRidesSchema } from '../../schemas';
+import { McpError } from '../../errors';
 
-export async function handleGetRideHistory(
-  input: z.infer<typeof getRideHistorySchema>,
+export async function handleListMyRides(
+  input: z.infer<typeof listMyRidesSchema>,
   _authToken: string | undefined,
   _apiClient: any,
   userId: string,
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   try {
-    const { role, page = 1, limit = 10 } = input;
-
-    const filter: Record<string, any> = {
-      status: { $in: ['completed', 'paid'] },
-      $or: [{ clientId: userId }, { driverId: userId }],
-    };
+    const { status, page = 1, limit = 10 } = input;
+    const filter: Record<string, any> = { clientId: userId };
+    if (status) filter.status = status;
 
     const [rides, total] = await Promise.all([
-      db.collection('rides').find(filter).sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+      db.collection('rides').find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
       db.collection('rides').countDocuments(filter),
     ]);
 
@@ -32,13 +29,11 @@ export async function handleGetRideHistory(
       pickupAddress: r.pickupLocation?.address ?? '',
       dropoffAddress: r.dropoffLocation?.address ?? '',
       createdAt: r.createdAt?.toISOString?.() ?? r.createdAt,
-      completedAt: r.updatedAt?.toISOString?.() ?? r.updatedAt,
-      role: r.clientId === userId ? 'client' : 'driver',
     }));
 
     return { content: [{ type: 'text', text: JSON.stringify({ rides: mapped, total, page, limit }) }] };
   } catch (error) {
     if (error instanceof McpError) throw error;
-    throw new McpError('BACKEND_ERROR', 'Error al consultar historial: ' + (error as Error).message);
+    throw new McpError('BACKEND_ERROR', 'Error al listar acarreos: ' + (error as Error).message);
   }
 }

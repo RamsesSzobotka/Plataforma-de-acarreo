@@ -34,7 +34,8 @@ function SettingsMcp() {
         headers: { Authorization: `Bearer ${jwt}` }
       })
       if (res.ok) {
-        const data: McpTokenStatus = await res.json()
+        const body = await res.json()
+        const data: McpTokenStatus = body.data
         setHasToken(data.hasToken)
         setCreatedAt(data.createdAt)
         setLastUsedAt(data.lastUsedAt)
@@ -71,10 +72,17 @@ function SettingsMcp() {
         }
       })
       if (res.ok) {
-        const data = await res.json()
-        setToken(data.token)
+        const body = await res.json()
+        const token = body.data?.token
+        if (!token) {
+          console.error('Token no recibido en la respuesta:', body)
+          alert('Error: el servidor no devolvió un token válido')
+          return
+        }
+        setToken(token)
+        sessionStorage.setItem('mcp_token', token)  // Persistir entre refreshes
         setHasToken(true)
-        setCreatedAt(data.createdAt || null)
+        setCreatedAt(body.data?.createdAt || null)
         setLastUsedAt(null)
         setConfirmGenerate(false)
         setShowToken(true)
@@ -100,6 +108,7 @@ function SettingsMcp() {
       })
       if (res.ok) {
         setToken(null)
+        sessionStorage.removeItem('mcp_token')  // Limpiar al revocar
         setHasToken(false)
         setCreatedAt(null)
         setLastUsedAt(null)
@@ -118,9 +127,17 @@ function SettingsMcp() {
   }
 
   const baseUrl = activeEnv === 'localhost' ? 'http://localhost:3000' : 'https://api.carglyn.com'
-  const tokenPlaceholder = token || 'TU_TOKEN_AQUI'
+  // El token real se guarda en sessionStorage para sobrevivir al refresh
+  const stored = sessionStorage.getItem('mcp_token')
+  const persistedToken = token ?? (stored && stored !== 'undefined' ? stored : null)
+  const showPlaceholder = !persistedToken && hasToken
+  const currentToken = persistedToken || ''
+  const maskedToken = showPlaceholder ? '********'
+    : currentToken ? currentToken.slice(0, 8) + '…' + currentToken.slice(-4)
+    : 'TU_TOKEN_AQUI'
+  const copyToken = currentToken || (showPlaceholder ? '********' : 'TU_TOKEN_AQUI')
 
-  function getConfigSnippet(): string {
+  function buildConfig(tokenValue: string): string {
     if (activeTab === 'opencode') {
       return JSON.stringify({
         mcp: {
@@ -129,7 +146,7 @@ function SettingsMcp() {
             type: 'remote',
             url: `${baseUrl}/api/mcp`,
             env: {
-              MCP_API_KEY: tokenPlaceholder
+              MCP_API_KEY: tokenValue
             }
           }
         }
@@ -143,7 +160,7 @@ function SettingsMcp() {
             command: 'bun',
             args: ['run', '../mcp-server/src/index.ts'],
             env: {
-              MCP_API_KEY: tokenPlaceholder,
+              MCP_API_KEY: tokenValue,
               BACKEND_URL: 'http://localhost:3000'
             }
           }
@@ -156,7 +173,7 @@ function SettingsMcp() {
         carglyn: {
           url: `${baseUrl}/api/mcp`,
           headers: {
-            MCP_API_KEY: tokenPlaceholder
+            MCP_API_KEY: tokenValue
           }
         }
       }
@@ -165,10 +182,10 @@ function SettingsMcp() {
 
   async function copyToClipboard() {
     try {
-      await navigator.clipboard.writeText(getConfigSnippet())
+      await navigator.clipboard.writeText(buildConfig(copyToken))
     } catch {
       const textarea = document.createElement('textarea')
-      textarea.value = getConfigSnippet()
+      textarea.value = buildConfig(copyToken)
       document.body.appendChild(textarea)
       textarea.select()
       document.execCommand('copy')
@@ -304,7 +321,7 @@ function SettingsMcp() {
                 color: 'var(--text-primary)'
               }}
             >
-              <code>{getConfigSnippet()}</code>
+              <code>{buildConfig(maskedToken)}</code>
             </pre>
             <button
               className={`btn btn-sm ${copiedSnippet ? 'btn-primary' : 'btn-secondary'}`}

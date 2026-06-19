@@ -19,10 +19,6 @@ const rideTypeEnum = z.enum([
   'otros',
 ]);
 
-const roleEnum = z.enum(['client', 'driver']);
-
-const newStatusEnum = z.enum(['in_progress', 'completed']);
-
 const paginationSchema = {
   page: z.coerce.number().int().min(1).optional().default(1).describe('Número de página (default: 1)'),
   limit: z.coerce.number().int().min(1).max(50).optional().default(10).describe('Elementos por página (max: 50)'),
@@ -53,25 +49,6 @@ export const getRideDetailsSchema = z.object({
   rideId: z.string().min(1).describe('ID del acarreo'),
 });
 
-export const listAvailableRidesSchema = z.object({
-  lat: z.number().min(-90).max(90).describe('Latitud del conductor'),
-  lng: z.number().min(-180).max(180).describe('Longitud del conductor'),
-  radiusKm: z.coerce.number().positive().max(100).optional().default(20).describe('Radio de búsqueda en km (max: 100)'),
-  ...paginationSchema,
-});
-
-export const getAvailableRideDetailsSchema = z.object({
-  rideId: z.string().min(1).describe('ID del acarreo'),
-  lat: z.number().min(-90).max(90).optional().describe('Latitud del conductor (para calcular distancia)'),
-  lng: z.number().min(-180).max(180).optional().describe('Longitud del conductor (para calcular distancia)'),
-});
-
-export const sendOfferSchema = z.object({
-  rideId: z.string().min(1).describe('ID del acarreo'),
-  price: z.number().positive().describe('Precio propuesto por el conductor'),
-  message: z.string().max(500).optional().describe('Mensaje opcional para el cliente'),
-});
-
 export const viewOffersSchema = z.object({
   rideId: z.string().min(1).describe('ID del acarreo'),
 });
@@ -80,16 +57,4 @@ export const acceptOfferSchema = z.object({
   rideId: z.string().min(1).describe('ID del acarreo'),
   driverId: z.string().min(1).describe('ID del conductor (clerkId)'),
   agreedPrice: z.number().positive().optional().describe('Precio acordado con el conductor'),
-});
-
-export const updateRideStatusSchema = z.object({
-  rideId: z.string().min(1).describe('ID del acarreo'),
-  newStatus: newStatusEnum.describe('Nuevo estado: en_camino (in_progress) o entregado (completed)'),
-  statusNote: z.string().max(500).optional().describe('Nota opcional sobre el estado'),
-  deliveryPhotoBase64: z.string().optional().describe('Foto de entrega en base64 (solo para completed)'),
-});
-
-export const getRideHistorySchema = z.object({
-  role: roleEnum.describe('Rol del usuario que consulta'),
-  ...paginationSchema,
 });

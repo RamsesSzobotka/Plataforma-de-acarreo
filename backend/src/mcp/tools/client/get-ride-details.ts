@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { ObjectId } from 'mongodb';
-import { db } from '../../db/mongo';
-import { getAvailableRideDetailsSchema } from '../schemas';
-import { McpError } from '../errors';
+import { db } from '../../../db/mongo';
+import { getRideDetailsSchema } from '../../schemas';
+import { McpError } from '../../errors';
 
-export async function handleGetAvailableRideDetails(
-  input: z.infer<typeof getAvailableRideDetailsSchema>,
+export async function handleGetRideDetails(
+  input: z.infer<typeof getRideDetailsSchema>,
   _authToken: string | undefined,
   _apiClient: any,
   _userId: string,
@@ -17,6 +17,7 @@ export async function handleGetAvailableRideDetails(
     const ride = {
       id: raw._id?.toString() ?? raw.id,
       clientId: raw.clientId,
+      driverId: raw.driverId,
       title: raw.title,
       description: raw.description,
       type: raw.type,
@@ -24,10 +25,13 @@ export async function handleGetAvailableRideDetails(
       pickupLocation: raw.pickupLocation,
       dropoffLocation: raw.dropoffLocation,
       estimatedPrice: raw.estimatedPrice,
+      finalPrice: raw.finalPrice,
       packages: raw.packages,
       notes: raw.notes,
       preferredDate: raw.preferredDate ? new Date(raw.preferredDate).toISOString() : undefined,
       status: raw.status,
+      deliveryPhoto: raw.deliveryPhoto,
+      cancellationReason: raw.cancellationReason,
       createdAt: raw.createdAt?.toISOString?.() ?? raw.createdAt,
       updatedAt: raw.updatedAt?.toISOString?.() ?? raw.updatedAt,
     };

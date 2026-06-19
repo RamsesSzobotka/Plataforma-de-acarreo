@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { db } from '../../db/mongo';
-import { viewOffersSchema } from '../schemas';
-import { McpError } from '../errors';
+import { db } from '../../../db/mongo';
+import { viewOffersSchema } from '../../schemas';
+import { McpError } from '../../errors';
 
 export async function handleViewOffers(
   input: z.infer<typeof viewOffersSchema>,

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { ObjectId } from 'mongodb';
-import { db } from '../../db/mongo';
-import { acceptOfferSchema } from '../schemas';
-import { McpError } from '../errors';
+import { db } from '../../../db/mongo';
+import { acceptOfferSchema } from '../../schemas';
+import { McpError } from '../../errors';
 
 export async function handleAcceptOffer(
   input: z.infer<typeof acceptOfferSchema>,

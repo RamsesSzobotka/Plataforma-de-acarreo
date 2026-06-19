@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { db } from '../../db/mongo';
-import { createRideSchema } from '../schemas';
-import { McpError } from '../errors';
+import { db } from '../../../db/mongo';
+import { createRideSchema } from '../../schemas';
+import { McpError } from '../../errors';
 
 export async function handleCreateRide(
   input: z.infer<typeof createRideSchema>,
