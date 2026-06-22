@@ -1,78 +1,94 @@
-# PRD: MCP Server — Plataforma de Acarreos
+# PRD: MCP Server — Plataforma de Acarreos (Integrado)
 
-> **Estado**: Planificación — 10 tools pendientes de implementar
-> **Versión**: 1.1
+> **Estado**: En desarrollo — 15 tools (5 implementadas, 10 pendientes)
+> **Versión**: 2.0
 > **Autor**: Equipo de Desarrollo
-> **Fecha**: 2026-06-18
+> **Fecha**: 2026-06-22
 
 ---
 
 ## 1. Resumen Ejecutivo
 
-Servidor **MCP (Model Context Protocol)** independiente que expone 10 tools para que agentes de IA (Claude Desktop, OpenCode, Cursor, Windsurf, etc.) interactúen con la Plataforma de Acarreos. El servidor actúa como puente entre el agente de IA y el backend REST existente, permitiendo operaciones CRUD sobre acarreos, gestión de ofertas, y consultas de historial.
+Servidor **MCP (Model Context Protocol)** integrado en el backend (Bun + Hono) que expone **15 tools** para que agentes de IA (Claude Desktop, OpenCode, Cursor, Windsurf, etc.) interactúen con la Plataforma de Acarreos. El servidor está embebido directamente en el backend como un módulo más (`backend/src/mcp/`), eliminando la necesidad de un proceso independiente. Las tools se comunican directamente con MongoDB (sin pasar por REST) para reducir latencia y simplificar la arquitectura. Se exponen vía **HTTP+SSE** y **stdio**, permitiendo tanto integración remota como local.
 
 ## 2. Stack Tecnológico
 
 | Capa | Tecnología | Versión |
 |------|-----------|---------|
-| Runtime | Bun | 1.13.3 |
+| Runtime | Bun | 1.13.3+ |
 | Lenguaje | TypeScript | 5.9.3 |
-| SDK MCP | `@modelcontextprotocol/sdk` | 1.29.0 |
+| Framework Web | Hono | 4.x |
 | Validación | `zod` | 3.25.76 |
-| Transporte | stdio | MCP estándar |
-| HTTP Client | Fetch nativo de Bun | — |
+| Base de Datos | MongoDB (Mongoose) | 8.x |
+| Transporte MCP | HTTP+SSE / stdio | MCP estándar |
+| Autenticación | Clerk + MCP Tokens | — |
 
 ## 3. Arquitectura General
 
 ```
-                   ┌──────────────────────────────────────┐
-                   │         Agente de IA                  │
-                   │  (Claude / OpenCode / Cursor / etc.)  │
-                   └──────────────┬───────────────────────┘
-                                  │  Protocolo MCP (stdio)
-                                  ▼
-                   ┌──────────────────────────────────────┐
-                   │         MCP Server                    │
-                   │   mcp-server/                         │
-                   │                                      │
-                   │  ┌──────────┐  ┌──────────────────┐  │
-                   │  │ index.ts │  │   tools/         │  │
-                   │  │ (entry)  │  │   (10 tools)    │  │
-                   │  └────┬─────┘  └──────────────────┘  │
-                   │       │                               │
-                   │  ┌────▼─────┐  ┌──────────────────┐  │
-                   │  │ api-client│  │   schemas.ts     │  │
-                   │  │ (HTTP)   │  │   (Zod)          │  │
-                   │  └────┬─────┘  └──────────────────┘  │
-                   └───────┼──────────────────────────────┘
-                           │  HTTP + Bearer Token
-                           ▼
-                   ┌──────────────────────────────────────┐
-                   │    Backend (Bun + Hono)              │
-                   │    http://localhost:3000              │
-                   │    API REST existente                 │
-                   └──────────────────────────────────────┘
+                    ┌──────────────────────────────────────────┐
+                    │           Agente de IA                    │
+                    │  (Claude / OpenCode / Cursor / etc.)      │
+                    └──────────────────┬───────────────────────┘
+                                       │  Protocolo MCP (HTTP/SSE o stdio)
+                                       ▼
+                    ┌──────────────────────────────────────────┐
+                    │     Backend (Bun + Hono)                 │
+                    │     http://localhost:3000                  │
+                    │                                           │
+                    │  ┌──────────────┐  ┌──────────────────┐  │
+                    │  │  REST API    │  │  MCP Server       │  │
+                    │  │  (existente) │  │  (integrado)     │  │
+                    │  └──────────────┘  │                  │  │
+                    │                     │  ┌────────────┐  │  │
+                    │                     │  │ 15 tools   │  │  │
+                    │                     │  │ ├─ Client  │  │  │
+                    │                     │  │ │  (8)     │  │  │
+                    │                     │  │ ├─ Driver  │  │  │
+                    │                     │  │ │  (7)     │  │  │
+                    │                     │  │ └──────────┘  │  │
+                    │                     └──────────────────┘  │
+                    └──────────────────┬───────────────────────┘
+                                       │  Mongoose (directo)
+                                       ▼
+                    ┌──────────────────────────────────────────┐
+                    │              MongoDB                      │
+                    └──────────────────────────────────────────┘
 ```
 
 ### 3.1 Flujo de Datos
 
 1. El agente de IA invoca una tool MCP (ej. `create_ride`)
-2. El MCP server recibe la llamada via stdio
-3. El MCP server valida los inputs con Zod
-4. El MCP server hace una petición HTTP al backend
-5. El backend procesa la solicitud y devuelve la respuesta
-6. El MCP server transforma la respuesta al formato MCP
-7. El agente recibe el resultado y lo presenta al usuario
+2. El backend recibe la llamada vía HTTP/SSE o stdio
+3. El endpoint valida los inputs con Zod
+4. La tool se ejecuta directamente contra MongoDB (o contra el backend si requiere lógica adicional como Stripe)
+5. El resultado se transforma al formato MCP y se devuelve al agente
 
 ## 4. Autenticación
 
 ### 4.1 Estrategia
 
-El MCP server utiliza una **API Key** generada desde el backend para autenticarse. Esta key se pasa como variable de entorno `MCP_API_KEY` y se envía en cada request como `Authorization: Bearer <MCP_API_KEY>`.
+El MCP Server utiliza dos capas de seguridad:
 
-### 4.2 Endpoint Backend Requerido
+1. **MCP_API_KEY** (autenticación de entrada): Token generado por usuario desde el frontend. Permite establecer la conexión MCP y resuelve el `clerkId` del usuario. Sin este token no se puede acceder al servidor MCP.
 
-Se debe crear un endpoint en el backend para generar tokens:
+2. **Validación de rol contra base de datos** (autorización): En cada llamada a tool, el handler consulta la colección `users` en MongoDB usando el `clerkId` resuelto del token para obtener el `role` actual del usuario. El rol se valida en tiempo real contra la base de datos, no contra el token almacenado.
+
+**Flujo de autenticación y autorización**:
+1. El usuario se autentica con Clerk en el frontend
+2. Genera un token MCP desde `/settings/mcp`
+3. El backend genera un UUID único, lo hashea con bcrypt, y lo asocia al `clerkId` del usuario
+4. El usuario configura su agente IA con el token MCP
+5. Cada request MCP incluye el token en el header `MCP_API_KEY`
+6. El backend valida el token y resuelve el `clerkId`
+7. En cada tool call, el handler consulta `users.findOne({ clerkId })` para obtener el `role` actual
+8. El handler verifica si el rol tiene permiso para usar la tool
+
+**Formato del token**: `mcp_<64-caracteres-hex>` (generado con `crypto.randomBytes(32)`)
+
+**Un token por usuario**: Generar un nuevo token invalida el anterior (upsert en MongoDB).
+
+### 4.2 Endpoint Backend
 
 ```
 POST /api/auth/mcp-token
@@ -80,31 +96,157 @@ POST /api/auth/mcp-token
   → Response: { token: string, expiresAt: string }
 ```
 
-Este endpoint debe estar protegido por rol de administrador.
+Este endpoint debe estar protegido por autenticación de Clerk. El token se asocia al `clerkId` del usuario autenticado.
 
 ### 4.3 Variables de Entorno
 
 ```
 MCP_API_KEY=<token_generado_desde_backend>
-BACKEND_URL=http://localhost:3000
 NODE_ENV=development
 ```
 
-## 5. Especificación de Tools
+## 5. Autorización y Control de Acceso
+
+### 5.1 Modelo de Permisos
+
+Cada tool MCP requiere una combinación de:
+- **Rol del usuario**: `client` | `driver` | `admin` — determinado por el perfil del usuario en Clerk/MongoDB
+- **Propietario del recurso** (ownership): el usuario solo puede acceder/editar recursos que le pertenecen
+- **Estado del ride**: algunas operaciones solo son válidas en estados específicos
+
+### 5.2 Resolución de Rol en Tiempo de Ejecución
+
+Actualmente, el token MCP solo almacena `clerkId`. Para determinar el rol:
+
+```mermaid
+sequenceDiagram
+    participant Agente IA
+    participant MCP Server
+    participant MongoDB
+    
+    Agente IA->>MCP Server: call_tool(name, args)
+    MCP Server->>MCP Server: Extraer clerkId del token (validateMcpToken)
+    MCP Server->>MongoDB: users.findOne({ clerkId })
+    MongoDB-->>MCP Server: { clerkId, role, ... }
+    MCP Server->>MCP Server: Verificar role vs requiredRole
+    MCP Server->>MongoDB: Ejecutar operación con ownership check
+    MongoDB-->>MCP Server: Resultado
+    MCP Server-->>Agente IA: Respuesta formateada
+```
+
+**Propuesta de mejora**: Almacenar el `role` en el `McpToken` al momento de generarlo para evitar una consulta extra:
+
+```typescript
+// backend/src/models/mcp-token.ts — propuesta
+export interface McpToken {
+  clerkId: string;
+  role: 'client' | 'driver' | 'admin';
+  tokenHash: string;
+  lastUsedAt?: Date;
+  createdAt: Date;
+}
+```
+
+### 5.3 Matriz de Permisos por Tool
+
+| # | Tool | Roles Permitidos | Ownership Check | Restricción de Estado |
+|---|------|------------------|-----------------|----------------------|
+| 1 | `list_my_rides` | `client` / `driver` | `clientId = userId` | — |
+| 2 | `create_ride` | `client` / `driver` | `clientId = userId` (asignado automático) | — |
+| 3 | `get_ride_details` | `client` / `driver` | `clientId = userId` OR `driverId = userId` | — |
+| 4 | `view_offers` | `client` / `driver` | `ride.clientId = userId` | Solo rides propias |
+| 5 | `accept_offer` | `client` / `driver` | `ride.clientId = userId` | `status = 'requested'` |
+| 6 | `confirm_delivery` | `client` / `driver` | `ride.clientId = userId` | `status = 'completed'` |
+| 7 | `cancel_ride` | `client` / `driver` | `ride.clientId = userId` | `status = 'requested' \| 'negotiating'` |
+| 8 | `rate_service` | `client` / `driver` | Debe ser partícipe del ride (raterId = userId) | `status = 'paid'` |
+| 9 | `list_available_rides` | `driver` | — (solo ve rides sin asignar) | `status = 'requested'` |
+| 10 | `send_message` | `client` / `driver` | Debe tener contacto activo en el ride | `chatEnabled = true` |
+| 11 | `propose_price` | `driver` | Debe haber contacto activo como driver | `status = 'requested' \| 'negotiating'` |
+| 12 | `start_trip` | `driver` | `ride.driverId = userId` | `status = 'accepted'` |
+| 13 | `upload_delivery_photo` | `driver` | `ride.driverId = userId` | `status = 'in_progress'` |
+| 14 | `get_payment_history` | `driver` | `driverId = userId` | Solo rides `paid` |
+| 15 | `get_driver_profile` | `client` / `driver` | Público (cualquier usuario autenticado) | — |
+
+**Reglas generales**:
+- **Tools de cliente** (1-8): Cualquier usuario autenticado puede usarlas (`client` o `driver`). Un conductor también puede publicar y gestionar acarreos como cliente.
+- **Tools de conductor** (9-15): Solo usuarios con rol `driver` pueden usarlas. Un cliente no puede gestionar viajes, proponer precios ni iniciar viajes.
+- **Tools compartidas** (3, 8, 10, 15): Ambos roles pueden usarlas.
+- El rol se obtiene desde la base de datos (colección `users`) en cada tool call, NO desde el token MCP.
+
+### 5.4 Códigos de Error de Autorización
+
+| Código | Significado | Cuándo ocurre |
+|--------|-------------|---------------|
+| `UNAUTHORIZED` (401) | Token inválido o expirado | El MCP_API_KEY no corresponde a ningún token válido |
+| `FORBIDDEN` (403) | Rol incorrecto | Un `client` intenta usar una tool de `driver` o viceversa |
+| `FORBIDDEN` (403) | No es propietario | Un usuario intenta ver/editar un ride que no le pertenece |
+| `CONFLICT` (409) | Estado incorrecto | La operación no es válida en el estado actual del ride |
+
+### 5.5 Implementación en el Código
+
+Cada tool handler debe seguir este patrón:
+
+```typescript
+export async function handleSomeTool(input: Input, _authToken: any, _apiClient: any, userId: string) {
+  try {
+    // 1. Obtener rol del usuario desde la base de datos (siempre fresco)
+    const user = await db.collection('users').findOne({ clerkId: userId });
+    if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
+    
+    // 2. Verificar rol requerido según la matriz de permisos
+    const allowedRoles = ['client', 'driver']; // tools de cliente: ambos roles
+    // const allowedRoles = ['driver']; // tools de conductor: solo driver
+    if (!allowedRoles.includes(user.role)) {
+      throw new McpError('FORBIDDEN', 
+        `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
+    }
+    
+    // 3. Verificar ownership (cuando aplica según matriz)
+    const ride = await db.collection('rides').findOne({ _id: new ObjectId(input.rideId) });
+    if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado', 404);
+    if (ride.clientId !== userId && ride.driverId !== userId) {
+      throw new McpError('FORBIDDEN', 'No tienes permiso para acceder a este acarreo', 403);
+    }
+    
+    // 4. Verificar estado (cuando aplica según matriz)
+    const allowedStates = ['requested'];
+    if (!allowedStates.includes(ride.status)) {
+      throw new McpError('CONFLICT', 
+        `El acarreo no está disponible en su estado actual (${ride.status}). Se requiere: ${allowedStates.join(' o ')}`, 409);
+    }
+    
+    // 5. Ejecutar operación
+    // ...
+  } catch (error) {
+    if (error instanceof McpError) throw error;
+    throw new McpError('BACKEND_ERROR', 'Error: ' + (error as Error).message);
+  }
+}
+```
+
+### 5.6 Mejoras Propuestas para el Código Existente
+
+| Archivo | Problema Actual | Corrección Propuesta |
+|---------|----------------|----------------------|
+| `backend/src/mcp/tools/client/get-ride-details.ts` | Sin ownership check | Agregar filtro `$or: [{ clientId: userId }, { driverId: userId }]` |
+| `backend/src/mcp/tools/client/view-offers.ts` | Sin ownership check | Verificar que `ride.clientId === userId` antes de consultar ofertas |
+| Todos los handlers MCP | Sin role check | Agregar consulta a `users.findOne({ clerkId })` y verificar rol según matriz de permisos |
+
+## 6. Especificación de Tools
 
 Cada tool está definida con:
 - **Nombre**: identificador único para el agente IA
 - **Descripción**: explica al agente cuándo y cómo usarla
 - **Input Schema**: parámetros tipados con Zod
 - **Output**: lo que devuelve
-- **Endpoint Backend**: a qué endpoint REST llama internamente
+- **Endpoint Backend / DB query**: cómo se ejecuta internamente
 - **Estado**: ✅ implementado / ⏳ pendiente de implementar
 
 ---
 
-### Tool 1: `list_my_rides`
+### Tool 1: `list_my_rides` (Client)
 
-**Descripción**: Obtiene las solicitudes de acarreo del cliente autenticado. Útil para que el cliente consulte el estado de sus publicaciones.
+**Descripción**: Lista los acarreos del cliente autenticado con filtros opcionales.
 
 **Input**:
 ```typescript
@@ -118,210 +260,307 @@ Cada tool está definida con:
 
 **Output**: `{ rides: RideSummary[], total: number, page: number, limit: number }`
 
-**Endpoint Backend**: `GET /api/rides?clientId={userId}&status={status}&page={page}&limit={limit}`
+**DB**: `db.collection('rides').find({ clientId: userId })`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ✅ Implementado
 
 ---
 
-### Tool 2: `create_ride`
+### Tool 2: `create_ride` (Client)
 
-**Descripción**: Publica una nueva solicitud de acarreo. El cliente debe proporcionar origen, destino, descripción de la carga, tipo y precio estimado. Las imágenes se pueden agregar después.
+**Descripción**: Publica una nueva solicitud de acarreo con ubicaciones y precio estimado.
 
 **Input**:
 ```typescript
 {
-  title: string,              // Título descriptivo del acarreo
-  description: string,        // Descripción detallada de la carga
+  title: string,
+  description: string,
   type: 'mudanza' | 'electrodomésticos' | 'muebles' | 'productos' | 'otros',
-  pickupAddress: string,      // Dirección de recogida
-  pickupLat: number,          // Latitud de recogida
-  pickupLng: number,          // Longitud de recogida
-  dropoffAddress: string,     // Dirección de destino
-  dropoffLat: number,         // Latitud de destino
-  dropoffLng: number,         // Longitud de destino
-  estimatedPrice: number,     // Precio sugerido en USD
-  packages?: number,          // Número aproximado de bultos
-  notes?: string,             // Notas especiales (frágil, requiere ayuda, etc.)
-  preferredDate?: string      // Fecha preferida (ISO 8601)
+  pickupAddress: string,
+  pickupLat: number,
+  pickupLng: number,
+  dropoffAddress: string,
+  dropoffLat: number,
+  dropoffLng: number,
+  estimatedPrice: number,
+  packages?: number,
+  notes?: string,
+  preferredDate?: string
 }
 ```
 
-**Output**: `{ ride: Ride }` — Ride creado con estado `requested`
+**Output**: `{ ride: Ride }`
 
-**Endpoint Backend**: `POST /api/rides`
+**DB**: `db.collection('rides').insertOne(...)`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ✅ Implementado
 
 ---
 
-### Tool 3: `get_ride_details`
+### Tool 3: `get_ride_details` (Client)
 
-**Descripción**: Muestra la información completa de un acarreo específico, incluyendo ubicaciones, imágenes, conductor asignado (si existe), ofertas recibidas y estado actual.
+**Descripción**: Obtiene detalles completos de un acarreo por ID.
 
 **Input**:
 ```typescript
 {
-  rideId: string    // ID del acarreo
+  rideId: string
 }
 ```
 
-**Output**: `{ ride: Ride }` — Ride completo con todos los campos
+**Output**: `{ ride: Ride }`
 
-**Endpoint Backend**: `GET /api/rides/:id`
+**DB**: `db.collection('rides').findOne({ _id: ObjectId(rideId) })`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ✅ Implementado
 
 ---
 
-### Tool 4: `list_available_rides`
+### Tool 4: `view_offers` (Client)
 
-**Descripción**: Permite a los conductores encontrar acarreos disponibles (estado `requested`) cercanos a su ubicación. Usa coordenadas geográficas y radio de búsqueda.
+**Descripción**: Revisa todas las ofertas recibidas para una publicación.
 
 **Input**:
 ```typescript
 {
-  lat: number,            // Latitud del conductor
-  lng: number,            // Longitud del conductor
-  radiusKm?: number,      // Radio de búsqueda en km (default: 20, max: 100)
-  page?: number,          // default: 1
-  limit?: number          // default: 10, max: 50
+  rideId: string
+}
+```
+
+**Output**: `{ offers: OfferWithDriver[] }`
+
+**DB**: `db.collection('driver_contacts').find({ rideId })` enriquecido con datos de usuario
+
+**Estado**: ✅ Implementado
+
+---
+
+### Tool 5: `accept_offer` (Client)
+
+**Descripción**: Acepta la oferta de un conductor, asigna el acarreo y activa el chat.
+
+**Input**:
+```typescript
+{
+  rideId: string,
+  driverId: string,
+  agreedPrice?: number
+}
+```
+
+**Output**: `{ ride: Ride }`
+
+**DB**: `findOneAndUpdate({ _id, status: 'requested' }, $set: { driverId, finalPrice, status: 'accepted', chatEnabled: true })`
+
+**Estado**: ✅ Implementado
+
+---
+
+### Tool 6: `confirm_delivery` (Client)
+
+**Descripción**: El cliente confirma que la mercancía fue entregada. Dispara el cobro automático si hay método de pago.
+
+**Input**:
+```typescript
+{
+  rideId: string
+}
+```
+
+**Output**: `{ ride: Ride }`
+
+**Endpoint / DB**: Actualiza ride a `completed`, luego dispara pago vía Stripe
+
+**Estado**: ⏳ Pendiente
+
+---
+
+### Tool 7: `cancel_ride` (Client)
+
+**Descripción**: Cancela un pedido en estados permitidos (`requested`, `negotiating`).
+
+**Input**:
+```typescript
+{
+  rideId: string,
+  reason: string
+}
+```
+
+**Output**: `{ ride: Ride }`
+
+**DB**: `findOneAndUpdate({ _id, clientId: userId, status: { $in: ['requested', 'negotiating'] } }, $set: { status: 'cancelled', cancellationReason: reason })`
+
+**Estado**: ⏳ Pendiente
+
+---
+
+### Tool 8: `rate_service` (Client/Driver)
+
+**Descripción**: Califica a la contraparte (1-5 estrellas + comentario opcional). Solo en estado `paid`. Detecta automáticamente quién califica a quién.
+
+**Input**:
+```typescript
+{
+  rideId: string,
+  rating: number,       // 1-5
+  comment?: string
+}
+```
+
+**Output**: `{ rating: Rating }`
+
+**DB**: Inserta en `ratings`, recalcula promedio del calificado
+
+**Estado**: ⏳ Pendiente
+
+---
+
+### Tool 9: `list_available_rides` (Driver)
+
+**Descripción**: Lista acarreos disponibles (`requested`) cerca del conductor usando geolocalización.
+
+**Input**:
+```typescript
+{
+  lat: number,
+  lng: number,
+  radiusKm?: number,    // default: 20, max: 100
+  page?: number,        // default: 1
+  limit?: number        // default: 10, max: 50
 }
 ```
 
 **Output**: `{ rides: AvailableRide[], total: number, page: number, limit: number }`
 
-**Endpoint Backend**: `GET /api/rides?status=requested&lat={lat}&lng={lng}&radius={radiusKm}`
+**DB**: `db.collection('rides').find({ status: 'requested', 'pickupLocation.coordinates': { $near: { $geometry: { type: 'Point', coordinates: [lng, lat] }, $maxDistance: radiusKm * 1000 } } })`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-### Tool 5: `get_available_ride_details`
+### Tool 10: `send_message` (Driver/Client)
 
-**Descripción**: El conductor ve los detalles completos de un acarreo disponible antes de decidir si envía una oferta o lo acepta. Incluye perfil público del cliente (nombre, calificación) y distancia desde la ubicación actual.
+**Descripción**: Envía un mensaje en el chat de un ride. Broadcast via WebSocket a los participantes.
 
 **Input**:
 ```typescript
 {
-  rideId: string,       // ID del acarreo
-  lat?: number,         // Latitud del conductor (para calcular distancia)
-  lng?: number          // Longitud del conductor (para calcular distancia)
+  rideId: string,
+  content: string
 }
 ```
 
-**Output**: `{ ride: Ride, client: ClientProfile, distanceKm?: number }`
+**Output**: `{ message: Message }`
 
-**Endpoint Backend**: `GET /api/rides/:id`
+**DB / WS**: Inserta en `messages`, broadcast por WebSocket
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-### Tool 6: `send_offer`
+### Tool 11: `propose_price` (Driver)
 
-**Descripción**: El conductor envía una oferta de precio para un acarreo. El cliente recibirá la oferta y podrá aceptarla o rechazarla.
+**Descripción**: El conductor propone un precio al cliente. Máximo 3 propuestas por ride.
 
 **Input**:
 ```typescript
 {
-  rideId: string,       // ID del acarreo
-  price: number,        // Precio propuesto por el conductor
-  message?: string      // Mensaje opcional para el cliente
+  rideId: string,
+  price: number,
+  message?: string
 }
 ```
 
-**Output**: `{ offer: Offer }` — Oferta creada
+**Output**: `{ contact: DriverContact }`
 
-**Endpoint Backend**: `POST /api/rides/:id/offers` (nuevo endpoint a crear en el backend)
+**DB**: upsert en `driver_contacts` con verificación de `proposalCount < 3`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-### Tool 7: `view_offers`
+### Tool 12: `start_trip` (Driver)
 
-**Descripción**: El cliente revisa todas las ofertas recibidas para su publicación, incluyendo el nombre del conductor, precio propuesto, calificación y mensaje.
+**Descripción**: Inicia el viaje después de confirmar la carga. Cambia estado a `in_progress`.
 
 **Input**:
 ```typescript
 {
-  rideId: string    // ID del acarreo
+  rideId: string
 }
 ```
 
-**Output**: `{ offers: OfferWithDriver[] }` — Lista de ofertas con datos del conductor
+**Output**: `{ ride: Ride }`
 
-**Endpoint Backend**: `GET /api/rides/:id/offers` (nuevo endpoint a crear en el backend)
+**DB**: `findOneAndUpdate({ _id, driverId: userId, status: 'accepted' }, $set: { status: 'in_progress' })`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-### Tool 8: `accept_offer`
+### Tool 13: `upload_delivery_photo` (Driver)
 
-**Descripción**: El cliente acepta la oferta de un conductor, asignando oficialmente el acarreo. El estado cambia a `accepted` y se activa el chat entre ambas partes.
+**Descripción**: Sube la URL de la foto de entrega al completar el servicio.
 
 **Input**:
 ```typescript
 {
-  rideId: string,       // ID del acarreo
-  driverId: string      // ID del conductor (clerkId)
+  rideId: string,
+  photoUrl: string
 }
 ```
 
-**Output**: `{ ride: Ride }` — Ride actualizado con estado `accepted`
+**Output**: `{ ride: Ride }`
 
-**Endpoint Backend**: `POST /api/rides/:id/accept`
+**DB**: `findOneAndUpdate({ _id, driverId: userId, status: 'in_progress' }, $set: { 'deliveryPhoto.url': photoUrl })`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-### Tool 9: `update_ride_status`
+### Tool 14: `get_payment_history` (Driver)
 
-**Descripción**: El conductor actualiza el estado del servicio a medida que avanza: "en camino" (`in_progress`), "carga recogida" (mantiene `in_progress` con flag), o "entregado" (`completed` con foto opcional).
+**Descripción**: Consulta el historial de pagos y ganancias del conductor con filtro por fechas.
 
 **Input**:
 ```typescript
 {
-  rideId: string,               // ID del acarreo
-  newStatus: 'in_progress' | 'completed',
-  statusNote?: string,          // Nota opcional sobre el estado
-  deliveryPhotoBase64?: string  // Foto de entrega (base64, solo para 'completed')
+  page?: number,        // default: 1
+  limit?: number,       // default: 10, max: 50
+  startDate?: string,   // ISO 8601
+  endDate?: string     // ISO 8601
 }
 ```
 
-**Output**: `{ ride: Ride }` — Ride con estado actualizado
+**Output**: `{ rides: RideSummary[], totalEarnings: number, total: number, page: number, limit: number }`
 
-**Endpoint Backend**: `POST /api/rides/:id/status`
+**DB**: `db.collection('rides').find({ driverId: userId, status: 'paid' })` con agregación de earnings
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-### Tool 10: `get_ride_history`
+### Tool 15: `get_driver_profile` (Driver/Client)
 
-**Descripción**: Consulta el historial de acarreos completados y pagados. Tanto clientes como conductores pueden ver su historial.
+**Descripción**: Obtiene el perfil completo de un conductor (rating, vehículo, documentos verificados, viajes).
 
 **Input**:
 ```typescript
 {
-  role: 'client' | 'driver',   // Rol del usuario consultando
-  page?: number,               // default: 1
-  limit?: number               // default: 10, max: 50
+  driverId: string
 }
 ```
 
-**Output**: `{ rides: RideSummary[], total: number, page: number, limit: number }`
+**Output**: `{ profile: DriverProfile }`
 
-**Endpoint Backend**: `GET /api/rides?status=completed,paid&{role}Id={userId}`
+**DB**: Consulta colecciones `users`, `drivers` y `ratings`
 
-**Estado**: ⏳ Pendiente de implementar
+**Estado**: ⏳ Pendiente
 
 ---
 
-## 6. Modelo de Datos (Interfaces MCP)
+## 7. Modelo de Datos (Interfaces MCP)
 
 ```typescript
 // === Ride Summary (para listas) ===
@@ -395,13 +634,47 @@ interface AvailableRide extends RideSummary {
   clientRating: number
 }
 
+// === Message ===
+interface Message {
+  id: string
+  rideId: string
+  senderId: string
+  content: string
+  read: boolean
+  createdAt: string
+}
+
+// === Rating ===
+interface Rating {
+  id: string
+  rideId: string
+  raterId: string
+  ratedId: string
+  role: 'client' | 'driver'
+  rating: number       // 1-5
+  comment?: string
+  createdAt: string
+}
+
+// === Driver Profile ===
+interface DriverProfile {
+  name: string
+  imageUrl?: string
+  rating: number
+  totalRides: number
+  vehicleType: string
+  plate: string
+  capacityKg: number
+  isVerified: boolean
+}
+
 type RideType = 'mudanza' | 'electrodomésticos' | 'muebles' | 'productos' | 'otros'
 
 type RideStatus = 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 
                   'completed' | 'paid' | 'cancelled'
 ```
 
-## 7. Manejo de Errores
+## 8. Manejo de Errores
 
 ### 7.1 Códigos de Error
 
@@ -435,20 +708,17 @@ type RideStatus = 'requested' | 'negotiating' | 'accepted' | 'in_progress' |
 - **Errores no recuperables** (UNAUTHORIZED, FORBIDDEN, NOT_FOUND, INVALID_INPUT, CONFLICT): Sin retry, error inmediato al agente
 - **Timeout**: 10 segundos por request
 
-## 8. Integración con Agentes
+## 9. Integración con Agentes
 
 ### 8.1 Claude Desktop
 
 ```json
 {
   "mcpServers": {
-    "plataforma-acarreos": {
-      "command": "bun",
-      "args": ["run", "mcp-server/src/index.ts"],
-      "env": {
-        "MCP_API_KEY": "<token>",
-        "BACKEND_URL": "http://localhost:3000",
-        "NODE_ENV": "production"
+    "carglyn": {
+      "url": "http://localhost:3000/api/mcp",
+      "headers": {
+        "MCP_API_KEY": "<token>"
       }
     }
   }
@@ -457,17 +727,15 @@ type RideStatus = 'requested' | 'negotiating' | 'accepted' | 'in_progress' |
 
 ### 8.2 OpenCode
 
-Se agrega a la configuración raíz del proyecto (`opencode.json` o `open-code.json`):
+Se agrega a la configuración raíz del proyecto (`opencode.json`):
 
 ```json
 {
   "mcpServers": {
-    "plataforma-acarreos": {
-      "command": "bun",
-      "args": ["mcp-server/src/index.ts"],
-      "env": {
-        "MCP_API_KEY": "<token>",
-        "BACKEND_URL": "http://localhost:3000"
+    "carglyn": {
+      "url": "http://localhost:3000/api/mcp",
+      "headers": {
+        "MCP_API_KEY": "<token>"
       }
     }
   }
@@ -476,103 +744,108 @@ Se agrega a la configuración raíz del proyecto (`opencode.json` o `open-code.j
 
 ### 8.3 Otros Agentes (Cursor, Windsurf, etc.)
 
-Siguen el mismo patrón: definir un servidor MCP con comando `bun` apuntando al entry point del servidor.
+Siguen el mismo patrón: definir un servidor MCP con `url` apuntando a `http://localhost:3000/api/mcp` y el token en los headers.
 
-## 9. Seguridad
+## 10. Seguridad
 
 | Aspecto | Medida |
 |---------|--------|
-| Token MCP | Generado por backend, configurable expiración |
-| Transporte | stdio local (no expuesto a red) |
+| Token MCP | Generado por backend por usuario, configurable expiración |
+| Transporte | HTTP+SSE (local) o stdio — no expuesto a WAN |
 | Input Validation | Zod en cada tool |
 | Logging | Solo en desarrollo, sin datos sensibles |
-| Rate Limiting | Depende del backend (no implementado en MCP) |
+| Rate Limiting | Implementado en backend (middleware global) |
 
-## 10. Plan de Implementación
+## 11. Plan de Implementación
 
 ### 10.1 Asignación de Tools
 
-| Tool | Archivo | Estado | Responsable |
-|------|---------|--------|-------------|
-| # | Tool | Archivo | Estado | Responsable |
-|---|------|---------|--------|-------------|
-| 1️⃣ | list_my_rides | `src/tools/list-my-rides.ts` | ⏳ Pendiente | Ramses Szobotka |
-| 2️⃣ | create_ride | `src/tools/create-ride.ts` | ⏳ Pendiente | Ramses Szobotka |
-| 3️⃣ | get_ride_details | `src/tools/get-ride-details.ts` | ⏳ Pendiente | Ramses Szobotka |
-| 4️⃣ | list_available_rides | `src/tools/list-available-rides.ts` | ⏳ Pendiente | Justin Barrios |
-| 5️⃣ | get_available_ride_details | `src/tools/get-available-ride-details.ts` | ⏳ Pendiente | Justin Barrios |
-| 6️⃣ | send_offer | `src/tools/send-offer.ts` | ⏳ Pendiente | Justin Barrios |
-| 7️⃣ | view_offers | `src/tools/view-offers.ts` | ⏳ Pendiente | Ramses Szobotka |
-| 8️⃣ | accept_offer | `src/tools/accept-offer.ts` | ⏳ Pendiente | Ramses Szobotka |
-| 9️⃣ | update_ride_status | `src/tools/update-ride-status.ts` | ⏳ Pendiente | Justin Barrios |
-| 🔟 | get_ride_history | `src/tools/get-ride-history.ts` | ⏳ Pendiente | Justin Barrios |
+| Tool | Nombre | Archivo | Estado | Responsable |
+|------|--------|---------|--------|-------------|
+| 1️⃣ | list_my_rides | `tools/client/list-my-rides.ts` | ✅ Implementado | Ramses Szobotka |
+| 2️⃣ | create_ride | `tools/client/create-ride.ts` | ✅ Implementado | Ramses Szobotka |
+| 3️⃣ | get_ride_details | `tools/client/get-ride-details.ts` | ✅ Implementado | Ramses Szobotka |
+| 4️⃣ | view_offers | `tools/client/view-offers.ts` | ✅ Implementado | Ramses Szobotka |
+| 5️⃣ | accept_offer | `tools/client/accept-offer.ts` | ✅ Implementado | Ramses Szobotka |
+| 6️⃣ | confirm_delivery | `tools/client/confirm-delivery.ts` | ⏳ Pendiente | Ramses Szobotka |
+| 7️⃣ | cancel_ride | `tools/client/cancel-ride.ts` | ⏳ Pendiente | Ramses Szobotka |
+| 8️⃣ | rate_service | `tools/client/rate-service.ts` | ⏳ Pendiente | Ramses Szobotka |
+| 9️⃣ | list_available_rides | `tools/driver/list-available-rides.ts` | ⏳ Pendiente | Justin Barrios |
+| 🔟 | send_message | `tools/driver/send-message.ts` | ⏳ Pendiente | Justin Barrios |
+| 1️⃣1️⃣ | propose_price | `tools/driver/propose-price.ts` | ⏳ Pendiente | Justin Barrios |
+| 1️⃣2️⃣ | start_trip | `tools/driver/start-trip.ts` | ⏳ Pendiente | Justin Barrios |
+| 1️⃣3️⃣ | upload_delivery_photo | `tools/driver/upload-delivery-photo.ts` | ⏳ Pendiente | Justin Barrios |
+| 1️⃣4️⃣ | get_payment_history | `tools/driver/get-payment-history.ts` | ⏳ Pendiente | Justin Barrios |
+| 1️⃣5️⃣ | get_driver_profile | `tools/driver/get-driver-profile.ts` | ⏳ Pendiente | Justin Barrios |
 
 ### 10.2 Dependencias con el Backend
 
-| Endpoint Backend | Tools que lo usan | Estado |
-|------------------|-------------------|--------|
-| `GET /api/rides?clientId=...` | 1️⃣ list_my_rides | ✅ Existente |
-| `POST /api/rides` | 2️⃣ create_ride | ✅ Existente |
-| `GET /api/rides/:id` | 3️⃣ get_ride_details, 5️⃣ get_available_ride_details | ✅ Existente |
-| `GET /api/rides?status=requested&lat=&lng=&radius=` | 4️⃣ list_available_rides | ✅ Existente |
-| `POST /api/rides/:id/offers` | 6️⃣ send_offer | ❌ Pendiente de crear |
-| `GET /api/rides/:id/offers` | 7️⃣ view_offers | ❌ Pendiente de crear |
-| `POST /api/rides/:id/accept` | 8️⃣ accept_offer | ✅ Existente |
-| `PATCH /api/rides/:id/status` | 9️⃣ update_ride_status | ❌ Pendiente de crear |
-| `GET /api/rides?status=completed,paid&...` | 🔟 get_ride_history | ✅ Existente |
+| Endpoint / Colección | Tools que lo usan | Estado |
+|----------------------|-------------------|--------|
+| `rides.find({ clientId })` | 1️⃣ list_my_rides | ✅ Directo |
+| `rides.insertOne(...)` | 2️⃣ create_ride | ✅ Directo |
+| `rides.findOne({ _id })` | 3️⃣ get_ride_details, 1️⃣5️⃣ get_driver_profile | ✅ Directo |
+| `driver_contacts.find({ rideId })` + usuarios | 4️⃣ view_offers | ✅ Directo |
+| `rides.findOneAndUpdate(...)` (accept) | 5️⃣ accept_offer | ✅ Directo |
+| Stripe PaymentIntent | 6️⃣ confirm_delivery | ❌ Pendiente |
+| `rides.findOneAndUpdate(...)` (cancel) | 7️⃣ cancel_ride | ✅ Directo |
+| `ratings.insertOne(...)` | 8️⃣ rate_service | ❌ Pendiente |
+| `rides.find({ status: 'requested', ...$near })` | 9️⃣ list_available_rides | ❌ Pendiente (índice 2dsphere) |
+| `messages.insertOne(...)` + WebSocket | 🔟 send_message | ❌ Pendiente |
+| `driver_contacts` upsert proposalCount | 1️⃣1️⃣ propose_price | ❌ Pendiente |
+| `rides.findOneAndUpdate(...)` (start) | 1️⃣2️⃣ start_trip | ✅ Directo |
+| `rides.findOneAndUpdate(...)` (photo) | 1️⃣3️⃣ upload_delivery_photo | ✅ Directo |
+| `rides.find({ driverId, status: 'paid' })` + agregación | 1️⃣4️⃣ get_payment_history | ✅ Directo |
+| `users` + `drivers` + `ratings` | 1️⃣5️⃣ get_driver_profile | ✅ Directo |
 | `POST /api/auth/mcp-token` | Todas | ❌ Pendiente de crear |
 
-## 11. Estructura de Archivos Final
+## 12. Estructura de Archivos Final
 
 ```
-mcp-server/
-├── package.json              # Dependencias y scripts (bun, zod, SDK MCP)
-├── tsconfig.json             # Config TypeScript (target ES2022)
-├── .env.example              # Variables de entorno de ejemplo
-├── .env                      # Variables de entorno (gitignored)
-├── .gitignore                # Ignorar node_modules, .env
-├── bun.lock                  # Lockfile generado por bun install
-├── docs/
-│   ├── PRD-MCP-Server.md     # Este documento
-│   └── ASIGNACION.md         # Separación de responsabilidades
-└── src/
-    ├── index.ts              # Entry point — McpServer + tool registration
-    ├── api-client.ts         # Cliente HTTP genérico para backend
-    ├── types.ts              # Interfaces TypeScript compartidas
-    ├── schemas.ts            # Schemas Zod para validación de inputs (10 schemas)
-    ├── errors.ts             # Clases de error personalizadas
-    └── tools/
-        ├── index.ts          # Registro centralizado de tools
-        ├── list-my-rides.ts              # Tool 1  ⏳
-        ├── create-ride.ts                # Tool 2  ⏳
-        ├── get-ride-details.ts           # Tool 3  ⏳
-        ├── list-available-rides.ts        # Tool 4  ⏳
-        ├── get-available-ride-details.ts  # Tool 5  ⏳
-        ├── send-offer.ts                 # Tool 6  ⏳
-        ├── view-offers.ts                # Tool 7  ⏳
-        ├── accept-offer.ts               # Tool 8  ⏳
-        ├── update-ride-status.ts          # Tool 9  ⏳
-        └── get-ride-history.ts           # Tool 10 ⏳
+backend/src/mcp/
+├── server.ts                  # MCP Server setup + tool registration
+├── schemas.ts                 # Zod schemas (15 schemas)
+├── types.ts                   # TypeScript interfaces
+├── errors.ts                  # Error classes
+├── tools/
+│   ├── index.ts               # Tool registry
+│   ├── client/
+│   │   ├── list-my-rides.ts           # Tool 1  ✅
+│   │   ├── create-ride.ts             # Tool 2  ✅
+│   │   ├── get-ride-details.ts        # Tool 3  ✅
+│   │   ├── view-offers.ts             # Tool 4  ✅
+│   │   ├── accept-offer.ts            # Tool 5  ✅
+│   │   ├── confirm-delivery.ts        # Tool 6  ⏳
+│   │   ├── cancel-ride.ts             # Tool 7  ⏳
+│   │   └── rate-service.ts            # Tool 8  ⏳
+│   └── driver/
+│       ├── list-available-rides.ts        # Tool 9  ⏳
+│       ├── send-message.ts               # Tool 10 ⏳
+│       ├── propose-price.ts              # Tool 11 ⏳
+│       ├── start-trip.ts                 # Tool 12 ⏳
+│       ├── upload-delivery-photo.ts       # Tool 13 ⏳
+│       ├── get-payment-history.ts        # Tool 14 ⏳
+│       └── get-driver-profile.ts         # Tool 15 ⏳
 ```
 
-## 12. Próximos Pasos
+## 13. Próximos Pasos
 
 | Tarea | Responsable |
 |-------|-------------|
-| 1. Implementar Tool 1 (list_my_rides) | Ramses Szobotka — `src/tools/list-my-rides.ts` |
-| 2. Implementar Tool 2 (create_ride) | Ramses Szobotka — `src/tools/create-ride.ts` |
-| 3. Implementar Tool 3 (get_ride_details) | Ramses Szobotka — `src/tools/get-ride-details.ts` |
-| 4. Implementar Tool 4 (list_available_rides) | Justin Barrios — `src/tools/list-available-rides.ts` |
-| 5. Implementar Tool 5 (get_available_ride_details) | Justin Barrios — `src/tools/get-available-ride-details.ts` |
-| 6. Implementar Tool 6 (send_offer) | Justin Barrios — `src/tools/send-offer.ts` |
-| 7. Implementar Tool 7 (view_offers) | Ramses Szobotka — `src/tools/view-offers.ts` |
-| 8. Implementar Tool 8 (accept_offer) | Ramses Szobotka — `src/tools/accept-offer.ts` |
-| 9. Implementar Tool 9 (update_ride_status) | Justin Barrios — `src/tools/update-ride-status.ts` |
-| 10. Implementar Tool 10 (get_ride_history) | Justin Barrios — `src/tools/get-ride-history.ts` |
-| 11. Crear endpoints backend faltantes | — `POST /api/rides/:id/offers`, `GET /api/rides/:id/offers`, `PATCH /api/rides/:id/status`, `POST /api/auth/mcp-token` |
-| 12. Probar servidor completo | Ejecutar `bun run src/index.ts` y verificar listado de 10 tools |
+| 1. Implementar Tool 6 (confirm_delivery) | Ramses Szobotka — `tools/client/confirm-delivery.ts` |
+| 2. Implementar Tool 7 (cancel_ride) | Ramses Szobotka — `tools/client/cancel-ride.ts` |
+| 3. Implementar Tool 8 (rate_service) | Ramses Szobotka — `tools/client/rate-service.ts` |
+| 4. Implementar Tool 9 (list_available_rides) | Justin Barrios — `tools/driver/list-available-rides.ts` |
+| 5. Implementar Tool 10 (send_message) | Justin Barrios — `tools/driver/send-message.ts` |
+| 6. Implementar Tool 11 (propose_price) | Justin Barrios — `tools/driver/propose-price.ts` |
+| 7. Implementar Tool 12 (start_trip) | Justin Barrios — `tools/driver/start-trip.ts` |
+| 8. Implementar Tool 13 (upload_delivery_photo) | Justin Barrios — `tools/driver/upload-delivery-photo.ts` |
+| 9. Implementar Tool 14 (get_payment_history) | Justin Barrios — `tools/driver/get-payment-history.ts` |
+| 10. Implementar Tool 15 (get_driver_profile) | Justin Barrios — `tools/driver/get-driver-profile.ts` |
+| 11. Crear endpoint `POST /api/auth/mcp-token` | Backend |
+| 12. Crear endpoint MCP HTTP `GET /api/mcp` | Backend (SSE) |
 | 13. Verificar compilación | `bun run typecheck` (tsc --noEmit) |
 
 ---
 
-*Fin del PRD — Próximo paso: Implementación de tools 7-10 según asignación.*
+*Fin del PRD v2.0 — 15 tools documentadas, 5 implementadas, 10 pendientes.*
