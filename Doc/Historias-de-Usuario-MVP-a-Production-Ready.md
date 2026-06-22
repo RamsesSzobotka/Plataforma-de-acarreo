@@ -50,7 +50,7 @@
 |---|----------|------------------------|
 | **H-26** | Como **usuario**, quiero **chatear en tiempo real con la otra parte del servicio**, para **coordinar la entrega sin salir de la plataforma**. | 1. WebSocket nativo de Bun.<br>2. Autenticacion via token JWT en el handshake.<br>3. Broadcast de mensajes por rideId.<br>4. Persistencia de mensajes en MongoDB. |
 | **H-27** | Como **cliente o conductor**, quiero **subir imagenes a Cloudinary**, para **adjuntar evidencia visual a los pedidos**. | 1. Upload via multipart/form-data.<br>2. Soporta carpetas (rides, drivers, etc.).<br>3. Retorna URL publica y publicId.<br>4. Autenticacion requerida. |
-| **H-28** | Como **admin**, quiero **tener MongoDB y Redis funcionando via Docker Compose**, para **entorno de desarrollo consistente**. | 1. MongoDB 7 con healthcheck.<br>2. Redis 7 Alpine.<br>3. Datos persistentes en volumen.<br>4. Script init-admin para crear admin inicial. |
+| **H-28** | Como **admin**, quiero **tener MongoDB y Redis disponibles via Docker Compose**, para **entorno de desarrollo consistente con servicios listos para integrar**. | 1. MongoDB 7 con healthcheck.<br>2. Redis 7 Alpine disponible en docker-compose (pendiente de integracion en la app).<br>3. Datos persistentes en volumen.<br>4. Script init-admin para crear admin inicial. |
 | **H-29** | Como **sistema**, quiero **tener un health check endpoint**, para **verificar que el servidor y MongoDB estan operativos**. | 1. `GET /health` retorna estado de API y MongoDB.<br>2. `GET /health/ready` readiness check.<br>3. Responde rapido sin autenticacion. |
 
 ---
@@ -81,7 +81,7 @@
 
 | # | Historia | Criterios de Aceptación |
 |---|----------|------------------------|
-| **H-40** | Como **sistema**, quiero **tener rate limiting por endpoint y por usuario**, para **prevenir abusos y ataques DoS**. | 1. Limite de requests por minuto por IP.<br>2. Limite especifico por endpoint sensible (login, crear ride).<br>3. Respuesta 429 cuando se excede.<br>4. Almacenamiento en Redis. |
+| **H-40** | Como **sistema**, quiero **tener rate limiting por endpoint y por usuario**, para **prevenir abusos y ataques DoS**. | 1. Limite de requests por minuto por IP.<br>2. Limite especifico por endpoint sensible (login, crear ride).<br>3. Respuesta 429 cuando se excede.<br>4. Almacenamiento en Redis con ventanas deslizantes (INCR + EXPIRE). |
 | **H-41** | Como **sistema**, quiero **tener validacion y sanitizacion de inputs en todos los endpoints**, para **prevenir inyeccion y XSS**. | 1. Validacion de tipos con Zod en todas las rutas.<br>2. Sanitizacion de texto en mensajes y descripciones.<br>3. Limite de tamaños en inputs.<br>4. Proteccion contra NoSQL injection. |
 | **H-42** | Como **sistema**, quiero **tener registro de auditoria de todas las acciones sensibles**, para **trazabilidad y compliance**. | 1. Log de cambios de estado de rides.<br>2. Log de acciones de admin.<br>3. Log de cambios en perfiles de usuario.<br>4. Timestamp, usuario, accion, detalle. |
 | **H-43** | Como **usuario**, quiero **que mi informacion personal este protegida segun GDPR/leyes de privacidad**, para **tener confianza en la plataforma**. | 1. Consentimiento explicito al registro.<br>2. Opcion de descargar mis datos.<br>3. Opcion de eliminar mi cuenta y todos mis datos.<br>4. Politica de privacidad visible. |
@@ -90,8 +90,8 @@
 
 | # | Historia | Criterios de Aceptación |
 |---|----------|------------------------|
-| **H-44** | Como **cliente**, quiero **ver la ubicacion del conductor en tiempo real en un mapa durante el viaje**, para **saber cuando llegara la mercancia**. | 1. Mapa con icono del conductor moviendose.<br>2. Actualizacion cada 5-10 segundos.<br>3. Ruta desde origen a destino.<br>4. Tiempo estimado de llegada. |
-| **H-45** | Como **conductor**, quiero **compartir mi ubicacion en tiempo real mientras el viaje esta en progreso**, para **que el cliente pueda trackear el progreso**. | 1. Envio periodico de coordenadas via WebSocket o API.<br>2. Solo cuando el estado es `in_progress`.<br>3. No compartir ubicacion cuando no hay viaje activo.<br>4. Consumo minimo de bateria/datos. |
+| **H-44** | Como **cliente**, quiero **ver la ubicacion del conductor en tiempo real en un mapa durante el viaje**, para **saber cuando llegara la mercancia**. | 1. Mapa con icono del conductor moviendose.<br>2. Actualizacion cada 5-10 segundos con ubicaciones cacheadas en Redis.<br>3. Ruta desde origen a destino.<br>4. Tiempo estimado de llegada. |
+| **H-45** | Como **conductor**, quiero **compartir mi ubicacion en tiempo real mientras el viaje esta en progreso**, para **que el cliente pueda trackear el progreso**. | 1. Envio periodico de coordenadas via WebSocket o API a Redis (evita escrituras constantes en MongoDB).<br>2. Solo cuando el estado es `in_progress`.<br>3. No compartir ubicacion cuando no hay viaje activo.<br>4. Consumo minimo de bateria/datos. |
 | **H-46** | Como **cliente**, quiero **ver el mapa con las ubicaciones de recogida y destino en los detalles del pedido**, para **visualizar geograficamente el servicio**. | 1. Mapa con marcadores de pickup y dropoff.<br>2. Ruta calculada entre los dos puntos.<br>3. Distancia aproximada.<br>4. Integracion con Leaflet/OpenStreetMap (ya implementado AddressInput). |
 
 ### 2.5 Pagos y Facturacion
