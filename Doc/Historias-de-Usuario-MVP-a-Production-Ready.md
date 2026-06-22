@@ -1,10 +1,5 @@
 # Historias de Usuario — Plataforma de Acarreos (Carglyn)
-
-> **Proyecto:** Plataforma de Acarreos (Carglyn)  
-> **Equipo:** Grupo MVP — Parcial #2 (A7)  
-> **Propósito:** Inventario de funcionalidades implementadas + backlog para production-ready, incluyendo exposición vía MCP  
-> **Formato:** `Como <rol>, quiero <funcionalidad/acción>, para <beneficio/objetivo>.`
-
+  **Integrantes:** Ramses Szobotka,Justin Barrios
 ---
 
 ## Sección 1: Inventario Actual — Funcionalidades YA implementadas (MVP)
