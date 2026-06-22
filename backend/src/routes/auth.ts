@@ -32,6 +32,7 @@ auth.post('/mcp-token', authMiddleware, async (c) => {
   return c.json({
     data: {
       token: rawToken,
+      createdAt: new Date().toISOString(),
       message: 'Guarda este token en un lugar seguro. No podrás verlo de nuevo.',
     },
   })

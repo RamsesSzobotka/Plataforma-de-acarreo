@@ -10,6 +10,14 @@ export async function handleCreateRide(
   userId: string,
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   try {
+    // Role check: solo client o driver pueden crear rides
+    const user = await db.collection('users').findOne({ clerkId: userId });
+    if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
+    const allowedRoles = ['client', 'driver'];
+    if (!allowedRoles.includes(user.role)) {
+      throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
+    }
+
     const rideData: Record<string, any> = {
       clientId: userId,
       title: input.title,
