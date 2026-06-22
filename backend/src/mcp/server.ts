@@ -46,7 +46,7 @@ export function createMcpServer(clerkId: string) {
     const tools = listTools();
     return {
       tools: tools.map((t) => {
-        const jsonSchema = zodToJsonSchema(t.schema, { target: 'openApi3' }) as Record<string, unknown>;
+        const jsonSchema = zodToJsonSchema(t.schema, { target: 'jsonSchema7' }) as Record<string, unknown>;
         const { $schema, ...inputSchema } = jsonSchema;
         return {
           name: t.name,

@@ -17,6 +17,24 @@ async function mcpAuth(c: any): Promise<string | null> {
   return validateMcpToken(apiKey)
 }
 
+/**
+ * Asegura que el Request tenga el Accept header requerido por el SDK MCP.
+ * El SDK exige que el cliente acepte tanto application/json como text/event-stream.
+ * OpenCode no envía text/event-stream, así que lo inyectamos server-side.
+ */
+function ensureAcceptHeader(req: Request): Request {
+  const accept = req.headers.get('accept') || ''
+  if (accept.includes('text/event-stream')) {
+    return req
+  }
+  const newAccept = accept.includes('application/json')
+    ? accept + ', text/event-stream'
+    : 'application/json, text/event-stream'
+  const headers = new Headers(req.headers)
+  headers.set('accept', newAccept)
+  return new Request(req, { headers })
+}
+
 mcpApp.all('/', async (c) => {
   const clerkId = await mcpAuth(c)
   if (!clerkId) {
@@ -24,7 +42,8 @@ mcpApp.all('/', async (c) => {
   }
 
   try {
-    const req = c.req.raw
+    const rawReq = c.req.raw
+    const req = ensureAcceptHeader(rawReq)
     const sessionId = req.headers.get('mcp-session-id')
 
     if (sessionId) {

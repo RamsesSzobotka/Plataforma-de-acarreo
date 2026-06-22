@@ -130,14 +130,10 @@ function SettingsMcp() {
   // El token real se guarda en sessionStorage para sobrevivir al refresh
   const stored = sessionStorage.getItem('mcp_token')
   const persistedToken = token ?? (stored && stored !== 'undefined' ? stored : null)
-  const showPlaceholder = !persistedToken && hasToken
-  const currentToken = persistedToken || ''
-  const maskedToken = showPlaceholder ? '********'
-    : currentToken ? currentToken.slice(0, 8) + '…' + currentToken.slice(-4)
-    : 'TU_TOKEN_AQUI'
-  const copyToken = currentToken || (showPlaceholder ? '********' : 'TU_TOKEN_AQUI')
+  const displayToken = persistedToken || 'TU_TOKEN_AQUI'
 
   function buildConfig(tokenValue: string): string {
+    // OpenCode usa root "mcp" con enabled/type/url/headers
     if (activeTab === 'opencode') {
       return JSON.stringify({
         mcp: {
@@ -145,7 +141,7 @@ function SettingsMcp() {
             enabled: true,
             type: 'remote',
             url: `${baseUrl}/api/mcp`,
-            env: {
+            headers: {
               MCP_API_KEY: tokenValue
             }
           }
@@ -153,21 +149,7 @@ function SettingsMcp() {
       }, null, 2)
     }
 
-    if (activeEnv === 'localhost') {
-      return JSON.stringify({
-        mcpServers: {
-          carglyn: {
-            command: 'bun',
-            args: ['run', '../mcp-server/src/index.ts'],
-            env: {
-              MCP_API_KEY: tokenValue,
-              BACKEND_URL: 'http://localhost:3000'
-            }
-          }
-        }
-      }, null, 2)
-    }
-
+    // Claude Desktop usa el formato estándar mcpServers
     return JSON.stringify({
       mcpServers: {
         carglyn: {
@@ -182,10 +164,10 @@ function SettingsMcp() {
 
   async function copyToClipboard() {
     try {
-      await navigator.clipboard.writeText(buildConfig(copyToken))
+      await navigator.clipboard.writeText(buildConfig(displayToken))
     } catch {
       const textarea = document.createElement('textarea')
-      textarea.value = buildConfig(copyToken)
+      textarea.value = buildConfig(displayToken)
       document.body.appendChild(textarea)
       textarea.select()
       document.execCommand('copy')
@@ -321,7 +303,7 @@ function SettingsMcp() {
                 color: 'var(--text-primary)'
               }}
             >
-              <code>{buildConfig(maskedToken)}</code>
+              <code>{buildConfig(displayToken)}</code>
             </pre>
             <button
               className={`btn btn-sm ${copiedSnippet ? 'btn-primary' : 'btn-secondary'}`}

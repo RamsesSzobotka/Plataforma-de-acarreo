@@ -13,6 +13,13 @@ export async function handleAcceptOffer(
   try {
     const finalPrice = input.agreedPrice ?? undefined;
 
+    const user = await db.collection('users').findOne({ clerkId: userId });
+    if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
+    const allowedRoles = ['client', 'driver'];
+    if (!allowedRoles.includes(user.role)) {
+      throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
+    }
+
     const result = await db.collection('rides').findOneAndUpdate(
       { _id: new ObjectId(input.rideId), clientId: userId, status: 'requested' },
       { $set: { driverId: input.driverId, status: 'accepted', finalPrice, chatEnabled: true, updatedAt: new Date() } },
@@ -37,7 +44,7 @@ export async function handleAcceptOffer(
       finalPrice: result.finalPrice,
       packages: result.packages,
       notes: result.notes,
-      preferredDate: result.preferredDate?.toString() ?? null,
+      preferredDate: result.preferredDate?.toISOString?.() ?? result.preferredDate ?? null,
       status: result.status,
       deliveryPhoto: result.deliveryPhoto,
       cancellationReason: result.cancellationReason,

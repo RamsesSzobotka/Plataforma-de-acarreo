@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { viewOffersSchema } from '../../schemas';
 import { McpError } from '../../errors';
@@ -7,9 +8,24 @@ export async function handleViewOffers(
   input: z.infer<typeof viewOffersSchema>,
   _authToken: string | undefined,
   _apiClient: any,
-  _userId: string,
+  userId: string,
 ): Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }> {
   try {
+    // --- Role check ---
+    const user = await db.collection('users').findOne({ clerkId: userId });
+    if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
+    const allowedRoles = ['client', 'driver'];
+    if (!allowedRoles.includes(user.role)) {
+      throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
+    }
+
+    // --- Ownership check ---
+    const ride = await db.collection('rides').findOne({
+      _id: new ObjectId(input.rideId),
+      clientId: userId,
+    });
+    if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado o no tienes permiso para ver sus ofertas', 404);
+
     const contacts = await db.collection('driver_contacts').find({
       rideId: input.rideId,
       isActive: true,
