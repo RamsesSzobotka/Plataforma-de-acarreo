@@ -80,21 +80,26 @@ function Chat() {
               setRideInfo(rideData)
             }
 
-            if (data.role === 'client' && driverId) {
+            // Cargar propuestas desde contacts para ambos roles
+            const contactId = data.role === 'client' ? driverId : user.id
+            if (contactId) {
               const contactResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${rideId}/contacts`, {
                 headers: { Authorization: `Bearer ${token}` }
               })
               if (contactResponse.ok) {
                 const contactsData = await contactResponse.json()
-                const driverContact = contactsData.data?.find((c: any) => c.driverId === driverId)
-                if (driverContact) {
+                // Cliente busca por driverId, driver busca su propio contacto
+                const driverContact = contactsData.data?.find(
+                  (c: any) => data.role === 'client' ? c.driverId === driverId : c.driverId === user.id
+                )
+                if (driverContact && driverContact.proposedPrice) {
                   setProposalInfo({
                     driverId: driverContact.driverId,
                     proposedPrice: driverContact.proposedPrice,
                     proposalCount: driverContact.proposalCount || 0,
                     remainingProposals: 3 - (driverContact.proposalCount || 0),
                     canProposeMore: (driverContact.proposalCount || 0) < 3,
-                    status: driverContact.proposedPrice ? 'pending' : undefined
+                    status: 'pending'
                   })
                 }
               }
@@ -228,8 +233,50 @@ function Chat() {
           }
         })
         const data = await response.json()
-        setMessages(data.data || [])
+        const messageList: Message[] = data.data || []
+        setMessages(messageList)
         setLoading(false)
+
+        // Detectar estado de propuesta desde mensajes del sistema (solo driver)
+        if (!proposalInfo && userRole === 'driver' && currentUser && currentRideId) {
+          for (let i = messageList.length - 1; i >= 0; i--) {
+            const msg = messageList[i]
+            if (msg.senderId !== 'system') continue
+
+            if (msg.content.startsWith('💰 Propuesta de precio:')) {
+              const priceMatch = msg.content.match(/\$([\d.]+)/)
+              const proposedPrice = priceMatch ? parseFloat(priceMatch[1]) : undefined
+              setProposalInfo({
+                driverId: currentUser.id,
+                proposedPrice,
+                proposalCount: 1,
+                remainingProposals: 2,
+                canProposeMore: true,
+                status: 'pending'
+              })
+              break
+            }
+            if (msg.content.includes('Precio rechazado')) {
+              // Buscar el contacto del driver para obtener el proposalCount actual
+              const contactResp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${currentRideId}/contacts`, {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+              const contactsData = await contactResp.json()
+              const myContact = contactsData.data?.find(
+                (c: any) => c.driverId === currentUser.id
+              )
+              const count = myContact?.proposalCount || 1
+              setProposalInfo({
+                driverId: currentUser.id,
+                proposalCount: count,
+                remainingProposals: 3 - count,
+                canProposeMore: count < 3,
+                status: 'rejected'
+              })
+              break
+            }
+          }
+        }
 
         const unsubscribeMessage = wsService.onMessage(handleNewMessage)
         const unsubscribeError = wsService.onError(handleWsError)

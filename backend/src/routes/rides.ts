@@ -226,6 +226,9 @@ rides.get('/:id/contacts', authMiddleware, async (c) => {
         _id: contact._id,
         driverId: contact.driverId,
         createdAt: contact.createdAt,
+        proposedPrice: contact.proposedPrice,
+        proposalCount: contact.proposalCount || 0,
+        priceProposedAt: contact.priceProposedAt,
         driver: driver ? {
           firstName: driver.firstName,
           lastName: driver.lastName,
