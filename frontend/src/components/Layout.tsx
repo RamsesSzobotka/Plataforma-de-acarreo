@@ -176,6 +176,11 @@ function Layout() {
                   >
                     <UserButton.MenuItems>
                       <UserButton.Link
+                        label="Método de Pago"
+                        labelIcon={<span className="material-symbols-rounded">credit_card</span>}
+                        href="/add-payment-method"
+                      />
+                      <UserButton.Link
                         label="Conexión MCP"
                         labelIcon={<span className="material-symbols-rounded">api</span>}
                         href="/settings/mcp"
@@ -374,6 +379,11 @@ function Layout() {
                 }}
               >
                 <UserButton.MenuItems>
+                  <UserButton.Link
+                    label="Método de Pago"
+                    labelIcon={<span className="material-symbols-rounded">credit_card</span>}
+                    href="/add-payment-method"
+                  />
                   <UserButton.Link
                     label="Conexión MCP"
                     labelIcon={<span className="material-symbols-rounded">api</span>}

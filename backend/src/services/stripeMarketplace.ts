@@ -114,7 +114,7 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
 
 
 
-  const paymentMethodId = client.paymentMethodId || ride.stripePaymentMethodId
+  const paymentMethodId = client.paymentMethodId || client.stripePaymentMethodId || ride.stripePaymentMethodId
   if (!paymentMethodId) {
     throw new MarketplaceStripeError('El cliente no tiene método de pago guardado', 400)
   }

@@ -3,6 +3,9 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { authMiddleware, requireRole } from '../middleware'
 import type { AuthUser } from '../middleware'
+import { getStripeClient } from '../services/stripeMarketplace'
+
+const stripe = getStripeClient()
 
 const users = new Hono()
 
@@ -83,6 +86,32 @@ users.post('/payment-method', authMiddleware, async (c) => {
   })
 })
 
+// Eliminar método de pago del usuario
+users.delete('/payment-method', authMiddleware, async (c) => {
+  const currentUser = c.get('user') as AuthUser
+  
+  const user = await User.findOne({ clerkId: currentUser.clerkId })
+  if (!user) return c.json({ error: 'Usuario no encontrado' }, 404)
+  
+  if (!user.stripePaymentMethodId) {
+    return c.json({ error: 'No hay método de pago guardado' }, 400)
+  }
+  
+  try {
+    await stripe.paymentMethods.detach(user.stripePaymentMethodId)
+  } catch (stripeError) {
+    console.warn('Error detaching payment method:', stripeError)
+  }
+  
+  await User.findOneAndUpdate(
+    { clerkId: currentUser.clerkId },
+    { stripePaymentMethodId: null, paymentMethodId: null, updatedAt: new Date() },
+    { new: true }
+  )
+  
+  return c.json({ success: true })
+})
+
 // Obtener método de pago del usuario
 users.get('/me/payment-method', authMiddleware, async (c) => {
   const currentUser = c.get('user') as AuthUser
@@ -93,11 +122,27 @@ users.get('/me/payment-method', authMiddleware, async (c) => {
     return c.json({ error: 'Usuario no encontrado' }, 404)
   }
   
-  return c.json({
+  const response: any = {
     hasPaymentMethod: !!user.stripePaymentMethodId,
     stripePaymentMethodId: user.stripePaymentMethodId || null,
     paymentMethodId: user.paymentMethodId || user.stripePaymentMethodId || null,
-  })
+  }
+  
+  if (user.stripePaymentMethodId) {
+    try {
+      const paymentMethod = await stripe.paymentMethods.retrieve(user.stripePaymentMethodId)
+      if (paymentMethod.card) {
+        response.last4 = paymentMethod.card.last4
+        response.brand = paymentMethod.card.brand
+        response.expMonth = paymentMethod.card.exp_month
+        response.expYear = paymentMethod.card.exp_year
+      }
+    } catch (stripeError) {
+      console.warn('Error retrieving payment method details:', stripeError)
+    }
+  }
+  
+  return c.json(response)
 })
 
 // Crear/actualizar usuario (desde webhook de Clerk)

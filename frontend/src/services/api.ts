@@ -328,7 +328,15 @@ export const usersAPI = {
     }, token),
 
   getPaymentMethod: (token?: string) =>
-    fetchAPI<{ hasPaymentMethod: boolean; stripePaymentMethodId: string | null; paymentMethodId?: string | null }>(
+    fetchAPI<{
+      hasPaymentMethod: boolean,
+      stripePaymentMethodId: string | null,
+      paymentMethodId?: string | null,
+      last4?: string,
+      brand?: string,
+      expMonth?: number,
+      expYear?: number,
+    }>(
       '/api/users/me/payment-method',
       {},
       token
@@ -341,6 +349,13 @@ export const usersAPI = {
         method: 'POST',
         body: JSON.stringify({ stripePaymentMethodId }),
       },
+      token
+    ),
+
+  deletePaymentMethod: (token?: string) =>
+    fetchAPI<{ success: boolean }>(
+      '/api/users/payment-method',
+      { method: 'DELETE' },
       token
     ),
 }

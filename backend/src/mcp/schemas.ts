@@ -58,3 +58,18 @@ export const acceptOfferSchema = z.object({
   driverId: z.string().min(1).describe('ID del conductor (clerkId)'),
   agreedPrice: z.number().positive().optional().describe('Precio acordado con el conductor'),
 });
+
+export const confirmDeliverySchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo a confirmar'),
+});
+
+export const cancelRideSchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo a cancelar'),
+  reason: z.string().min(1).max(500).optional().describe('Motivo de la cancelación'),
+});
+
+export const rateServiceSchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo'),
+  rating: z.number().int().min(1).max(5).describe('Calificación de 1 a 5 estrellas'),
+  comment: z.string().max(1000).optional().describe('Comentario opcional sobre la calificación'),
+});
