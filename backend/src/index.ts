@@ -121,6 +121,13 @@ const server = Bun.serve({
                 canJoin = user?.role === 'admin'
               }
 
+              // Si no es participante ni admin, permitir a drivers unirse a rides en 'requested'
+              if (!canJoin && ride.status === 'requested') {
+                const { db } = await import('./db/mongo')
+                const user = await db.collection('users').findOne({ clerkId })
+                canJoin = user?.role === 'driver'
+              }
+
               // Si no es participante ni admin, verificar si es driver con contact activo
               if (!canJoin) {
                 const { DriverContact } = await import('./models/driverContact')

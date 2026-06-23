@@ -32,13 +32,12 @@ export type RideType = 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos'
 
 export type RideStatus = 
   | 'requested' 
-  | 'negotiating'
   | 'accepted' 
   | 'in_progress' 
   | 'completed' 
   | 'paid' 
-  | 'failed'
   | 'cancelled'
+  | 'failed'
 
 export interface RideImage {
   url: string

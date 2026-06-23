@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { acceptOfferSchema } from '../../schemas';
 import { McpError } from '../../errors';
+import { canTransition } from '../../../services/ride-machine';
 
 export async function handleAcceptOffer(
   input: z.infer<typeof acceptOfferSchema>,
@@ -20,6 +21,14 @@ export async function handleAcceptOffer(
       throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
     }
 
+    const ride = await db.collection('rides').findOne({ _id: new ObjectId(input.rideId) });
+    if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado', 404);
+
+    const transitionCheck = canTransition(ride.status, 'accepted', user.role)
+    if (!transitionCheck.allowed) {
+      throw new McpError('CONFLICT', transitionCheck.reason || 'No se puede aceptar la oferta en el estado actual', 409);
+    }
+
     const result = await db.collection('rides').findOneAndUpdate(
       { _id: new ObjectId(input.rideId), clientId: userId, status: 'requested' },
       { $set: { driverId: input.driverId, status: 'accepted', finalPrice, chatEnabled: true, updatedAt: new Date() } },
@@ -30,7 +39,7 @@ export async function handleAcceptOffer(
       throw new McpError('NOT_FOUND', 'Acarreo no encontrado o no está disponible para aceptar ofertas', 404);
     }
 
-    const ride = {
+    const rideData = {
       id: result._id?.toString() ?? result.id,
       clientId: result.clientId,
       driverId: result.driverId,
@@ -53,7 +62,7 @@ export async function handleAcceptOffer(
       updatedAt: result.updatedAt?.toISOString?.() ?? result.updatedAt,
     };
 
-    return { content: [{ type: 'text', text: JSON.stringify({ ride }) }] };
+    return { content: [{ type: 'text', text: JSON.stringify({ ride: rideData }) }] };
   } catch (error) {
     if (error instanceof McpError) throw error;
     throw new McpError('BACKEND_ERROR', 'Error al aceptar oferta: ' + (error as Error).message);

@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 const rideStatusEnum = z.enum([
   'requested',
-  'negotiating',
   'accepted',
   'in_progress',
   'completed',
   'paid',
   'cancelled',
+  'failed',
 ]);
 
 const rideTypeEnum = z.enum([

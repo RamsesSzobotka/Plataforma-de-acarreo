@@ -25,11 +25,14 @@ const PAGE_LIMIT = 10
 
 const filterOptions = [
   { value: 'all', label: 'Todos', icon: 'list' },
+  { value: 'active_chat', label: 'Con Chat', icon: 'chat' },
   { value: 'requested', label: 'Pendientes', icon: 'inbox' },
-  { value: 'negotiating', label: 'Negociando', icon: 'chat' },
   { value: 'accepted', label: 'Aceptados', icon: 'check_circle' },
-  { value: 'in_progress', label: 'En Viaje', icon: 'delivery_truck_speed' },
+  { value: 'in_progress', label: 'En Viaje', icon: 'local_shipping' },
   { value: 'completed', label: 'Completados', icon: 'task_alt' },
+  { value: 'paid', label: 'Pagados', icon: 'payments' },
+  { value: 'cancelled', label: 'Cancelados', icon: 'cancel' },
+  { value: 'failed', label: 'Fallidos', icon: 'error' },
 ]
 
 function MyRides() {
@@ -82,13 +85,20 @@ function MyRides() {
     try {
       setLoading(true)
       const token = await getToken()
+      const params: any = {
+        clientId: user?.id,
+        page,
+        limit: PAGE_LIMIT,
+      }
+      if (filter !== 'all') {
+        if (filter === 'active_chat') {
+          params.hasActiveChat = true
+        } else {
+          params.status = filter
+        }
+      }
       const data: PaginatedResponse<Ride> = await ridesAPI.list(
-        {
-          clientId: user?.id,
-          status: filter !== 'all' ? filter : undefined,
-          page,
-          limit: PAGE_LIMIT,
-        },
+        params,
         token || undefined
       )
       setRides(data.data || [])

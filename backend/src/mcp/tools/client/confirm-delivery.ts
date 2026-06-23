@@ -4,6 +4,7 @@ import { db } from '../../../db/mongo';
 import { confirmDeliverySchema } from '../../schemas';
 import { McpError } from '../../errors';
 import { createMarketplaceCharge, MarketplaceStripeError } from '../../../services/stripeMarketplace';
+import { canTransition } from '../../../services/ride-machine';
 
 export async function handleConfirmDelivery(
   input: z.infer<typeof confirmDeliverySchema>,
@@ -26,8 +27,9 @@ export async function handleConfirmDelivery(
       throw new McpError('FORBIDDEN', 'No tienes permiso para confirmar la entrega de este acarreo', 403);
     }
 
-    if (ride.status !== 'in_progress') {
-      throw new McpError('CONFLICT', `No puedes confirmar la entrega en estado "${ride.status}". Solo se permite en "in_progress".`, 409);
+    const transitionCheck = canTransition(ride.status, 'completed', user.role)
+    if (!transitionCheck.allowed) {
+      throw new McpError('CONFLICT', transitionCheck.reason || `No puedes confirmar la entrega en estado "${ride.status}".`, 409);
     }
 
     if (!ride.deliveryPhoto) {

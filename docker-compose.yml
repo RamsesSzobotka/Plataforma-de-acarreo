@@ -97,9 +97,9 @@ services:
     env_file:
       - .env
     environment:
-      # Override: VITE_API_URL vacío → el cliente usa same-origin
-      # El proxy de Vite redirige /api y /ws al backend
-      VITE_API_URL: ""
+      # VITE_API_URL apunta al backend directamente para evitar
+      # problemas con el proxy WebSocket de Vite + Bun
+      VITE_API_URL: "http://localhost:3000"
       BACKEND_URL: http://backend:3000
     volumes:
       # Montar source para hot-reload con Vite

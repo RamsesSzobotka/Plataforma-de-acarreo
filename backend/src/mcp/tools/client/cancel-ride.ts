@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { cancelRideSchema } from '../../schemas';
 import { McpError } from '../../errors';
+import { canCancel } from '../../../services/ride-machine';
 
 export async function handleCancelRide(
   input: z.infer<typeof cancelRideSchema>,
@@ -25,8 +26,9 @@ export async function handleCancelRide(
       throw new McpError('FORBIDDEN', 'No tienes permiso para cancelar este acarreo', 403);
     }
 
-    if (ride.status !== 'requested' && ride.status !== 'negotiating') {
-      throw new McpError('CONFLICT', `No puedes cancelar un acarreo en estado "${ride.status}". Solo se permite en "requested" o "negotiating".`, 409);
+    const cancelCheck = canCancel(ride.status, user.role)
+    if (!cancelCheck.allowed) {
+      throw new McpError('CONFLICT', cancelCheck.reason || `No puedes cancelar un acarreo en estado "${ride.status}".`, 409);
     }
 
     const result = await db.collection('rides').findOneAndUpdate(

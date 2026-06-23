@@ -154,7 +154,7 @@ export function RideCard({ ride, onChatClick, showDriverInfo = false }: RideCard
               })}
             </span>
 
-            {ride.status === 'negotiating' || ride.status === 'accepted' ? (
+            {(ride.status === 'accepted' || (ride.driverId && (ride.status === 'in_progress' || ride.status === 'completed'))) ? (
               <button
                 onClick={(e) => {
                   e.preventDefault()
