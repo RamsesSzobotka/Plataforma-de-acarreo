@@ -18,12 +18,23 @@ export async function handleCreateRide(
       throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
     }
 
+    // Validar que el cliente tenga método de pago guardado
+    if (!user.stripePaymentMethodId) {
+      throw new McpError('PAYMENT_METHOD_REQUIRED', 'No tienes un método de pago configurado. Debes agregar una tarjeta en tu perfil antes de crear un acarreo. El agente no puede agregar métodos de pago por ti.', 400);
+    }
+
+    // Validar que haya al menos 1 imagen
+    if (!input.images || input.images.length === 0) {
+      throw new McpError('INVALID_INPUT', 'Debes subir al menos 1 imagen del acarreo antes de crearlo. Usa el endpoint POST /api/upload para subir imágenes.', 400);
+    }
+
     const rideData: Record<string, any> = {
       clientId: userId,
+      stripePaymentMethodId: user.stripePaymentMethodId,
       title: input.title,
       description: input.description,
       type: input.type.replace('electrodomésticos', 'electrodomesticos'),
-      images: [],
+      images: input.images.map((url: string) => ({ url })),
       pickupLocation: {
         address: input.pickupAddress,
         type: 'Point',

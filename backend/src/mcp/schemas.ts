@@ -43,6 +43,7 @@ export const createRideSchema = z.object({
   packages: z.number().int().positive().optional().describe('Número aproximado de bultos'),
   notes: z.string().max(1000).optional().describe('Notas especiales (frágil, requiere ayuda, etc.)'),
   preferredDate: z.string().datetime().optional().describe('Fecha preferida en formato ISO 8601 (ej: 2026-06-19T14:30:00Z)'),
+  images: z.array(z.string().url().min(1)).min(1).max(8).describe('URLs de imágenes del acarreo (mínimo 1, máximo 8)'),
 });
 
 export const getRideDetailsSchema = z.object({
