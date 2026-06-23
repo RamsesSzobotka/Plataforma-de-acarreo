@@ -2,7 +2,7 @@ import { Hono } from 'hono/tiny'
 import { Message } from '../models/message'
 import { Ride } from '../models/ride'
 import { DriverContact } from '../models/driverContact'
-import { broadcastToRide } from '../index'
+import { broadcastToRide } from '../services/websocket'
 import { authMiddleware } from '../middleware/auth'
 
 const messages = new Hono()
@@ -292,6 +292,18 @@ messages.post('/accept-price', authMiddleware, async (c) => {
     content: `✅ Precio aceptado: $${contact.proposedPrice}. ¡Contrato iniciado!`
   })
   await message.save()
+
+  // Emitir cambio de estado
+  broadcastToRide(rideId, {
+    type: 'ride_status_changed',
+    data: {
+      rideId,
+      previousStatus: 'requested',
+      newStatus: 'accepted',
+      ride: updatedRide,
+      timestamp: new Date().toISOString(),
+    },
+  })
 
   // Emitir via WebSocket a todos
   broadcastToRide(rideId, {

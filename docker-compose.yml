@@ -1,0 +1,126 @@
+# ─────────────────────────────────────────────────────────────
+# Plataforma de Acarreos — Docker Compose (Desarrollo)
+# ─────────────────────────────────────────────────────────────
+# Uso:
+#   docker compose up -d                    # Levantar todo
+#   docker compose logs -f backend frontend # Ver logs
+#   docker compose down                     # Detener todo
+#   docker compose build backend            # Reconstruir backend
+#
+# Variables de entorno sensibles en .env (raíz del proyecto).
+# ─────────────────────────────────────────────────────────────
+
+services:
+  # ── MongoDB ──────────────────────────────────────────────
+  mongodb:
+    image: mongo:7-jammy
+    container_name: plataforma-acarreo-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: plataforma_acarreo
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - plataforma-network
+
+  # ── Redis ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: plataforma-acarreo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - plataforma-network
+
+  # ── Backend (Bun + Hono) ─────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    container_name: plataforma-acarreo-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Override: apuntar a MongoDB y Redis dentro de la red Docker
+      DATABASE_URL: mongodb://admin:password@mongodb:27017/plataforma_acarreo?authSource=admin
+      PORT: 3000
+      NODE_ENV: development
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/health/ready').then(r => process.exit(r.ok?0:1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    volumes:
+      # Montar source para hot-reload con bun --watch
+      - ./backend/src:/app/src
+      - ./backend/package.json:/app/package.json
+      - ./backend/tsconfig.json:/app/tsconfig.json
+      # node_modules se queda dentro del contenedor (no se monta)
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - plataforma-network
+
+  # ── Frontend (React + Vite) ──────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    container_name: plataforma-acarreo-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    env_file:
+      - .env
+    environment:
+      # Override: VITE_API_URL vacío → el cliente usa same-origin
+      # El proxy de Vite redirige /api y /ws al backend
+      VITE_API_URL: ""
+      BACKEND_URL: http://backend:3000
+    volumes:
+      # Montar source para hot-reload con Vite
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+      - ./frontend/public:/app/public
+      # node_modules se queda dentro del contenedor
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - plataforma-network
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  plataforma-network:
+    driver: bridge
