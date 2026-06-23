@@ -3,6 +3,51 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
 
+// ── Clerk helper ──────────────────────────────────────────────────────────────
+interface ClerkProfile {
+  firstName: string | null
+  lastName: string | null
+  imageUrl: string | null
+  email: string | null
+}
+
+async function getClerkUserProfiles(clerkIds: string[]): Promise<Map<string, ClerkProfile>> {
+  const profiles = new Map<string, ClerkProfile>()
+  if (clerkIds.length === 0) return profiles
+
+  const results = await Promise.allSettled(
+    clerkIds.map(async (id) => {
+      const response = await fetch(`https://api.clerk.com/v1/users/${id}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      if (!response.ok) return null
+      const data: any = await response.json()
+      return {
+        id,
+        firstName: data.first_name || null,
+        lastName: data.last_name || null,
+        imageUrl: data.image_url || null,
+        email: data.email_addresses?.[0]?.email_address || null,
+      }
+    }),
+  )
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      profiles.set(result.value.id, {
+        firstName: result.value.firstName,
+        lastName: result.value.lastName,
+        imageUrl: result.value.imageUrl,
+        email: result.value.email,
+      })
+    }
+  }
+
+  return profiles
+}
 
 const admin = new Hono()
 
