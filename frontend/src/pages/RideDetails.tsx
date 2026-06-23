@@ -22,7 +22,7 @@ interface Ride {
   dropoffLocation: { address: string; type?: string; coordinates: [number, number] }
   estimatedPrice: number
   finalPrice?: number
-  status: 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
+  status: 'requested' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled' | 'failed'
   deliveryPhoto?: { url: string }
   createdAt: string
   updatedAt: string
@@ -51,7 +51,6 @@ interface User {
 
 const timelineSteps = [
   { status: 'requested', label: 'Solicitado' },
-  { status: 'negotiating', label: 'Negociando' },
   { status: 'accepted', label: 'Aceptado' },
   { status: 'in_progress', label: 'En Viaje' },
   { status: 'completed', label: 'Completado' },
@@ -270,7 +269,7 @@ function RideDetails() {
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
   const isOwner = isClientOwner
-  const canClientCancel = isClientOwner && (ride.status === 'requested' || ride.status === 'negotiating')
+  const canClientCancel = isClientOwner && ride.status === 'requested'
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
 
   const unreadCount = unreadCounts[ride._id] || 0
@@ -388,7 +387,7 @@ function RideDetails() {
         <div style={{ padding: 'var(--space-6)' }}>
           <TimelineStepper
             steps={timelineSteps}
-            currentStatus={ride.status === 'negotiating' ? 'requested' : ride.status}
+            currentStatus={ride.status}
             orientation="horizontal"
           />
         </div>
@@ -692,7 +691,7 @@ function RideDetails() {
         {/* Right Column - Driver/Contacts & Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           {/* Driver Info or Contacts */}
-          {(ride.status === 'accepted' || ride.status === 'in_progress' || ride.status === 'completed' || ride.status === 'paid') && driverUser && driver ? (
+          {(ride.status === 'accepted' || ride.status === 'in_progress' || ride.status === 'completed' || ride.status === 'paid' || ride.status === 'failed') && driverUser && driver ? (
             <div
               className="card"
               style={{

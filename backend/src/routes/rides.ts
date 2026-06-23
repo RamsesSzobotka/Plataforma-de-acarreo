@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 import { createMarketplaceCharge, MarketplaceStripeError } from '../services/stripeMarketplace'
 import { broadcastToRide } from '../services/websocket'
+import { canTransition, canCancel } from '../services/ride-machine'
 
 const rides = new Hono()
 
@@ -325,10 +326,11 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
   
-  // Validar estado: solo puede aceptar si está en requested
-  if (existingRide.status !== 'requested') {
+  // Validar estado usando la máquina de estados centralizada
+  const transitionCheck = canTransition(existingRide.status, 'accepted', currentUser.role)
+  if (!transitionCheck.allowed) {
     return c.json({
-      error: 'No puedes aceptar este pedido en su estado actual',
+      error: transitionCheck.reason || 'No puedes aceptar este pedido en su estado actual',
       currentStatus: existingRide.status
     }, 400)
   }
@@ -397,12 +399,12 @@ rides.post('/:id/start', authMiddleware, async (c) => {
     return c.json({ error: 'No tienes permiso para iniciar este viaje' }, 403)
   }
   
-  // Solo puede iniciar si está en estado 'accepted'
-  if (ride.status !== 'accepted') {
+  // Validar estado usando la máquina de estados centralizada
+  const transitionCheck = canTransition(ride.status, 'in_progress', currentUser.role)
+  if (!transitionCheck.allowed) {
     return c.json({ 
-      error: 'No puedes iniciar el viaje en este momento',
+      error: transitionCheck.reason || 'No puedes iniciar el viaje en este momento',
       currentStatus: ride.status,
-      message: 'Solo puedes iniciar cuando el pedido esté aceptado'
     }, 400)
   }
   
@@ -486,12 +488,12 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
     return c.json({ error: 'No tienes permiso para confirmar este ride' }, 403)
   }
   
-  // Validar estado: solo se puede confirmar cuando está en progreso
-  if (ride.status !== 'in_progress') {
+  // Validar estado usando la máquina de estados centralizada
+  const transitionCheck = canTransition(ride.status, 'completed', currentUser.role)
+  if (!transitionCheck.allowed) {
     return c.json({ 
-      error: 'No puedes confirmar la entrega en este momento',
+      error: transitionCheck.reason || 'No puedes confirmar la entrega en este momento',
       currentStatus: ride.status,
-      message: 'Solo se puede confirmar cuando el ride está en estado "in_progress"'
     }, 400)
   }
   
@@ -553,33 +555,21 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
-  // Reglas de AGENTS:
-  // - requested: cliente puede cancelar
-  // - accepted: solo conductor puede cancelar (solo si no ha iniciado viaje)
-  // - in_progress/completed/paid: solo admin (caso excepcional)
-  let canCancel = false
-
-  if (currentUser.role === 'admin') {
-    canCancel = true
-  } else if (ride.status === 'requested') {
-    canCancel = currentUser.clerkId === ride.clientId
-  } else if (ride.status === 'accepted') {
-    // Driver solo puede cancelar si no ha iniciado viaje
-    canCancel = !!ride.driverId && currentUser.clerkId === ride.driverId
-  }
-
-  if (!canCancel) {
+  // Usar la máquina de estados centralizada
+  const cancelCheck = canCancel(ride.status, currentUser.role)
+  if (!cancelCheck.allowed) {
     return c.json({
-      error: 'No tienes permiso para cancelar este pedido en su estado actual',
+      error: cancelCheck.reason,
       currentStatus: ride.status,
     }, 403)
   }
 
-  if (ride.status === 'in_progress' || ride.status === 'completed' || ride.status === 'paid') {
-    return c.json({
-      error: 'No se puede cancelar en este estado. Solo admin en casos excepcionales.',
-      currentStatus: ride.status,
-    }, 400)
+  // Ownership checks
+  if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
+    return c.json({ error: 'No tienes permiso para cancelar este pedido' }, 403)
+  }
+  if (currentUser.role === 'driver' && ride.driverId !== currentUser.clerkId) {
+    return c.json({ error: 'No tienes permiso para cancelar este pedido' }, 403)
   }
   
   const oldStatus = ride.status

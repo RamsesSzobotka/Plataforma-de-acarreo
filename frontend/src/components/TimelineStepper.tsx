@@ -16,11 +16,11 @@ interface TimelineStepperProps {
 
 const statusOrder = [
   'requested',
-  'negotiating',
   'accepted',
   'in_progress',
   'completed',
   'paid',
+  'failed',
 ]
 
 export function TimelineStepper({ steps, currentStatus, orientation = 'horizontal' }: TimelineStepperProps) {

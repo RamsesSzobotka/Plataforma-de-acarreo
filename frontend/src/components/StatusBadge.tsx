@@ -8,12 +8,12 @@ interface StatusBadgeProps {
 const statusConfig: Record<string, { label: string; icon: string; variant: string }> = {
   // Ride statuses
   requested: { label: 'Pendiente', icon: 'inbox', variant: 'info' },
-  negotiating: { label: 'Negociando', icon: 'chat', variant: 'warning' },
   accepted: { label: 'Aceptado', icon: 'check_circle', variant: 'primary' },
-  in_progress: { label: 'En Viaje', icon: 'delivery_truck_speed', variant: 'primary' },
+  in_progress: { label: 'En Viaje', icon: 'local_shipping', variant: 'primary' },
   completed: { label: 'Completado', icon: 'task_alt', variant: 'success' },
   paid: { label: 'Pagado', icon: 'payments', variant: 'success' },
   cancelled: { label: 'Cancelado', icon: 'cancel', variant: 'error' },
+  failed: { label: 'Fallido', icon: 'error', variant: 'error' },
 
   // Driver verification statuses
   pending: { label: 'Pendiente', icon: 'pending', variant: 'warning' },
