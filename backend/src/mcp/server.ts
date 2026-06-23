@@ -10,13 +10,16 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { McpError as CustomMcpError } from './errors';
 import { getTool, listTools, registerTool } from './tools/index';
 
-import { listMyRidesSchema, createRideSchema, getRideDetailsSchema, viewOffersSchema, acceptOfferSchema } from './schemas';
+import { listMyRidesSchema, createRideSchema, getRideDetailsSchema, viewOffersSchema, acceptOfferSchema, confirmDeliverySchema, cancelRideSchema, rateServiceSchema } from './schemas';
 
 import { handleListMyRides } from './tools/client/list-my-rides';
 import { handleCreateRide } from './tools/client/create-ride';
 import { handleGetRideDetails } from './tools/client/get-ride-details';
 import { handleViewOffers } from './tools/client/view-offers';
 import { handleAcceptOffer } from './tools/client/accept-offer';
+import { handleConfirmDelivery } from './tools/client/confirm-delivery';
+import { handleCancelRide } from './tools/client/cancel-ride';
+import { handleRateService } from './tools/client/rate-service';
 
 let toolsRegistered = false;
 
@@ -32,6 +35,9 @@ export function registerAllTools() {
   register('get_ride_details', 'Obtener detalles completos de un acarreo por su ID.', getRideDetailsSchema, handleGetRideDetails);
   register('view_offers', 'Ver ofertas recibidas para un acarreo.', viewOffersSchema, handleViewOffers);
   register('accept_offer', 'Aceptar la oferta de un conductor para un acarreo.', acceptOfferSchema, handleAcceptOffer);
+  register('confirm_delivery', 'Confirmar la entrega de un acarreo. Cambia el estado a completado e intenta el cobro automático con el método de pago guardado. Si no hay método de pago, entrega igual pero reporta que se requiere una tarjeta.', confirmDeliverySchema, handleConfirmDelivery);
+  register('cancel_ride', 'Cancelar un acarreo en estado requested o negotiating.', cancelRideSchema, handleCancelRide);
+  register('rate_service', 'Calificar el servicio de un acarreo completado (1-5 estrellas). Solo disponible después del pago.', rateServiceSchema, handleRateService);
 }
 
 export function createMcpServer(clerkId: string) {
