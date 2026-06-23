@@ -74,6 +74,22 @@ function RideDetails() {
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [userHasPaymentMethod, setUserHasPaymentMethod] = useState(false)
+
+  // Verificar método de pago actual del usuario (no el del ride, que puede estar desactualizado)
+  useEffect(() => {
+    async function checkUserPaymentMethod() {
+      try {
+        const token = await getToken()
+        if (!token) return
+        const result = await usersAPI.getPaymentMethod(token)
+        setUserHasPaymentMethod(result.hasPaymentMethod)
+      } catch {
+        setUserHasPaymentMethod(false)
+      }
+    }
+    checkUserPaymentMethod()
+  }, [getToken])
 
   useEffect(() => {
     if (!id || !user) return
@@ -155,8 +171,8 @@ function RideDetails() {
   async function handleConfirmDelivery() {
     if (!user || !ride || !id) return
 
-    const confirmMessage = ride.stripePaymentMethodId
-      ? '¿Confirmas que la entrega está completa?\n\n. Se cobrará automáticamente a tu forma de pago guardada.'
+    const confirmMessage = userHasPaymentMethod
+      ? '¿Confirmas que la entrega está completa?\n\nSe cobrará automáticamente a tu forma de pago guardada.'
       : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
 
     const confirmed = await showConfirm({
@@ -1062,7 +1078,7 @@ function RideDetails() {
                 </button>
               )}
 
-              {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !showPaymentForm && (
+              {ride.status === 'completed' && isClientOwner && !userHasPaymentMethod && !showPaymentForm && (
                 <Link
                   to={`/add-payment-method?rideId=${ride._id}`}
                   className="btn btn-secondary"
@@ -1073,7 +1089,7 @@ function RideDetails() {
                 </Link>
               )}
 
-              {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !showPaymentForm && (
+              {ride.status === 'completed' && isClientOwner && userHasPaymentMethod && !showPaymentForm && (
                 <button
                   className="btn btn-accent"
                   onClick={() => setShowPaymentForm(true)}
@@ -1136,7 +1152,7 @@ function RideDetails() {
             )}
 
             {/* Info notifications */}
-            {ride.status === 'completed' && isClientOwner && ride.stripePaymentMethodId && !ride.paidAt && (
+            {ride.status === 'completed' && isClientOwner && userHasPaymentMethod && !ride.paidAt && (
               <div style={{
                 marginTop: 'var(--space-4)',
                 padding: 'var(--space-4)',
@@ -1158,7 +1174,7 @@ function RideDetails() {
               </div>
             )}
 
-            {ride.status === 'completed' && isClientOwner && !ride.stripePaymentMethodId && !ride.paidAt && (
+            {ride.status === 'completed' && isClientOwner && !userHasPaymentMethod && !ride.paidAt && (
               <div style={{
                 marginTop: 'var(--space-4)',
                 padding: 'var(--space-4)',

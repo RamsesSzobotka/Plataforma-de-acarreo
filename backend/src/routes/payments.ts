@@ -51,7 +51,7 @@ payments.post('/setup-intent', authMiddleware, async (c) => {
       usage: 'off_session',
       metadata: { clerkId: currentUser.clerkId },
     }, {
-      idempotencyKey: `setup-intent:${currentUser.clerkId}`,
+      idempotencyKey: `setup-intent:${currentUser.clerkId}:${Date.now()}`,
     })
 
     return c.json({
