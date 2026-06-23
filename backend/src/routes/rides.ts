@@ -5,6 +5,7 @@ import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 import { createMarketplaceCharge, MarketplaceStripeError } from '../services/stripeMarketplace'
+import { broadcastToRide } from '../services/websocket'
 
 const rides = new Hono()
 
@@ -287,8 +288,21 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
     }
   }
 
+  const oldStatus = ride.status
   const updatedRide = await Ride.findByIdAndUpdate(id, update, { new: true })
-  
+
+  // Emitir via WebSocket
+  broadcastToRide(id, {
+    type: 'ride_status_changed',
+    data: {
+      rideId: id,
+      previousStatus: oldStatus,
+      newStatus: updatedRide.status,
+      ride: updatedRide,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
   return c.json(updatedRide)
 })
 
@@ -351,6 +365,18 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { isActive: false }
   )
 
+  // Emitir via WebSocket
+  broadcastToRide(id, {
+    type: 'ride_status_changed',
+    data: {
+      rideId: id,
+      previousStatus: 'requested',
+      newStatus: 'accepted',
+      ride,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
   return c.json(ride)
 })
 
@@ -382,7 +408,19 @@ rides.post('/:id/start', authMiddleware, async (c) => {
   
   // Cambiar a in_progress
   const updatedRide = await Ride.findByIdAndUpdate(id, { status: 'in_progress' }, { new: true })
-  
+
+  // Emitir via WebSocket
+  broadcastToRide(id, {
+    type: 'ride_status_changed',
+    data: {
+      rideId: id,
+      previousStatus: 'accepted',
+      newStatus: 'in_progress',
+      ride: updatedRide,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
   return c.json({
     success: true,
     message: 'Viaje iniciado',
@@ -484,7 +522,19 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   }
   
   const updatedRide = await Ride.findByIdAndUpdate(id, update, { new: true })
-  
+
+  // Emitir via WebSocket
+  broadcastToRide(id, {
+    type: 'ride_status_changed',
+    data: {
+      rideId: id,
+      previousStatus: 'in_progress',
+      newStatus: updatedRide.status,
+      ride: updatedRide,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
   return c.json({
     success: true,
     message: update.status === 'paid' ? 'Entrega confirmada y pago procesado' : 'Entrega confirmada',
@@ -532,11 +582,24 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     }, 400)
   }
   
+  const oldStatus = ride.status
   const updatedRide = await Ride.findByIdAndUpdate(id, {
     status: 'cancelled',
     cancellationReason: reason || 'Cancelado por usuario'
   }, { new: true })
-  
+
+  // Emitir via WebSocket
+  broadcastToRide(id, {
+    type: 'ride_status_changed',
+    data: {
+      rideId: id,
+      previousStatus: oldStatus,
+      newStatus: 'cancelled',
+      ride: updatedRide,
+      timestamp: new Date().toISOString(),
+    },
+  })
+
   return c.json(updatedRide)
 })
 

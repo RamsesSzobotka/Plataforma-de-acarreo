@@ -31,7 +31,7 @@ export function registerAllTools() {
   };
   // Tools registered without userId — will be injected via closure in createMcpServer
   register('list_my_rides', 'Listar mis acarreos como cliente. Filtra por estado, página y límite.', listMyRidesSchema, handleListMyRides);
-  register('create_ride', 'Crear un nuevo pedido de acarreo.', createRideSchema, handleCreateRide);
+  register('create_ride', 'Crear un nuevo pedido de acarreo. Requiere mínimo 1 imagen (subir antes con POST /api/upload) y método de pago guardado en el perfil.', createRideSchema, handleCreateRide);
   register('get_ride_details', 'Obtener detalles completos de un acarreo por su ID.', getRideDetailsSchema, handleGetRideDetails);
   register('view_offers', 'Ver ofertas recibidas para un acarreo.', viewOffersSchema, handleViewOffers);
   register('accept_offer', 'Aceptar la oferta de un conductor para un acarreo.', acceptOfferSchema, handleAcceptOffer);

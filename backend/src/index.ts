@@ -4,6 +4,14 @@ import { poweredBy } from 'hono/powered-by'
 import { Hono } from 'hono'
 import { verifyToken } from '@clerk/clerk-sdk-node'
 import { connectDB } from './db/mongo'
+import { Ride } from './models/ride'
+import {
+  broadcastToRide,
+  addConnection,
+  removeConnection,
+  type WsData,
+} from './services/websocket'
+import { rateLimiter } from './middleware/rateLimiter'
 import rides from './routes/rides'
 import auth from './routes/auth'
 import users from './routes/users'
@@ -29,20 +37,6 @@ async function getVerifiedSession(token: string): Promise<string | null> {
   } catch { return null }
 }
 
-// WebSocket store
-interface WsConnection { ws: ServerWebSocket<WsData>; clerkId: string }
-interface WsData { rideId: string; authenticated: boolean; clerkId: string | null }
-const wsConnections = new Map<string, Set<WsConnection>>()
-
-export function broadcastToRide(rideId: string, data: any) {
-  const connections = wsConnections.get(rideId)
-  if (!connections) return
-  const message = JSON.stringify(data)
-  connections.forEach(({ ws }) => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(message)
-  })
-}
-
 const app = new Hono()
 
 app.use('*', poweredBy({ serverName: 'PlataformaAcarreos' }))
@@ -53,6 +47,11 @@ app.use('*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }))
 app.use('*', logger())
+
+// ── Rate limiting ───────────────────────────────────────────
+// Aplica a todas las rutas /api/* y /ws/* (excepto health)
+app.use('/api/*', rateLimiter(120, 60000))  // 120 req/min por IP/ruta
+app.use('/ws/*', rateLimiter(30, 60000))    // 30 upgrades/min por IP
 
 // WebSocket upgrade — lo maneja Bun directamente
 app.get('/ws/chat/:rideId', (c) => {
@@ -106,10 +105,49 @@ const server = Bun.serve({
             ws.close(4001, 'Invalid token')
             return
           }
+
+          // ── Validar participación en la sala ─────────────────────
+          let canJoin = false
+          try {
+            const ride = await Ride.findById(rideId)
+            if (ride) {
+              // Es cliente o driver del ride
+              canJoin = ride.clientId === clerkId || ride.driverId === clerkId
+
+              // Si no es participante directo, verificar si es admin
+              if (!canJoin && ride.clientId) {
+                const { db } = await import('./db/mongo')
+                const user = await db.collection('users').findOne({ clerkId })
+                canJoin = user?.role === 'admin'
+              }
+
+              // Si no es participante ni admin, verificar si es driver con contact activo
+              if (!canJoin) {
+                const { DriverContact } = await import('./models/driverContact')
+                const activeContact = await DriverContact.findOne({
+                  driverId: clerkId,
+                  rideId,
+                  isActive: true,
+                })
+                canJoin = !!activeContact
+              }
+            }
+          } catch (err) {
+            console.error('Error validating WebSocket room access:', err)
+          }
+
+          if (!canJoin) {
+            ws.send(JSON.stringify({
+              type: 'auth_error',
+              error: 'No eres participante de este acarreo',
+            }))
+            ws.close(4001, 'Not authorized')
+            return
+          }
+
           ws.data.authenticated = true
           ws.data.clerkId = clerkId
-          if (!wsConnections.has(rideId)) wsConnections.set(rideId, new Set())
-          wsConnections.get(rideId)!.add({ ws, clerkId })
+          addConnection(rideId, ws, clerkId)
           ws.send(JSON.stringify({ type: 'auth_success', clerkId }))
           return
         }
@@ -133,13 +171,7 @@ const server = Bun.serve({
     },
     close(ws: ServerWebSocket<WsData>) {
       const { rideId, clerkId } = ws.data
-      const connections = wsConnections.get(rideId)
-      if (connections) {
-        for (const conn of connections) {
-          if (conn.ws === ws) { connections.delete(conn); break }
-        }
-        if (connections.size === 0) wsConnections.delete(rideId)
-      }
+      removeConnection(ws)
       console.log(`WebSocket closed: rideId=${rideId}, clerkId=${clerkId}`)
     },
   },

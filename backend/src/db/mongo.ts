@@ -7,7 +7,12 @@ export async function connectDB() {
     throw new Error('DATABASE_URL no está configurada en .env')
   }
 
-  await mongoose.connect(databaseUrl)
+  // Asegurar authSource=admin para autenticar contra la base de datos admin
+  const url = databaseUrl.includes('authSource')
+    ? databaseUrl
+    : databaseUrl + (databaseUrl.includes('?') ? '&' : '?') + 'authSource=admin'
+
+  await mongoose.connect(url)
 
   // Event listeners
   mongoose.connection.on('connected', () => {
