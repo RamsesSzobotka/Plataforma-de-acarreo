@@ -219,7 +219,7 @@ function MapView({
             onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
             onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
               my_location
             </span>
           </button>
@@ -245,7 +245,7 @@ function MapView({
             onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
             onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
               center_focus_strong
             </span>
           </button>
@@ -351,7 +351,7 @@ function RouteMapModal({
         onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.5)' }}
         aria-label="Cerrar mapa"
       >
-        <span className="material-symbols-rounded" style={{ fontSize: '24px' }}>close</span>
+        <span className="material-symbols-rounded" style={{ fontSize: '24px', fontFamily: "'Material Symbols Rounded'" }}>close</span>
       </button>
 
       {/* Map wrapper */}
@@ -407,7 +407,7 @@ function RouteMapModal({
             pointerEvents: 'none',
           }}
         >
-          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#0D9488' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '16px', color: '#0D9488', fontFamily: "'Material Symbols Rounded'" }}>
             route
           </span>
           {route.distanceKm.toFixed(1)} km · {Math.round(route.durationMin)} min
@@ -492,7 +492,7 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
           fontSize: '14px',
         }}
       >
-        <span className="material-symbols-rounded" style={{ fontSize: '2rem', opacity: 0.5 }}>
+        <span className="material-symbols-rounded" style={{ fontSize: '2rem', opacity: 0.5, fontFamily: "'Material Symbols Rounded'" }}>
           map
         </span>
         <span>Ubicaciones no disponibles</span>
@@ -577,7 +577,7 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontWeight: 600,
               fontSize: '14px',
-              color: 'var(--text-primary, #0F172A)',
+              color: '#0F172A',
               zIndex: 1000,
               display: 'flex',
               alignItems: 'center',
@@ -585,7 +585,7 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
               pointerEvents: 'none',
             }}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '16px', color: 'var(--primary, #0D9488)' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '16px', color: 'var(--primary, #0D9488)', fontFamily: "'Material Symbols Rounded'" }}>
               route
             </span>
             {route.distanceKm.toFixed(1)} km · {Math.round(route.durationMin)} min
@@ -621,7 +621,7 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
           ;(e.currentTarget as HTMLAnchorElement).style.background = 'transparent'
         }}
       >
-        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+        <span className="material-symbols-rounded" style={{ fontSize: '18px', fontFamily: "'Material Symbols Rounded'" }}>
           map
         </span>
         Abrir en Google Maps
