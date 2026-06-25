@@ -3,6 +3,7 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { authMiddleware, requireRole } from '../middleware'
 import type { AuthUser } from '../middleware'
+import { logAudit } from '../services/audit'
 import { getStripeClient } from '../services/stripeMarketplace'
 
 const stripe = getStripeClient()
@@ -80,6 +81,18 @@ users.post('/payment-method', authMiddleware, async (c) => {
     return c.json({ error: 'Usuario no encontrado' }, 404)
   }
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  logAudit({
+    action: 'user.payment_method_add',
+    entityType: 'user',
+    entityId: currentUser?.clerkId || 'unknown',
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  }).catch(() => {})
+  
   return c.json({
     success: true,
     stripePaymentMethodId: user.stripePaymentMethodId
@@ -108,6 +121,18 @@ users.delete('/payment-method', authMiddleware, async (c) => {
     { stripePaymentMethodId: null, paymentMethodId: null, updatedAt: new Date() },
     { new: true }
   )
+  
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  logAudit({
+    action: 'user.payment_method_remove',
+    entityType: 'user',
+    entityId: currentUser?.clerkId || 'unknown',
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  }).catch(() => {})
   
   return c.json({ success: true })
 })
@@ -263,6 +288,19 @@ users.post('/register-driver', authMiddleware, async (c) => {
     { upsert: true, new: true }
   )
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  logAudit({
+    action: 'user.register_driver',
+    entityType: 'driver',
+    entityId: currentUser?.clerkId || 'unknown',
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { vehicleType: body.vehicleType, plate: body.plate },
+    ip,
+    userAgent,
+  }).catch(() => {})
+  
   return c.json({
     success: true,
     message: 'Registro enviado para verificación',
@@ -368,6 +406,19 @@ users.patch('/driver/profile', authMiddleware, async (c) => {
     { new: true }
   )
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  logAudit({
+    action: 'user.driver_profile_update',
+    entityType: 'driver',
+    entityId: currentUser?.clerkId || 'unknown',
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { fields: Object.keys(body) },
+    ip,
+    userAgent,
+  }).catch(() => {})
+  
   return c.json({
     success: true,
     driver: updated
@@ -414,6 +465,19 @@ users.patch('/driver/resubmit', authMiddleware, async (c) => {
     updateData,
     { new: true }
   )
+  
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  logAudit({
+    action: 'user.driver_resubmit',
+    entityType: 'driver',
+    entityId: currentUser?.clerkId || 'unknown',
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { from: 'rejected', to: 'pending' },
+    ip,
+    userAgent,
+  }).catch(() => {})
   
   return c.json({
     success: true,

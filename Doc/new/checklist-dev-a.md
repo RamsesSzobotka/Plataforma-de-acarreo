@@ -21,11 +21,15 @@
 - [ ] Workflow CD (build + push imágenes, deploy)
 - [ ] Secrets, setup-bun action
 
-### ⬜ H-70 Migraciones de base de datos versionadas ❌ NO INICIADO
+### ✅ H-70 Migraciones de base de datos versionadas 🟢 COMPLETO
 
-- [ ] Sistema migrate-mongo
-- [ ] Scripts up/down/create
-- [ ] Auto-ejecución al iniciar servidor
+- [x] Migration runner custom (`backend/src/db/migrate.ts`)
+- [x] Scripts: `bun run migrate up|down|create "<nombre>"`
+- [x] Auto-ejecución al iniciar servidor (después de connectDB)
+- [x] Migración ejemplo: `20260625-add-refunded-status.ts`
+- [x] Seguimiento en colección `_migrations` de MongoDB
+- [x] Idempotente (solo aplica pendientes)
+- [x] Fallo detiene el servidor (exit 1)
 
 ---
 
@@ -98,12 +102,14 @@
 
 ## Fase 5 — Auditoría y Operaciones (Sprints 9-10)
 
-### ⬜ H-42 Registro de auditoría ❌ NO INICIADO
+### ✅ H-42 Registro de auditoría 🟢 COMPLETO
 
-- [ ] Modelo `AuditLog` en MongoDB
-- [ ] Helper `logAudit()` para eventos sensibles
-- [ ] Integración en cambios de estado, acciones admin, pagos
-- [ ] Índices por userId, entityId, action, timestamp
+- [x] Modelo `AuditLog` en MongoDB (`backend/src/models/auditLog.ts`)
+- [x] Helper `logAudit()` — nunca lanza errores (`backend/src/services/audit.ts`)
+- [x] Integración en rides (8 pts), admin (13 pts), users (5 pts), payments (6 pts), webhooks (1 pt)
+- [x] **33 puntos de auditoría** en total
+- [x] Migración con índices: userId+action, entityType+entityId, action, timestamp
+- [x] Inmutable: sin métodos update/delete en el modelo
 
 ### ⬜ H-67 Backups automáticos de MongoDB ❌ NO INICIADO
 
@@ -157,7 +163,7 @@
 |---|----------|--------|-----------|
 | **H-35** | Dockerización | 🟢 COMPLETO | — |
 | **H-36** | CI/CD | ⬜ NO INICIADO | ⭐ |
-| **H-70** | Migraciones DB | ⬜ NO INICIADO | ⭐⭐ |
+| **H-70** | Migraciones DB | 🟢 COMPLETO | — |
 | **H-45** | Ubicación driver | ⬜ NO INICIADO | ⭐⭐ |
 | **H-44** | Tracking cliente | ⬜ NO INICIADO | ⭐⭐ |
 | **H-46** | Mapa ride | 🟢 COMPLETO | — |
@@ -165,11 +171,11 @@
 | **H-49** | Conciliación | ⬜ NO INICIADO | |
 | **H-51** | Email | ⬜ NO INICIADO | |
 | **H-53** | Nuevos pedidos | ⬜ NO INICIADO | |
-| **H-42** | Auditoría | ⬜ NO INICIADO | |
+| **H-42** | Auditoría | 🟢 COMPLETO | — |
 | **H-67** | Backups | ⬜ NO INICIADO | |
 | **H-68** | Monitoreo | ⬜ NO INICIADO | |
 | **H-71** | Export CSV | ⬜ NO INICIADO | |
 | **H-40** | Rate limiting | 🟡 PARCIAL | |
 | **H-37** | Tests backend | 🟡 PARCIAL | |
 
-**Total: 16 historias | 2 🟢 COMPLETO | 3 🟡 PARCIAL | 11 ⬜ NO INICIADO**
+**Total: 16 historias | 4 🟢 COMPLETO | 3 🟡 PARCIAL | 9 ⬜ NO INICIADO**
