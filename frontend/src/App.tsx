@@ -15,7 +15,10 @@ import AddPaymentMethodPage from './pages/AddPaymentMethod'
 import PaymentHistory from './pages/PaymentHistory'
 import SettingsMcp from './pages/SettingsMcp'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+import ErrorBoundary from './components/ErrorBoundary'
+import PageTransition from './components/PageTransition'
 import { hideLoading, showLoading } from './services/alerts'
+import ToastContainer from './components/Toast'
 
 function SessionLoading({ message }: { message: string }) {
   useEffect(() => {
@@ -60,7 +63,9 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <PageTransition>
+        <Routes>
       {/* Ruta publica de autenticacion - SIN Layout */}
       <Route
         path="/sign-in"
@@ -141,6 +146,9 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+      </PageTransition>
+      <ToastContainer />
+    </ErrorBoundary>
   )
 }
 

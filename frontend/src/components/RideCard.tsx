@@ -49,6 +49,7 @@ export function RideCard({ ride, onChatClick, showDriverInfo = false }: RideCard
             <img
               src={firstImage}
               alt={ride.title}
+              className="ride-card-image"
               style={{
                 width: '100%',
                 height: '100%',

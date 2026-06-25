@@ -142,7 +142,7 @@ export default function MultiFileUpload({
     <div>
       <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
         {label} {required && <span style={{ color: '#EF4444' }}>*</span>}
-        <span style={{ display: 'block', fontSize: '0.875rem', color: '#64748B', fontWeight: 400, marginTop: '0.25rem' }}>
+        <span style={{ display: 'block', fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 400, marginTop: '0.25rem' }}>
           Máximo {maxFiles} imágenes ({value.length}/{maxFiles})
         </span>
       </label>
@@ -165,8 +165,8 @@ export default function MultiFileUpload({
                   borderRadius: '12px',
                   overflow: 'hidden',
                   aspectRatio: '1/1',
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
+                  background: 'var(--surface-1)',
+                  border: '1px solid var(--border)',
                 }}
               >
                 <img
@@ -217,12 +217,12 @@ export default function MultiFileUpload({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           style={{
-            border: `2px dashed ${isDragging ? '#0D9488' : '#E2E8F0'}`,
+            border: `2px dashed ${isDragging ? 'var(--primary)' : 'var(--border)'}`,
             borderRadius: '12px',
             padding: '2rem',
             textAlign: 'center',
             cursor: 'pointer',
-            background: isDragging ? 'rgba(13, 148, 136, 0.1)' : '#F8FAFC',
+            background: isDragging ? 'var(--primary-subtle)' : 'var(--surface-1)',
             transition: 'all 0.2s',
           }}
         >
@@ -236,13 +236,13 @@ export default function MultiFileUpload({
             style={{ display: 'none' }}
           />
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: '#64748B' }}>
+            <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>
               {uploading ? 'hourglass_empty' : 'image'}
             </span>
-            <p style={{ margin: 0, color: '#334155', fontWeight: 500 }}>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontWeight: 500 }}>
               {uploading ? 'Subiendo imágenes...' : 'Arrastra imágenes aquí o haz clic'}
             </p>
-            <p style={{ margin: 0, color: '#64748B', fontSize: '0.875rem' }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               PNG, JPG hasta 10MB cada una
             </p>
           </div>

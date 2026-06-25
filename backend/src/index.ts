@@ -4,6 +4,7 @@ import { poweredBy } from 'hono/powered-by'
 import { Hono } from 'hono'
 import { verifyToken } from '@clerk/clerk-sdk-node'
 import { connectDB } from './db/mongo'
+import { runMigrations } from './db/migrate'
 import { Ride } from './models/ride'
 import {
   broadcastToRide,
@@ -192,6 +193,15 @@ async function initServer() {
   try {
     await connectDB()
     console.log('✅ MongoDB conectado')
+
+    // Run pending database migrations
+    const count = await runMigrations()
+    if (count > 0) {
+      console.log(`✅ ${count} migraciones aplicadas`)
+    } else {
+      console.log('📦 Base de datos actualizada — sin migraciones pendientes')
+    }
+
     const { User } = await import('./models/user')
     await User.createAdmin('admin@gmail.com', 'Hola123!')
     console.log('✅ Admin creado')

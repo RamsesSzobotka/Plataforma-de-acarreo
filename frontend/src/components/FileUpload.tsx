@@ -150,12 +150,12 @@ export default function FileUpload({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           style={{
-            border: `2px dashed ${isDragging ? '#0D9488' : '#E2E8F0'}`,
+            border: `2px dashed ${isDragging ? 'var(--primary)' : 'var(--border)'}`,
             borderRadius: '12px',
             padding: '2rem',
             textAlign: 'center',
             cursor: 'pointer',
-            background: isDragging ? 'rgba(13, 148, 136, 0.1)' : '#F8FAFC',
+            background: isDragging ? 'var(--primary-subtle)' : 'var(--surface-1)',
             transition: 'all 0.2s',
           }}
         >
@@ -168,21 +168,21 @@ export default function FileUpload({
           />
           
           {uploading ? (
-            <div style={{ color: '#64748B' }}>
+            <div style={{ color: 'var(--text-muted)' }}>
               <span className="material-symbols-rounded" style={{ fontSize: '32px', animation: 'spin 1s linear infinite' }}>
                 sync
               </span>
               <p>Subiendo...</p>
             </div>
           ) : (
-            <div style={{ color: '#64748B' }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '32px', color: '#94A3B8' }}>
+            <div style={{ color: 'var(--text-muted)' }}>
+              <span className="material-symbols-rounded" style={{ fontSize: '32px', color: 'var(--text-secondary)' }}>
                 cloud_upload
               </span>
               <p style={{ marginTop: '0.5rem' }}>
                 Arrastra una imagen o haz clic para seleccionar
               </p>
-              <p style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 PNG, JPG o WebP (máx 10MB)
               </p>
             </div>

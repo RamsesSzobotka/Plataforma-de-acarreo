@@ -7,6 +7,7 @@ import type { AuthUser } from '../middleware'
 import { createMarketplaceCharge, MarketplaceStripeError } from '../services/stripeMarketplace'
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
+import { logAudit } from '../services/audit'
 
 const rides = new Hono()
 
@@ -173,6 +174,19 @@ rides.post('/', authMiddleware, async (c) => {
 
     await ride.save()
 
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    await logAudit({
+      action: 'ride.created',
+      entityType: 'ride',
+      entityId: ride._id.toString(),
+      userId: currentUser?.clerkId || null,
+      userRole: currentUser?.role,
+      details: { title: ride.title },
+      ip,
+      userAgent,
+    })
+
     return c.json(ride, 201)
   } catch (error: any) {
     console.error('Error creating ride:', error)
@@ -247,6 +261,7 @@ rides.patch('/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   // TODO: Verificar ownership del ride
+  const currentUser = (c as any).get('user') as AuthUser
   
   const ride = await Ride.findByIdAndUpdate(id, body, { new: true })
   
@@ -254,6 +269,18 @@ rides.patch('/:id', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.updated',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  })
+
   return c.json(ride)
 })
 
@@ -261,6 +288,7 @@ rides.patch('/:id', authMiddleware, async (c) => {
 rides.patch('/:id/status', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { status, reason } = await c.req.json()
+  const currentUser = (c as any).get('user') as AuthUser
   
   // Obtener el ride
   const ride = await Ride.findById(id)
@@ -305,6 +333,19 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
       ride: updatedRide,
       timestamp: new Date().toISOString(),
     },
+  })
+
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.status_change',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { from: oldStatus, to: updatedRide.status },
+    ip,
+    userAgent,
   })
 
   return c.json(updatedRide)
@@ -370,6 +411,19 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { isActive: false }
   )
 
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.accepted',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { driverId: currentUser?.clerkId },
+    ip,
+    userAgent,
+  })
+
   // Emitir via WebSocket
   broadcastToRide(id, {
     type: 'ride_status_changed',
@@ -426,6 +480,18 @@ rides.post('/:id/start', authMiddleware, async (c) => {
     },
   })
 
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.started',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     message: 'Viaje iniciado',
@@ -468,6 +534,18 @@ rides.post('/:id/delivery-photo', authMiddleware, async (c) => {
     deliveryPhoto: { url, publicId }
   }, { new: true })
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.delivery_photo',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     message: 'Foto de entrega guardada',
@@ -540,6 +618,19 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
     },
   })
 
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.delivery_confirmed',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { status: 'completed' },
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     message: update.status === 'paid' ? 'Entrega confirmada y pago procesado' : 'Entrega confirmada',
@@ -593,7 +684,20 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     },
   })
 
-  return c.json(updatedRide)
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.cancelled',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { reason: reason || 'No especificado' },
+    ip,
+    userAgent,
+  })
+
+  return c.json(updatedRide)  
 })
 
 // Calificar conductor (cliente) o cliente (conductor) - requiere autenticación

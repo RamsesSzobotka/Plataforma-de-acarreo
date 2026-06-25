@@ -1,5 +1,6 @@
 import { Hono } from 'hono/tiny'
 import { getStripeClient, handleStripeWebhookEvent, MarketplaceStripeError } from '../services/stripeMarketplace'
+import { logAudit } from '../services/audit'
 
 const stripe = getStripeClient()
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
@@ -21,6 +22,19 @@ webhooks.post('/stripe', async (c) => {
 
     const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret)
     const result = await handleStripeWebhookEvent(event)
+
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+
+    await logAudit({
+      action: 'payment.webhook',
+      entityType: 'payment',
+      entityId: event.id || 'unknown',
+      userId: null,
+      details: { eventType: event.type, stripeEventId: event.id },
+      ip,
+      userAgent,
+    })
 
     return c.json({ received: true, duplicate: result.duplicate })
   } catch (error: any) {
