@@ -9,6 +9,7 @@ import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
+import RouteMapWrapper from '../components/RouteMapWrapper'
 
 interface Ride {
   _id: string
@@ -624,6 +625,28 @@ function RideDetails() {
                 </div>
               </div>
             </div>
+
+            {/* Route Map */}
+            {ride.pickupLocation?.coordinates && ride.dropoffLocation?.coordinates && (
+              <div style={{ marginTop: '1rem' }}>
+                <RouteMapWrapper
+                  pickup={{
+                    address: ride.pickupLocation.address,
+                    coordinates: {
+                      lat: ride.pickupLocation.coordinates[1],
+                      lng: ride.pickupLocation.coordinates[0],
+                    },
+                  }}
+                  dropoff={{
+                    address: ride.dropoffLocation.address,
+                    coordinates: {
+                      lat: ride.dropoffLocation.coordinates[1],
+                      lng: ride.dropoffLocation.coordinates[0],
+                    },
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Delivery Photo */}

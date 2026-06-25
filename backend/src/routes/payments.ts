@@ -11,6 +11,7 @@ import {
   MarketplaceStripeError,
   refreshDriverPayoutStatus,
 } from '../services/stripeMarketplace'
+import { logAudit } from '../services/audit'
 
 const stripe = getStripeClient()
 
@@ -54,6 +55,20 @@ payments.post('/setup-intent', authMiddleware, async (c) => {
       idempotencyKey: `setup-intent:${currentUser.clerkId}:${Date.now()}`,
     })
 
+    // Audit
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    logAudit({
+      action: 'payment.setup_intent',
+      entityType: 'user',
+      entityId: currentUser.clerkId || 'unknown',
+      userId: currentUser.clerkId || null,
+      userRole: currentUser.role || undefined,
+      details: { setupIntentId: setupIntent.id },
+      ip,
+      userAgent,
+    })
+
     return c.json({
       clientSecret: setupIntent.client_secret,
       setupIntentId: setupIntent.id,
@@ -67,6 +82,7 @@ payments.post('/setup-intent', authMiddleware, async (c) => {
 
 payments.post('/charge', authMiddleware, async (c) => {
   try {
+    const currentUser = c.get('user') as AuthUser
     const body = await c.req.json()
     const rideId = String(body.rideId || body.id || '')
 
@@ -75,6 +91,20 @@ payments.post('/charge', authMiddleware, async (c) => {
     }
 
     const result = await createMarketplaceCharge(rideId)
+
+    // Audit
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    logAudit({
+      action: 'payment.charge',
+      entityType: 'ride',
+      entityId: body.rideId || 'unknown',
+      userId: currentUser?.clerkId || null,
+      userRole: currentUser?.role || undefined,
+      details: { status: result.paymentIntent.status },
+      ip,
+      userAgent,
+    })
 
     return c.json({
       success: true,
@@ -98,8 +128,22 @@ payments.post('/charge', authMiddleware, async (c) => {
 
 payments.post('/create-intent', authMiddleware, async (c) => {
   try {
+    const currentUser = c.get('user') as AuthUser
     const body = await c.req.json()
     const result = await createMarketplaceCharge(String(body.rideId))
+
+    // Audit
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    logAudit({
+      action: 'payment.create_intent',
+      entityType: 'ride',
+      entityId: body.rideId || 'unknown',
+      userId: currentUser?.clerkId || null,
+      userRole: currentUser?.role || undefined,
+      ip,
+      userAgent,
+    })
 
     return c.json({
       clientSecret: result.paymentIntent.client_secret,
@@ -167,6 +211,19 @@ payments.post('/attach-payment-method', authMiddleware, async (c) => {
 
     console.log(`✅ PaymentMethod ${paymentMethodId} adjuntado al Customer ${customerId}`)
 
+    // Audit
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    logAudit({
+      action: 'payment.attach_method',
+      entityType: 'user',
+      entityId: currentUser.clerkId || 'unknown',
+      userId: currentUser.clerkId || null,
+      userRole: currentUser.role || undefined,
+      ip,
+      userAgent,
+    })
+
     return c.json({
       success: true,
       paymentMethodId: attachedPaymentMethod.id,
@@ -191,6 +248,7 @@ payments.post('/attach-payment-method', authMiddleware, async (c) => {
 
 payments.post('/confirm', authMiddleware, async (c) => {
   try {
+    const currentUser = c.get('user') as AuthUser
     const { rideId, paymentIntentId } = await c.req.json()
 
     if (!rideId || !paymentIntentId) {
@@ -202,6 +260,19 @@ payments.post('/confirm', authMiddleware, async (c) => {
     if (paymentIntent.status !== 'succeeded') {
       return c.json({ error: 'Pago no completado' }, 400)
     }
+
+    // Audit
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    logAudit({
+      action: 'payment.confirm',
+      entityType: 'ride',
+      entityId: rideId || 'unknown',
+      userId: currentUser?.clerkId || null,
+      userRole: currentUser?.role || undefined,
+      ip,
+      userAgent,
+    })
 
     return c.json({
       success: true,
@@ -227,6 +298,20 @@ payments.post('/connect/create-account', authMiddleware, async (c) => {
       clerkId: currentUser.clerkId,
       email: currentUser.email,
       origin,
+    })
+
+    // Audit
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    logAudit({
+      action: 'payment.connect_account',
+      entityType: 'driver',
+      entityId: currentUser.clerkId || 'unknown',
+      userId: currentUser.clerkId || null,
+      userRole: currentUser.role || undefined,
+      details: { stripeAccountId: account.stripeAccountId },
+      ip,
+      userAgent,
     })
 
     return c.json({
