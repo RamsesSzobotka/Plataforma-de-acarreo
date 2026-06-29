@@ -232,14 +232,36 @@ export async function handleStripeWebhookEvent(event: Stripe.Event) {
       const paymentIntent = event.data.object as Stripe.PaymentIntent
       const rideId = paymentIntent.metadata?.rideId
       if (rideId) {
-        await Ride.findByIdAndUpdate(rideId, {
+        const ride = await Ride.findByIdAndUpdate(rideId, {
           status: 'paid',
           paymentIntentId: paymentIntent.id,
           platformFee: paymentIntent.metadata?.platformFee ? Number(paymentIntent.metadata.platformFee) : undefined,
           driverAmount: paymentIntent.metadata?.driverAmount ? Number(paymentIntent.metadata.driverAmount) : undefined,
           paidAt: new Date(),
           updatedAt: new Date(),
-        })
+        }, { new: true })
+
+        // Notify driver via email that payment was received
+        if (ride?.driverId) {
+          const { sendEmail, getUserEmail, paymentReceivedEmail } = await import('./notifications/email')
+          const driverEmail = await getUserEmail(ride.driverId)
+          if (driverEmail) {
+            const amount = ride.finalPrice || Number(paymentIntent.amount) / 100
+            const emailContent = paymentReceivedEmail(driverEmail, amount, {
+              rideId: ride._id.toString(),
+              title: ride.title,
+              pickupAddress: ride.pickupLocation.address,
+              dropoffAddress: ride.dropoffLocation.address,
+              finalPrice: amount,
+            })
+            console.log(`[Email] Sending payment notification to driver: ${driverEmail} for ride: ${ride._id}`)
+            sendEmail(emailContent)
+              .then(() => console.log(`[Email] Payment notification sent to: ${driverEmail}`))
+              .catch(err => console.error(`[Email] Failed to send payment notification: ${err}`))
+          } else {
+            console.warn(`[Email] Cannot send payment notification - no email found for driver: ${ride.driverId}`)
+          }
+        }
       }
       break
     }

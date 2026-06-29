@@ -540,7 +540,22 @@ rides.post('/:id/delivery-photo', authMiddleware, async (c) => {
   const updatedRide = await Ride.findByIdAndUpdate(id, {
     deliveryPhoto: { url, publicId }
   }, { new: true })
-  
+
+  // Notify client via email that delivery photo was uploaded
+  if (updatedRide) {
+    const { sendEmail, getUserEmail, deliveryPhotoUploadedEmail } = await import('../services/notifications/email')
+    const clientEmail = await getUserEmail(updatedRide.clientId)
+    if (clientEmail) {
+      const emailContent = deliveryPhotoUploadedEmail(clientEmail, {
+        rideId: updatedRide._id.toString(),
+        title: updatedRide.title,
+        pickupAddress: updatedRide.pickupLocation.address,
+        dropoffAddress: updatedRide.dropoffLocation.address,
+      })
+      sendEmail(emailContent) // Fire-and-forget
+    }
+  }
+
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
   const userAgent = c.req.header('user-agent') || ''
   await logAudit({
