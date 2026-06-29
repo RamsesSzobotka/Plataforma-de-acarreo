@@ -15,6 +15,12 @@ interface RouteMapProps {
     address: string
     coordinates: Coordinates
   }
+  /** Ubicación en vivo del conductor */
+  driverLocation?: {
+    latitude: number
+    longitude: number
+    heading?: number
+  } | null
 }
 
 interface MapViewProps {
@@ -31,6 +37,10 @@ interface MapViewProps {
   showResetBtn?: boolean
   onLocationResult?: (coords: [number, number] | null) => void
   onResetView?: () => void
+  /** Ubicación en vivo del conductor */
+  driverLocation?: { latitude: number; longitude: number; heading?: number } | null
+  /** Icono de camión para el marcador del conductor */
+  truckIcon: L.DivIcon
 }
 
 function createMarkerIcon(color: string, label: string): L.DivIcon {
@@ -49,6 +59,30 @@ function createMarkerIcon(color: string, label: string): L.DivIcon {
     ">${label}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
+  })
+}
+
+/** Icono de camión para el marcador del conductor en vivo */
+function createTruckIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'driver-truck-marker',
+    html: `<div style="
+      width: 40px;
+      height: 40px;
+      background: #0D9488;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      border: 3px solid white;
+      color: white;
+      font-size: 20px;
+      font-family: 'Material Symbols Rounded';
+      transform: translate(-50%, -50%);
+    ">local_shipping</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   })
 }
 
@@ -103,6 +137,8 @@ function MapView({
   showResetBtn = false,
   onLocationResult,
   onResetView,
+  driverLocation,
+  truckIcon,
 }: MapViewProps) {
   const [localLocationError, setLocalLocationError] = useState<string | null>(null)
   const midPoint = useMemo(() => ({
@@ -184,6 +220,14 @@ function MapView({
             fillOpacity: 0.6,
             weight: 2,
           }}
+        />
+      )}
+
+      {/* Marcador del conductor en vivo (tracking) */}
+      {driverLocation && (
+        <Marker
+          position={[driverLocation.latitude, driverLocation.longitude]}
+          icon={truckIcon}
         />
       )}
 
@@ -297,6 +341,8 @@ function RouteMapModal({
   onLocationResult,
   onResetView,
   onClose,
+  driverLocation,
+  truckIcon,
 }: Omit<MapViewProps, 'height'> & { onClose: () => void }) {
   // Prevent body scroll and handle Escape key
   useEffect(() => {
@@ -381,6 +427,8 @@ function RouteMapModal({
           showResetBtn={showResetBtn}
           onLocationResult={onLocationResult}
           onResetView={onResetView}
+          driverLocation={driverLocation}
+          truckIcon={truckIcon}
         />
       </div>
 
@@ -426,7 +474,7 @@ function RouteMapModal({
   )
 }
 
-export function RouteMap({ pickup, dropoff }: RouteMapProps) {
+export function RouteMap({ pickup, dropoff, driverLocation }: RouteMapProps) {
   const [route, setRoute] = useState<RouteResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -443,10 +491,14 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
 
   const pickupIcon = useMemo(() => createMarkerIcon('#22C55E', 'Recogida'), [])
   const dropoffIcon = useMemo(() => createMarkerIcon('#EF4444', 'Destino'), [])
+  const truckIcon = useMemo(() => createTruckIcon(), [])
 
   useEffect(() => {
+    // Solo ejecutar si las coordenadas son válidas (no necesita ser dependencia porque
+    // pickup.coordinates y dropoff.coordinates YA son las dependencias reales)
     if (!hasValidCoordinates) {
       setLoading(false)
+      setRoute(null)
       return
     }
 
@@ -463,7 +515,8 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
     return () => {
       cancelled = true
     }
-  }, [pickup.coordinates, dropoff.coordinates, hasValidCoordinates])
+    // Las dependencias correctas son las coordenadas, NO hasValidCoordinates que se recalcula en cada render
+  }, [pickup.coordinates, dropoff.coordinates])
 
   const handleLocationResult = useCallback((coords: [number, number] | null) => {
     setUserLocation(coords)
@@ -535,6 +588,8 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
           showResetBtn={false}
           onLocationResult={handleLocationResult}
           onResetView={handleResetView}
+          driverLocation={driverLocation}
+          truckIcon={truckIcon}
         />
 
         {/* Loading overlay */}
@@ -643,6 +698,8 @@ export function RouteMap({ pickup, dropoff }: RouteMapProps) {
           onLocationResult={handleLocationResult}
           onResetView={handleResetView}
           onClose={() => setModalOpen(false)}
+          driverLocation={driverLocation}
+          truckIcon={truckIcon}
         />
       )}
     </div>

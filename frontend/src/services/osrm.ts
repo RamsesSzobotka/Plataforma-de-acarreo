@@ -94,6 +94,9 @@ export function haversineFallback(
   }
 }
 
+// Deduplicación: track requests en curso para evitar llamadas concurrentes a OSRM
+const pendingRequests = new Map<string, Promise<RouteResult>>()
+
 export async function getRoute(
   pickup: Coordinates,
   dropoff: Coordinates,
@@ -119,50 +122,67 @@ export async function getRoute(
     // sessionStorage unavailable — skip cache
   }
 
-  try {
-    const url =
-      `https://router.project-osrm.org/route/v1/driving/` +
-      `${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}` +
-      `?geometries=geojson&overview=full`
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000)
-
-    const response = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeout)
-
-    if (!response.ok) {
-      throw new Error(`OSRM responded with ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (!data.routes || data.routes.length === 0) {
-      throw new Error('OSRM returned no routes')
-    }
-
-    const route = data.routes[0]
-    const coordinates: [number, number][] = route.geometry.coordinates.map(
-      ([lng, lat]: number[]): [number, number] => [lat, lng],
-    )
-
-    const result: RouteResult = {
-      coordinates,
-      distanceKm: route.distance / 1000,
-      durationMin: route.duration / 60,
-      isFallback: false,
-    }
-
-    // Cache the result
-    try {
-      sessionStorage.setItem(cacheKey, JSON.stringify(result))
-    } catch {
-      // sessionStorage full or unavailable — skip cache write
-    }
-
-    return result
-  } catch {
-    // Network error, timeout, or invalid response — use fallback
-    return haversineFallback(pickup, dropoff)
+  // Deduplicación: si ya hay un request en curso para esta ruta, esperar ese
+  const pending = pendingRequests.get(cacheKey)
+  if (pending) {
+    return pending
   }
+
+  const requestPromise = (async () => {
+    try {
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/` +
+        `${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}` +
+        `?geometries=geojson&overview=full`
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+
+      const response = await fetch(url, { signal: controller.signal })
+      clearTimeout(timeout)
+
+      if (!response.ok) {
+        console.warn(`OSRM responded with ${response.status}, using fallback`)
+        return haversineFallback(pickup, dropoff)
+      }
+
+      const data = await response.json()
+
+      if (!data.routes || data.routes.length === 0) {
+        console.warn('OSRM returned no routes, using fallback')
+        return haversineFallback(pickup, dropoff)
+      }
+
+      const route = data.routes[0]
+      const coordinates: [number, number][] = route.geometry.coordinates.map(
+        ([lng, lat]: number[]): [number, number] => [lat, lng],
+      )
+
+      const result: RouteResult = {
+        coordinates,
+        distanceKm: route.distance / 1000,
+        durationMin: route.duration / 60,
+        isFallback: false,
+      }
+
+      // Cache the result
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(result))
+      } catch {
+        // sessionStorage full or unavailable — skip cache write
+      }
+
+      return result
+    } catch (err) {
+      // Cualquier error de red, timeout, parseo → fallback Haversine
+      console.warn('OSRM request failed, using fallback:', err)
+      return haversineFallback(pickup, dropoff)
+    } finally {
+      // Siempre remover de pending, haya error o no
+      pendingRequests.delete(cacheKey)
+    }
+  })()
+
+  pendingRequests.set(cacheKey, requestPromise)
+  return requestPromise
 }

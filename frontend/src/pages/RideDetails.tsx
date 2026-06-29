@@ -9,6 +9,7 @@ import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
+import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
 
 interface Ride {
@@ -75,6 +76,13 @@ function RideDetails() {
   const [comment, setComment] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [userHasPaymentMethod, setUserHasPaymentMethod] = useState(false)
+
+  // ── Tracking en vivo del conductor ──
+  const { driverLocation, isTracking } = useRideTracking({
+    rideId: id ?? '',
+    rideStatus: ride?.status ?? '',
+    getToken: async () => (await getToken()) ?? '',
+  })
 
   // Verificar método de pago actual del usuario (no el del ride, que puede estar desactualizado)
   useEffect(() => {
@@ -644,7 +652,28 @@ function RideDetails() {
                       lng: ride.dropoffLocation.coordinates[0],
                     },
                   }}
+                  driverLocation={driverLocation}
                 />
+                {/* Tracking active badge */}
+                {isTracking && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginTop: '8px',
+                    padding: '6px 12px',
+                    background: 'var(--success-subtle)',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--success)',
+                    fontWeight: 'var(--font-medium)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
+                      my_location
+                    </span>
+                    Conductor en vivo — ubicacion actualizada en tiempo real
+                  </div>
+                )}
               </div>
             )}
           </div>

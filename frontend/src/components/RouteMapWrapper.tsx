@@ -11,6 +11,12 @@ interface RouteMapWrapperProps {
     address: string
     coordinates: { lat: number; lng: number }
   }
+  /** Ubicación en vivo del conductor (tracking) */
+  driverLocation?: {
+    latitude: number
+    longitude: number
+    heading?: number
+  } | null
 }
 
 function Placeholder({ children }: { children: ReactNode }) {
