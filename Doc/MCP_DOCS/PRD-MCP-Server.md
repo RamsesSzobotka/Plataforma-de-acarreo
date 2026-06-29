@@ -1,3 +1,8 @@
+# PRD-MCP-Server.md — OBSOLETO
+Ver: MCP-STADO.md para el estado actual.
+
+---
+
 # PRD: MCP Server — Plataforma de Acarreos (Integrado)
 
 > **Estado**: En desarrollo — 15 tools (5 implementadas, 10 pendientes)

@@ -38,6 +38,16 @@ export async function handleRateService(
 
     const role = isClient ? 'driver' : 'client';
 
+    // --- Check for duplicate rating ---
+    const existingRating = await db.collection('ratings').findOne({
+      rideId: input.rideId,
+      raterId: userId,
+      role,
+    });
+    if (existingRating) {
+      throw new McpError('CONFLICT', 'Ya has calificado este acarreo. No puedes calificar dos veces.', 409);
+    }
+
     const ratingRecord = {
       rideId: input.rideId,
       raterId: userId,

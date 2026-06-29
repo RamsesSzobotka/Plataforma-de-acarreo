@@ -4,8 +4,19 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { ProcessedEvent } from '../models/processedEvent'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+let _stripe: Stripe | null = null
 const PLATFORM_COMMISSION = 0.10
+
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY
+    if (!key) {
+      throw new Error('STRIPE_SECRET_KEY is not configured')
+    }
+    _stripe = new Stripe(key)
+  }
+  return _stripe
+}
 
 export class MarketplaceStripeError extends Error {
   statusCode: number
@@ -18,7 +29,7 @@ export class MarketplaceStripeError extends Error {
 }
 
 export function getStripeClient() {
-  return stripe
+  return getStripe()
 }
 
 export function calculateMarketplaceAmounts(amountInCents: number) {
@@ -33,7 +44,7 @@ async function ensureStripeCustomer(user: any) {
     return user.stripeCustomerId as string
   }
 
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email: user.email,
     name: [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
     metadata: { clerkId: user.clerkId },
@@ -53,7 +64,7 @@ async function ensureStripeCustomer(user: any) {
 async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: string) {
   try {
     // Intentar recuperar el PaymentMethod
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId)
+    const paymentMethod = await getStripe().paymentMethods.retrieve(paymentMethodId)
     
     // Si ya está adjunto a este customer, no hacer nada
     if (paymentMethod.customer === customerId) {
@@ -67,7 +78,7 @@ async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: 
     }
 
     console.log(`💳 Adjuntando PaymentMethod ${paymentMethodId} al Customer ${customerId}...`)
-    const attachedPaymentMethod = await stripe.paymentMethods.attach(
+    const attachedPaymentMethod = await getStripe().paymentMethods.attach(
       paymentMethodId,
       { customer: customerId }
     )
@@ -78,7 +89,7 @@ async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: 
     // Si ya está adjunto, ignorar el error
     if (error.message?.includes('already attached')) {
       console.log(`✅ PaymentMethod ${paymentMethodId} ya estaba adjuntado`)
-      return await stripe.paymentMethods.retrieve(paymentMethodId)
+      return await getStripe().paymentMethods.retrieve(paymentMethodId)
     }
     throw error
   }
@@ -131,7 +142,7 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
     // Continuar de todas formas, Stripe dará un error más específico
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
+  const paymentIntent = await getStripe().paymentIntents.create({
     amount: amountInCents,
     currency: 'usd',
     customer: customerId,
@@ -175,7 +186,7 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
   }
 
   if (!driver.stripeAccountId) {
-    const account = await stripe.accounts.create({
+    const account = await getStripe().accounts.create({
       type: 'express',
       country: 'PA',
       email: params.email,
@@ -193,7 +204,7 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
     await driver.save()
   }
 
-  const accountLink = await stripe.accountLinks.create({
+  const accountLink = await getStripe().accountLinks.create({
     account: driver.stripeAccountId,
     refresh_url: `${params.origin}/driver/payments?refresh=1`,
     return_url: `${params.origin}/driver/payments?connected=1`,
@@ -207,7 +218,7 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
 }
 
 export async function refreshDriverPayoutStatus(stripeAccountId: string) {
-  const account = await stripe.accounts.retrieve(stripeAccountId)
+  const account = await getStripe().accounts.retrieve(stripeAccountId)
   console.log({
     payouts_enabled: account.payouts_enabled,
     charges_enabled: account.charges_enabled,

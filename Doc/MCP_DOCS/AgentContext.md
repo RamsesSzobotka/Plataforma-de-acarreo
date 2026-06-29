@@ -1,3 +1,10 @@
+# AgentContext.md — OBSOLETO
+Este documento describe la arquitectura legacy con mcp-server standalone.
+La implementación actual usa MCP embebido en el backend.
+Ver: MCP-STADO.md
+
+---
+
 # AgentContext.md — Guía de Contexto para Agentes del MCP Server
 
 > **Proyecto**: Plataforma de Acarreos — MCP Server

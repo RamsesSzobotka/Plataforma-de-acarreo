@@ -4,6 +4,48 @@ import { createMcpServer, validateMcpToken } from '../mcp/server'
 
 const mcpApp = new Hono()
 
+// ── MCP-specific rate limiting ───────────────────────────────────────────
+// Stricter limits for MCP endpoints since they're machine-to-machine
+// General API rate limit: 120 req/min (applied at /api/* level)
+// MCP-specific: 300 req/min per IP (more permissive for tooling)
+
+interface McpRateLimitEntry {
+  count: number
+  resetAt: number
+}
+
+const mcpRateLimitStore = new Map<string, McpRateLimitEntry>()
+
+// Cleanup every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of mcpRateLimitStore) {
+    if (now > entry.resetAt) mcpRateLimitStore.delete(key)
+  }
+}, 5 * 60 * 1000)
+
+function checkMcpRateLimit(ip: string, maxRequests = 300, windowMs = 60000): { allowed: boolean; remaining: number; retryAfter?: number } {
+  const now = Date.now()
+  let entry = mcpRateLimitStore.get(ip)
+
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + windowMs }
+    mcpRateLimitStore.set(ip, entry)
+  }
+
+  entry.count++
+
+  if (entry.count > maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfter: Math.ceil((entry.resetAt - now) / 1000)
+    }
+  }
+
+  return { allowed: true, remaining: maxRequests - entry.count }
+}
+
 interface McpSession {
   transport: WebStandardStreamableHTTPServerTransport
   clerkId: string
@@ -40,6 +82,16 @@ function ensureAcceptHeader(req: Request): Request {
  * Útil para que el agente verifique el estado de la conexión MCP.
  */
 mcpApp.get('/status', async (c) => {
+  // Rate limit check
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
+  const rateLimit = checkMcpRateLimit(ip)
+  c.header('X-RateLimit-Limit', '300')
+  c.header('X-RateLimit-Remaining', String(rateLimit.remaining))
+  if (rateLimit.retryAfter) c.header('Retry-After', String(rateLimit.retryAfter))
+  if (!rateLimit.allowed) {
+    return c.json({ error: 'Demasiadas peticiones MCP.', retryAfter: rateLimit.retryAfter }, 429)
+  }
+
   const token = c.req.header('MCP_API_KEY') || c.req.query('token')
   const authHeader = c.req.header('authorization')
   if (!token) {
@@ -66,6 +118,16 @@ mcpApp.get('/status', async (c) => {
 })
 
 mcpApp.all('/', async (c) => {
+  // Rate limit check
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
+  const rateLimit = checkMcpRateLimit(ip)
+  c.header('X-RateLimit-Limit', '300')
+  c.header('X-RateLimit-Remaining', String(rateLimit.remaining))
+  if (rateLimit.retryAfter) c.header('Retry-After', String(rateLimit.retryAfter))
+  if (!rateLimit.allowed) {
+    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Demasiadas peticiones.' } }, 429)
+  }
+
   const clerkId = await mcpAuth(c)
   if (!clerkId) {
     // Intentar parsear el body para dar un error JSON-RPC que el agente pueda interpretar
@@ -112,6 +174,21 @@ mcpApp.all('/', async (c) => {
     if (sessionId) {
       const existing = sessions.get(sessionId)
       if (existing) {
+        // SECURITY: Verify the session belongs to the same clerkId making the request
+        // This prevents cross-user session hijacking
+        if (existing.clerkId !== clerkId) {
+          return c.json({
+            jsonrpc: '2.0',
+            id: null,
+            error: {
+              code: -32003,
+              message: 'Forbidden: session belongs to another user.',
+              data: {
+                help: 'Cada usuario debe usar su propia sesión MCP.',
+              },
+            },
+          }, 403)
+        }
         return existing.transport.handleRequest(req, { authInfo: { token: '', clientId: '', scopes: [], extra: { clerkId } } })
       }
     }

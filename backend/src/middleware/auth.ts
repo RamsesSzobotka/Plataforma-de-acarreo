@@ -52,23 +52,27 @@ async function getClerkUser(clerkId: string): Promise<{
  * - 403: Token inválido o expirado
  */
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
+  // First check: is Authorization header present?
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader) {
+    return c.json({ error: 'Authorization header required' }, 401)
+  }
+
+  if (!authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'Authorization header required' }, 401)
+  }
+
+  const token = authHeader.split(' ')[1]
+  if (!token) {
+    return c.json({ error: 'Token required' }, 401)
+  }
+
+  // Then check: is CLERK_SECRET_KEY configured?
   if (!process.env.CLERK_SECRET_KEY) {
     console.error('Auth middleware config error: CLERK_SECRET_KEY is missing')
     return c.json({ error: 'Server auth configuration error (CLERK_SECRET_KEY missing)' }, 500)
   }
 
-  const authHeader = c.req.header('Authorization')
-  
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Authorization header required' }, 401)
-  }
-  
-  const token = authHeader.split(' ')[1]
-  
-  if (!token) {
-    return c.json({ error: 'Token required' }, 401)
-  }
-  
   try {
     // Verificar token con Clerk
     const session = await verifyToken(token, {

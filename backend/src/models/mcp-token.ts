@@ -2,38 +2,60 @@ import { db } from '../db/mongo';
 
 export interface McpToken {
   clerkId: string;
-  tokenHash: string;
+  tokenId: string;        // Unique public identifier for O(1) lookup
+  tokenHash: string;      // Hash of the full token (mcp_<tokenId>_<secret>)
   lastUsedAt?: Date;
   createdAt: Date;
+  revokedAt?: Date;       // For revocation support
 }
 
 export const MCP_TOKENS_COLLECTION = 'mcp_tokens';
 
 export async function createMcpTokenIndexes() {
   const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
-  await collection.createIndex({ clerkId: 1 }, { unique: true });
+  // Index on tokenId for O(1) lookup during validation
+  await collection.createIndex({ tokenId: 1 }, { unique: true });
+  // Index on clerkId for user lookups
+  await collection.createIndex({ clerkId: 1 });
 }
 
-export async function saveMcpToken(clerkId: string, tokenHash: string): Promise<void> {
+export async function saveMcpToken(clerkId: string, tokenId: string, tokenHash: string): Promise<McpToken> {
   const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
-  await collection.updateOne(
+  const result = await collection.findOneAndUpdate(
     { clerkId },
-    { $set: { tokenHash, createdAt: new Date() }, $unset: { lastUsedAt: '' } },
-    { upsert: true }
+    {
+      $set: { tokenId, tokenHash, createdAt: new Date(), revokedAt: null },
+      $unset: { lastUsedAt: '' }
+    },
+    { upsert: true, returnDocument: 'after' }
   );
+  if (!result) {
+    throw new Error('Failed to save MCP token');
+  }
+  return result;
 }
 
-export async function getMcpToken(clerkId: string): Promise<McpToken | null> {
+export async function getMcpTokenByClerkId(clerkId: string): Promise<McpToken | null> {
   const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
-  return collection.findOne({ clerkId });
+  return collection.findOne({ clerkId, revokedAt: null });
 }
 
-export async function updateTokenLastUsed(clerkId: string): Promise<void> {
+export async function getMcpTokenByTokenId(tokenId: string): Promise<McpToken | null> {
   const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
-  await collection.updateOne({ clerkId }, { $set: { lastUsedAt: new Date() } });
+  return collection.findOne({ tokenId, revokedAt: null });
+}
+
+export async function updateTokenLastUsed(tokenId: string): Promise<void> {
+  const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
+  await collection.updateOne({ tokenId }, { $set: { lastUsedAt: new Date() } });
 }
 
 export async function deleteMcpToken(clerkId: string): Promise<void> {
   const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
   await collection.deleteOne({ clerkId });
+}
+
+export async function revokeMcpToken(tokenId: string): Promise<void> {
+  const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
+  await collection.updateOne({ tokenId }, { $set: { revokedAt: new Date() } });
 }

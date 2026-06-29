@@ -14,50 +14,60 @@ export async function handleViewOffers(
     // --- Role check ---
     const user = await db.collection('users').findOne({ clerkId: userId });
     if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
-    const allowedRoles = ['client', 'driver'];
-    if (!allowedRoles.includes(user.role)) {
-      throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
+    if (user.role !== 'client') {
+      throw new McpError('FORBIDDEN', 'Solo los clientes pueden ver ofertas de sus acarreos', 403);
     }
 
-    // --- Ownership check ---
+    // --- Ownership check: ride must belong to this client ---
     const ride = await db.collection('rides').findOne({
       _id: new ObjectId(input.rideId),
       clientId: userId,
     });
-    if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado o no tienes permiso para ver sus ofertas', 404);
+    if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado o no te pertenece', 404);
 
-    const contacts = await db.collection('driver_contacts').find({
+    // --- Query offers collection (NOT driver_contacts) ---
+    const offers = await db.collection('offers').find({
       rideId: input.rideId,
-      isActive: true,
-    }).toArray();
+      clientId: userId,
+    }).sort({ createdAt: -1 }).toArray();
 
-    if (contacts.length === 0) {
+    if (offers.length === 0) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ offers: [], message: 'No hay ofertas activas para este acarreo.' }) }],
+        content: [{ type: 'text', text: JSON.stringify({ offers: [], message: 'No hay ofertas para este acarreo.' }) }],
       };
     }
 
-    const driverIds = contacts.map((c: any) => c.driverId);
+    // --- Get driver info for each offer ---
+    const driverIds = [...new Set(offers.map(o => o.driverId))];
     const drivers = await db.collection('users').find({ clerkId: { $in: driverIds } }).toArray();
-    const driverMap = new Map(drivers.map((d: any) => [d.clerkId, d]));
+    const driverMap = new Map(drivers.map(d => [d.clerkId, d]));
 
-    const offers = contacts.map((c: any) => {
-      const driver = driverMap.get(c.driverId) ?? {};
+    // --- Get driver profiles (ratings, totalRides) ---
+    const driverProfiles = await db.collection('drivers').find({ userId: { $in: driverIds } }).toArray();
+    const driverProfileMap = new Map(driverProfiles.map(p => [p.userId, p]));
+
+    const mappedOffers = offers.map(offer => {
+      const driver = driverMap.get(offer.driverId) ?? {};
+      const driverProfile = driverProfileMap.get(offer.driverId) ?? {};
       return {
-        id: c._id?.toString() ?? c.id,
-        rideId: c.rideId,
-        driverId: c.driverId,
-        proposedPrice: c.proposedPrice,
-        message: c.message,
-        driverName: driver.firstName && driver.lastName ? `${driver.firstName} ${driver.lastName}` : driver.firstName ?? 'Conductor',
-        driverRating: driver.rating ?? 0,
+        id: offer._id?.toString() ?? offer.id,
+        rideId: offer.rideId,
+        driverId: offer.driverId,
+        amount: offer.amount,
+        message: offer.message ?? '',
+        status: offer.status,
+        driverName: driver.firstName && driver.lastName
+          ? `${driver.firstName} ${driver.lastName}`
+          : driver.firstName ?? 'Conductor',
+        driverRating: driverProfile.rating ?? 0,
         driverImageUrl: driver.imageUrl,
-        driverTotalRides: driver.totalRides ?? 0,
-        createdAt: c.createdAt?.toISOString?.() ?? c.createdAt,
+        driverTotalRides: driverProfile.totalRides ?? 0,
+        createdAt: offer.createdAt?.toISOString?.() ?? offer.createdAt,
+        updatedAt: offer.updatedAt?.toISOString?.() ?? offer.updatedAt,
       };
     });
 
-    return { content: [{ type: 'text', text: JSON.stringify({ offers }) }] };
+    return { content: [{ type: 'text', text: JSON.stringify({ offers: mappedOffers }) }] };
   } catch (error) {
     if (error instanceof McpError) throw error;
     throw new McpError('BACKEND_ERROR', 'Error al consultar ofertas: ' + (error as Error).message);

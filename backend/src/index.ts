@@ -1,6 +1,3 @@
-import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
-import { poweredBy } from 'hono/powered-by'
 import { Hono } from 'hono'
 import { verifyToken } from '@clerk/clerk-sdk-node'
 import { connectDB } from './db/mongo'
@@ -39,14 +36,35 @@ async function getVerifiedSession(token: string): Promise<string | null> {
 
 const app = new Hono()
 
-app.use('*', poweredBy({ serverName: 'PlataformaAcarreos' }))
-app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
-  credentials: true,
-  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-}))
-app.use('*', logger())
+// Powered-by inline middleware (Hono v4 compatible)
+app.use('*', async (c, next) => {
+  c.header('X-Powered-By', 'PlataformaAcarreos')
+  await next()
+})
+
+// CORS middleware inline (Hono v4 compatible)
+app.use('*', async (c, next) => {
+  const origin = c.req.header('origin')
+  const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000']
+  if (origin && allowedOrigins.includes(origin)) {
+    c.header('Access-Control-Allow-Origin', origin)
+  }
+  c.header('Access-Control-Allow-Credentials', 'true')
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, MCP_API_KEY, mcp-session-id')
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  if (c.req.method === 'OPTIONS') {
+    return c.text(null, 204)
+  }
+  await next()
+})
+
+// Logger inline middleware (Hono v4 compatible)
+app.use('*', async (c, next) => {
+  const start = Date.now()
+  await next()
+  const ms = Date.now() - start
+  console.log(`${c.req.method} ${c.req.path} - ${c.res.status} - ${ms}ms`)
+})
 
 // ── Rate limiting ───────────────────────────────────────────
 // Aplica a todas las rutas /api/* y /ws/* (excepto health)
