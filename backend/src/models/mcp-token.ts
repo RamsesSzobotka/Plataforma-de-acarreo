@@ -13,10 +13,19 @@ export const MCP_TOKENS_COLLECTION = 'mcp_tokens';
 
 export async function createMcpTokenIndexes() {
   const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
+  const indexes = await collection.indexes();
+  
   // Index on tokenId for O(1) lookup during validation
-  await collection.createIndex({ tokenId: 1 }, { unique: true });
+  const tokenIdExists = indexes.some(idx => idx.name === 'tokenId_1');
+  if (!tokenIdExists) {
+    await collection.createIndex({ tokenId: 1 }, { unique: true, name: 'tokenId_1' });
+  }
+  
   // Index on clerkId for user lookups
-  await collection.createIndex({ clerkId: 1 });
+  const clerkIdExists = indexes.some(idx => idx.name === 'clerkId_1');
+  if (!clerkIdExists) {
+    await collection.createIndex({ clerkId: 1 }, { name: 'clerkId_1' });
+  }
 }
 
 export async function saveMcpToken(clerkId: string, tokenId: string, tokenHash: string): Promise<McpToken> {

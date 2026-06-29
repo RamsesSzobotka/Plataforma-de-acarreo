@@ -86,7 +86,6 @@ async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: 
   } catch (error: any) {
     // Si ya está adjunto, ignorar el error
     if (error.message?.includes('already attached')) {
-<<<<<<< HEAD
       console.log(`✅ PaymentMethod ${paymentMethodId} ya estaba adjuntado`)
       return await getStripe().paymentMethods.retrieve(paymentMethodId)
     }
