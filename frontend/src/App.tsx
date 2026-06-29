@@ -14,6 +14,7 @@ import RegisterDriver from './pages/RegisterDriver'
 import AddPaymentMethodPage from './pages/AddPaymentMethod'
 import PaymentHistory from './pages/PaymentHistory'
 import SettingsMcp from './pages/SettingsMcp'
+import DriverPublicProfile from './pages/DriverPublicProfile'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import PageTransition from './components/PageTransition'
@@ -125,6 +126,13 @@ function App() {
         <Route path="register-driver" element={
           <ProtectedRoute>
             <RegisterDriver />
+          </ProtectedRoute>
+        } />
+        
+        {/* Profile routes */}
+        <Route path="profile/:clerkId" element={
+          <ProtectedRoute>
+            <DriverPublicProfile />
           </ProtectedRoute>
         } />
         

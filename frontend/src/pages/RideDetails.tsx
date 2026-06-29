@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
 import { ridesAPI, usersAPI } from '../services/api'
@@ -12,6 +12,7 @@ import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
+import DriverProfilePopup from '../components/DriverProfilePopup'
 
 interface Driver {
   _id: string
@@ -42,7 +43,6 @@ function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
   const { getToken } = useAuth()
-  const navigate = useNavigate()
   const { unreadCounts } = useNotifications()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
@@ -50,6 +50,7 @@ function RideDetails() {
   const [contacts, setContacts] = useState<DriverContact[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [driverPopup, setDriverPopup] = useState<{ driverUser: any; driver: any; rideId?: string; position: { x: number; y: number } } | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -304,8 +305,19 @@ function RideDetails() {
     }
   }
 
-  const handleChatClick = (contact: DriverContact) => {
-    navigate(`/chat/${id}?contactId=${contact._id}&driverId=${contact.driverId}`)
+  const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
+    const driverData = {
+      clerkId: contact.driverId,
+      firstName: contact.driver?.firstName,
+      lastName: contact.driver?.lastName,
+      imageUrl: contact.driver?.imageUrl,
+    }
+    setDriverPopup({
+      driverUser: driverData,
+      driver: null,
+      rideId: `${id}?contactId=${contact._id}&driverId=${contact.driverId}`,
+      position: { x: e.clientX, y: e.clientY },
+    })
   }
 
   if (loading) {
@@ -833,28 +845,47 @@ function RideDetails() {
                   <img
                     src={driverUser.imageUrl}
                     alt={driverUser.firstName}
+                    onClick={(e) => setDriverPopup({
+                      driverUser,
+                      driver,
+                      rideId: ride?._id,
+                      position: { x: e.clientX, y: e.clientY },
+                    })}
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '3px solid var(--primary-subtle)',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                    />
+                  ) : (
+                    <div
+                      onClick={(e) => setDriverPopup({
+                      driverUser,
+                      driver,
+                      rideId: ride?._id,
+                      position: { x: e.clientX, y: e.clientY },
+                    })}
                     style={{
                       width: '64px',
                       height: '64px',
                       borderRadius: '50%',
-                      objectFit: 'cover',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 'var(--text-xl)',
+                      fontWeight: 'var(--font-bold)',
                       border: '3px solid var(--primary-subtle)',
+                      cursor: 'pointer',
                     }}
-                  />
-                ) : (
-                  <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    background: 'var(--primary)',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 'var(--text-xl)',
-                    fontWeight: 'var(--font-bold)',
-                    border: '3px solid var(--primary-subtle)',
-                  }}>
+                  >
                     {driverUser.firstName?.charAt(0) || 'D'}
                   </div>
                 )}
@@ -972,7 +1003,7 @@ function RideDetails() {
                 {contacts.map((contact) => (
                   <div
                     key={contact._id}
-                    onClick={() => handleChatClick(contact)}
+                    onClick={(e) => handleContactClick(contact, e)}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -1436,6 +1467,17 @@ function RideDetails() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {/* Driver Profile Popup */}
+      {driverPopup && (
+        <DriverProfilePopup
+          driverUser={driverPopup.driverUser}
+          driver={driverPopup.driver}
+          rideId={driverPopup.rideId}
+          position={driverPopup.position}
+          onClose={() => setDriverPopup(null)}
+        />
       )}
     </div>
   )

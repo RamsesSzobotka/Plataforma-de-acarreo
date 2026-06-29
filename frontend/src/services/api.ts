@@ -1,4 +1,4 @@
-import type { Ride, Message, PaginatedResponse } from '../types'
+import type { Ride, Message, PaginatedResponse, RatingWithRater } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -431,6 +431,20 @@ export const usersAPI = {
       { method: 'DELETE' },
       token
     ),
+}
+
+export const ratingsAPI = {
+  getDriverRatings: (userId: string, params?: { page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<RatingWithRater>>(
+      `/api/ratings/driver/${userId}${query ? `?${query}` : ''}`,
+      {},
+      token
+    )
+  },
 }
 
 export const paymentsAPI = {

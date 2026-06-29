@@ -122,6 +122,20 @@ export interface DriverContact {
   } | null
 }
 
+export interface RatingWithRater {
+  _id: string
+  rideId: string
+  raterId: string
+  rating: number
+  comment?: string
+  createdAt: string
+  rater: {
+    firstName?: string
+    lastName?: string
+    imageUrl?: string
+  } | null
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   pagination: {
