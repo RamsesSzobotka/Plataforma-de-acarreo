@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import ChatButton from '../components/ChatButton'
@@ -66,7 +66,15 @@ function DriverDashboard() {
   const [page, setPage] = useState(1)
   const [_totalPages, setTotalPages] = useState(1)
   const [typeFilter, setTypeFilter] = useState<string>('')
+  const [mineFilter, setMineFilter] = useState<string>('all')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
+  const filteredMyRides = useMemo(() => {
+    return myRides.filter(ride => {
+      if (mineFilter === 'all') return true
+      if (mineFilter === 'pending') return ['requested', 'negotiating', 'accepted'].includes(ride.status)
+      return ride.status === mineFilter
+    })
+  }, [myRides, mineFilter])
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [_photoError, setPhotoError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -737,6 +745,46 @@ function DriverDashboard() {
         </div>
       )}
 
+      {/* Filters for my rides */}
+      {tab === 'mine' && (
+        <div style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          marginBottom: 'var(--space-6)',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}>
+          {[
+            { value: 'all', label: 'Todos', icon: 'list' },
+            { value: 'pending', label: 'Pendientes', icon: 'pending_actions' },
+            { value: 'in_progress', label: 'En viaje', icon: 'local_shipping' },
+            { value: 'paid', label: 'Pagados', icon: 'payments' },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setMineFilter(opt.value); setPage(1) }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                padding: 'var(--space-2) var(--space-3)',
+                background: mineFilter === opt.value ? 'var(--primary)' : 'var(--bg-secondary)',
+                color: mineFilter === opt.value ? 'white' : 'var(--text-secondary)',
+                border: mineFilter === opt.value ? 'none' : '1px solid var(--border)',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-medium)',
+                cursor: 'pointer',
+                transition: 'all var(--duration-fast) var(--ease-out)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>{opt.icon}</span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Rides List */}
       {tab === 'available' ? (
         availableRides.length === 0 ? (
@@ -894,23 +942,20 @@ function DriverDashboard() {
             })}
           </div>
         )
-      ) : myRides.length === 0 ? (
-        <EmptyState
-          icon="work_off"
-          title="No tienes acarreos aceptados"
-          description="Cuando aceptes un pedido, aparecera aqui."
-          action={{
-            label: 'Ver Pedidos Disponibles',
-            onClick: () => setTab('available'),
-          }}
-        />
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: 'var(--space-4)',
-        }} className="stagger-children">
-          {myRides.map((ride) => {
+      ) : filteredMyRides.length === 0 ? (
+          <EmptyState
+            icon="work_off"
+            title={mineFilter === 'all' ? 'No tienes acarreos aceptados' : `No hay acarreos ${mineFilter === 'pending' ? 'pendientes' : mineFilter === 'in_progress' ? 'en viaje' : 'pagados'}`}
+            description={mineFilter === 'all' ? 'Cuando aceptes un pedido, aparecera aqui.' : 'Prueba cambiar el filtro.'}
+            action={mineFilter !== 'all' ? { label: 'Ver Todos', onClick: () => setMineFilter('all') } : { label: 'Ver Pedidos Disponibles', onClick: () => setTab('available') }}
+          />
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 'var(--space-4)',
+          }} className="stagger-children">
+            {filteredMyRides.map((ride) => {
             const firstImage = ride.images?.[0]?.url
 
             return (
