@@ -122,17 +122,38 @@ function RideDetails() {
     }
   }
 
+  // Conectar WebSocket para recibir eventos en vivo del ride
   useEffect(() => {
     if (!id || !user) return
 
+    // Conectar WS si no lo está ya
+    ;(async () => {
+      const token = await getToken()
+      if (token) {
+        wsService.connect(id, token)
+      }
+    })()
+
+    // Escuchar eventos: mensajes nuevos y cambios de estado
     const unsubscribe = wsService.onMessage((data) => {
-      if (data.type === 'new_message' && data.data && data.data.rideId === id) {
+      const eventRideId = data.data?.rideId || data.data?._id || data.rideId
+      if (eventRideId === id || data.type === 'ride_status_changed') {
         loadRide()
       }
     })
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      wsService.disconnect()
+    }
   }, [id, user])
+
+  // Polling cada 15s como fallback si WS no está disponible
+  useEffect(() => {
+    if (!id) return
+    const interval = setInterval(loadRide, 15000)
+    return () => clearInterval(interval)
+  }, [id])
 
   async function handleCancel() {
     if (!id) return
