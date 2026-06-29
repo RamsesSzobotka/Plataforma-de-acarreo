@@ -83,6 +83,21 @@ function RideDetails() {
     loadRide()
   }, [id, user, getToken])
 
+  async function loadDriverData(driverId: string) {
+    try {
+      const token = await getToken()
+      if (!token) return
+
+      const driverData = await usersAPI.get(driverId, token)
+      setDriverUser(driverData)
+
+      const driverProfile = await usersAPI.getDriver(driverId, token)
+      setDriver(driverProfile)
+    } catch (err) {
+      console.error('Error loading driver data:', err)
+    }
+  }
+
   async function loadRide() {
     if (!id) {
       setLoading(false)
@@ -126,23 +141,56 @@ function RideDetails() {
   useEffect(() => {
     if (!id || !user) return
 
-    // Conectar WS si no lo está ya
+    let isCancelled = false
+
     ;(async () => {
       const token = await getToken()
-      if (token) {
+      if (token && !isCancelled) {
         wsService.connect(id, token)
       }
     })()
 
-    // Escuchar eventos: mensajes nuevos y cambios de estado
     const unsubscribe = wsService.onMessage((data) => {
+      if (isCancelled) return
+
       const eventRideId = data.data?.rideId || data.data?._id || data.rideId
+
       if (eventRideId === id || data.type === 'ride_status_changed') {
-        loadRide()
+        switch (data.type) {
+          case 'ride_status_changed': {
+            const { newStatus, ride: updatedRide } = data.data || {}
+            if (newStatus) {
+              setRide(prev => prev ? {
+                ...prev,
+                status: newStatus,
+                ...(updatedRide?.driverId ? { driverId: updatedRide.driverId } : {}),
+                ...(updatedRide?.finalPrice ? { finalPrice: updatedRide.finalPrice } : {}),
+                ...(updatedRide?.deliveryPhoto ? { deliveryPhoto: updatedRide.deliveryPhoto } : {}),
+              } : prev)
+
+              if (updatedRide?.driverId && !ride?.driverId) {
+                loadDriverData(updatedRide.driverId)
+              }
+            }
+            break
+          }
+
+          case 'new_message':
+            break
+
+          case 'price_proposed':
+          case 'price_accepted':
+          case 'price_rejected':
+            break
+
+          default:
+            loadRide()
+        }
       }
     })
 
     return () => {
+      isCancelled = true
       unsubscribe()
       wsService.disconnect()
     }
@@ -151,7 +199,7 @@ function RideDetails() {
   // Polling cada 15s como fallback si WS no está disponible
   useEffect(() => {
     if (!id) return
-    const interval = setInterval(loadRide, 15000)
+    const interval = setInterval(loadRide, 30000)
     return () => clearInterval(interval)
   }, [id])
 

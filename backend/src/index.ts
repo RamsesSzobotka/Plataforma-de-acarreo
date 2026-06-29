@@ -9,6 +9,7 @@ import { Ride } from './models/ride'
 import {
   broadcastToRide,
   addConnection,
+  addUserConnection,
   removeConnection,
   type WsData,
 } from './services/websocket'
@@ -54,6 +55,15 @@ app.use('*', logger())
 app.use('/api/*', rateLimiter(120, 60000))  // 120 req/min por IP/ruta
 app.use('/ws/chat/*', rateLimiter(30, 60000))    // 30 upgrades/min por IP
 app.use('/ws/tracking/*', rateLimiter(60, 60000))  // 60 upgrades/min por IP
+
+// WebSocket upgrade — User notifications (driver dashboard)
+app.get('/ws/user', (c) => {
+  const upgraded = server.upgrade(c.req.raw, {
+    data: { rideId: 'user', authenticated: false, clerkId: null }
+  })
+  if (upgraded) return new Response(null)
+  return c.text('WebSocket upgrade failed', 400)
+})
 
 // WebSocket upgrade — Chat
 app.get('/ws/chat/:rideId', (c) => {
@@ -106,6 +116,25 @@ const server = Bun.serve({
 
         if (message.type === 'ping') {
           ws.send(JSON.stringify({ type: 'pong' }))
+          return
+        }
+
+        // ── User-level connection (driver dashboard) ────────────────
+        if (rideId === 'user') {
+          if (message.type === 'auth' && message.token) {
+            const clerkId = await getVerifiedSession(message.token)
+            if (!clerkId) {
+              ws.send(JSON.stringify({ type: 'auth_error', error: 'Invalid token' }))
+              ws.close(4001, 'Invalid token')
+              return
+            }
+            ws.data.authenticated = true
+            ws.data.clerkId = clerkId
+            addUserConnection(clerkId, ws)
+            ws.send(JSON.stringify({ type: 'auth_success', clerkId }))
+            return
+          }
+          // Ignore other message types on user connection (receive-only)
           return
         }
 

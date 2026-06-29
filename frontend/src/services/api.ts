@@ -170,6 +170,91 @@ export class WebSocketService {
 
 export const wsService = new WebSocketService()
 
+/**
+ * WebSocket Service for user-level notifications.
+ * Connects to /ws/user and receives events like rating_updated.
+ * This is a separate connection from ride-level chat/tracking WS.
+ */
+export class UserWebSocketService {
+  private ws: WebSocket | null = null
+  private token: string | null = null
+  private messageCallbacks: Set<(data: any) => void> = new Set()
+  private isConnected = false
+
+  connect(token: string) {
+    if (this.ws?.readyState === WebSocket.OPEN && this.token === token) return
+    
+    this.disconnect()
+    this.token = token
+    
+    const API_URL = import.meta.env.VITE_API_URL || ''
+    const wsUrl = `${API_URL.replace('http', 'ws')}/ws/user`
+    
+    this.ws = new WebSocket(wsUrl)
+
+    this.ws.onopen = () => {
+      // Send auth after connection
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'auth', token }))
+      }
+    }
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        // auth_success means we're connected
+        if (data.type === 'auth_success') {
+          this.isConnected = true
+          return
+        }
+        // Dispatch to callbacks
+        this.messageCallbacks.forEach(cb => {
+          try { cb(data) } catch (err) { console.error('Error in user WS callback:', err) }
+        })
+      } catch (err) {
+        console.error('Error parsing user WS message:', err)
+      }
+    }
+
+    this.ws.onclose = () => {
+      this.isConnected = false
+      // Auto-reconnect after 5s
+      if (this.token) {
+        setTimeout(() => {
+          if (this.token) this.connect(this.token)
+        }, 5000)
+      }
+    }
+
+    this.ws.onerror = () => {
+      // onclose will handle reconnect
+    }
+  }
+
+  onMessage(callback: (data: any) => void): () => void {
+    this.messageCallbacks.add(callback)
+    return () => {
+      this.messageCallbacks.delete(callback)
+    }
+  }
+
+  disconnect() {
+    this.isConnected = false
+    this.token = null
+    if (this.ws) {
+      this.ws.close(1000, 'User left')
+      this.ws = null
+    }
+  }
+
+  getConnected(): boolean {
+    return this.isConnected
+  }
+}
+
+// Singleton instance
+export const userWsService = new UserWebSocketService()
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: string): Promise<T> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',

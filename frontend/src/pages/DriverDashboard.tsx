@@ -5,7 +5,7 @@ import ChatButton from '../components/ChatButton'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import type { Ride } from '../types'
-import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
+import { ridesAPI, usersAPI, paymentsAPI, userWsService } from '../services/api'
 import { showConfirm } from '../services/alerts'
 import { useDriverLocation } from '../hooks/useDriverLocation'
 
@@ -131,6 +131,35 @@ function DriverDashboard() {
       )
     }
   }, [])
+
+  // Conectar WebSocket de usuario para notificaciones en vivo (rating_updated, etc.)
+  useEffect(() => {
+    if (!user) return
+
+    async function connectUserWs() {
+      const token = await getToken()
+      if (token) {
+        userWsService.connect(token)
+      }
+    }
+    connectUserWs()
+
+    const unsubscribe = userWsService.onMessage((data) => {
+      if (data.type === 'rating_updated' && data.data) {
+        // Actualizar rating del conductor sin recargar todo
+        setDriver(prev => prev ? {
+          ...prev,
+          rating: data.data.rating ?? prev.rating,
+          totalRides: data.data.totalRides ?? prev.totalRides,
+        } : prev)
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      userWsService.disconnect()
+    }
+  }, [user, getToken])
 
   async function loadDriver() {
     try {

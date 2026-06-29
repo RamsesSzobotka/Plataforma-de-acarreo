@@ -66,11 +66,17 @@ function MyRides() {
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    const refreshInterval = setInterval(loadRides, 10000)
+
+    const refreshInterval = setInterval(loadRides, 30000)
 
     const unsubscribe = wsService.onMessage((data) => {
-      if (data.type === 'new_message' && data.data) {
-        loadRides()
+      if (data.type === 'ride_status_changed' && data.data) {
+        const { rideId, newStatus } = data.data
+        if (rideId) {
+          setRides(prev => prev.map(ride =>
+            ride._id === rideId ? { ...ride, status: newStatus } : ride
+          ))
+        }
       }
     })
 

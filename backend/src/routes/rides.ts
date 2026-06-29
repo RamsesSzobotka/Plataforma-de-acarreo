@@ -756,6 +756,39 @@ rides.post('/:id/rate', authMiddleware, async (c) => {
     id, raterId, ratedId, role, rating, comment,
   )
 
+  // Emitir via WebSocket — notificar al conductor sobre nueva calificación
+  if (role === 'driver') {
+    try {
+      const { Driver } = await import('../models/driver')
+      const driverData = await Driver.findOne({ userId: ratedId }).select('rating totalRides')
+
+      // Broadcast a la sala del ride (para quien esté viendo el detalle/chat)
+      broadcastToRide(id, {
+        type: 'rating_updated',
+        data: {
+          rideId: id,
+          ratedId,
+          rating: driverData?.rating,
+          totalRides: driverData?.totalRides,
+          role,
+        },
+      })
+
+      // Broadcast directamente al conductor (para el driver dashboard en vivo)
+      const { broadcastToUser } = await import('../services/websocket')
+      broadcastToUser(ratedId, {
+        type: 'rating_updated',
+        data: {
+          rideId: id,
+          rating: driverData?.rating,
+          totalRides: driverData?.totalRides,
+        },
+      })
+    } catch (err) {
+      console.error('Error broadcasting rating update:', err)
+    }
+  }
+
   return c.json(ratingRecord)
 })
 
