@@ -1,7 +1,7 @@
 # Checklist — Historias de Usuario Implementadas
 **Proyecto:** Plataforma de Acarreos (Carglyn)  
 **Última actualización:** 29 junio 2026  
-**Progreso:** 43/72 historias (60%)
+**Progreso:** 44/72 historias (61%)
 
 ---
 
@@ -53,7 +53,7 @@
 |---|----------|--------|-----------|
 | **H-26** | Chat en tiempo real (WebSocket Bun) | ✅ | `index.ts`, `websocket.ts` |
 | **H-27** | Upload a Cloudinary | ✅ | `upload.ts`, `utils/upload.ts` |
-| **H-28** | MongoDB + Redis via Docker | ✅ | `docker-compose.yml` |
+| **H-28** | MongoDB + Redis via Docker | ✅ | `docker-compose.yml` (raíz), `backend/Dockerfile`, `frontend/Dockerfile` |
 | **H-29** | Health check endpoint | ⬜ | — |
 
 ---
@@ -74,7 +74,7 @@
 
 | # | Historia | Estado | Evidencia |
 |---|----------|--------|-----------|
-| **H-35** | Dockerfile + docker-compose | ⚠️ PARCIAL | docker-compose existe, falta Dockerfile |
+| **H-35** | Dockerfile + docker-compose | ✅ | `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` (raíz, único activo) |
 | **H-36** | CI/CD GitHub Actions | ⬜ | — |
 | **H-37** | Tests unitarios/integración | ⚠️ PARCIAL | `__tests__/auth.test.ts` coverage limitada |
 | **H-38** | E2E tests con Playwright | ⬜ | — |
@@ -164,7 +164,7 @@
 | Portal Admin | 6 | 0 | 0 | 6 |
 | Infraestructura/Comunc. | 3 | 0 | 1 | 4 |
 | MCP Client Tools | 5 | 0 | 0 | 5 |
-| DevOps | 1 | 1 | 2 | 4 |
+| DevOps | 2 | 0 | 2 | 4 |
 | Seguridad | 3 | 0 | 1 | 4 |
 | Tracking/Maps | 3 | 0 | 0 | 3 |
 | Pagos | 0 | 1 | 3 | 4 |
@@ -173,9 +173,9 @@
 | UX | 0 | 0 | 3 | 3 |
 | Operaciones | 1 | 0 | 3 | 4 |
 | Reportes | 1 | 0 | 1 | 2 |
-| **TOTAL** | **52** | **2** | **18** | **72** |
+| **TOTAL** | **53** | **1** | **18** | **72** |
 
-**Implementación: 72% completo** (52/72 historias completamente implementadas)
+**Implementación: 74% completo** (53/72 historias completamente implementadas)
 
 ---
 
