@@ -445,6 +445,14 @@ export const ratingsAPI = {
       token
     )
   },
+
+  getRideRatings: (rideId: string, token?: string) => {
+    return fetchAPI<{ ratings: RatingWithRater[] }>(
+      `/api/ratings/ride/${rideId}`,
+      {},
+      token
+    )
+  },
 }
 
 export const paymentsAPI = {

@@ -752,9 +752,18 @@ rides.post('/:id/rate', authMiddleware, async (c) => {
   }
   
   // Usar el servicio centralizado de calificaciones
-  const ratingRecord = await createRatingAndUpdateAverage(
-    id, raterId, ratedId, role, rating, comment,
-  )
+  let ratingRecord
+  try {
+    ratingRecord = await createRatingAndUpdateAverage(
+      id, raterId, ratedId, role, rating, comment,
+    )
+  } catch (err) {
+    const message = (err as Error).message
+    if (message.includes('Ya has calificado')) {
+      return c.json({ error: message }, 409)
+    }
+    throw err
+  }
 
   // Emitir via WebSocket — notificar al conductor sobre nueva calificación
   if (role === 'driver') {

@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
-import { ridesAPI, usersAPI } from '../services/api'
+import { ridesAPI, usersAPI, ratingsAPI } from '../services/api'
 import { wsService } from '../services/api'
 import { StatusBadge } from '../components/StatusBadge'
 import { TimelineStepper } from '../components/TimelineStepper'
-import type { DriverContact } from '../types'
+import type { DriverContact, RatingWithRater } from '../types'
 import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
@@ -54,6 +54,8 @@ function RideDetails() {
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
+  const [existingRating, setExistingRating] = useState<RatingWithRater | null>(null)
+  const [hasRated, setHasRated] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [userHasPaymentMethod, setUserHasPaymentMethod] = useState(false)
 
@@ -78,6 +80,38 @@ function RideDetails() {
     }
     checkUserPaymentMethod()
   }, [getToken])
+
+  // Verificar si el usuario ya ha calificado este acarreo
+  useEffect(() => {
+    async function checkExistingRating() {
+      if (!ride || ride.status !== 'paid' || !user?.id) return
+      
+      // Solo el cliente puede calificar en este contexto
+      const isOwner = ride.clientId === user.id
+      if (!isOwner) return
+
+      try {
+        const token = await getToken()
+        if (!token) return
+
+        const response = await ratingsAPI.getRideRatings(ride._id, token)
+        const userRating = response.ratings.find((r) => r.raterId === user.id)
+
+        if (userRating) {
+          setExistingRating(userRating)
+          setHasRated(true)
+        } else {
+          setExistingRating(null)
+          setHasRated(false)
+        }
+      } catch (err) {
+        console.error('Error checking existing rating:', err)
+        setHasRated(false)
+      }
+    }
+
+    checkExistingRating()
+  }, [ride, user, getToken])
 
   useEffect(() => {
     if (!id || !user) return
@@ -300,8 +334,15 @@ function RideDetails() {
         setRating(0)
         setComment('')
         loadRide()
+      } else if (response.status === 409) {
+        // Intento de duplicar calificación — el backend rechaza correctamente
+        const data = await response.json()
+        await showError(data.error || 'Ya has calificado este acarreo')
+      } else {
+        await showError('Error al enviar la calificacion')
       }
-    } catch {
+    } catch (err) {
+      await showError((err as Error).message || 'Error al enviar la calificacion')
     }
   }
 
@@ -1347,11 +1388,11 @@ function RideDetails() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'var(--warning-subtle)',
-                  color: 'var(--warning)',
+                  background: hasRated ? 'var(--success-subtle)' : 'var(--warning-subtle)',
+                  color: hasRated ? 'var(--success)' : 'var(--warning)',
                   borderRadius: 'var(--radius)',
                 }}>
-                  <span className="material-symbols-rounded">star</span>
+                  <span className="material-symbols-rounded">{hasRated ? 'check_circle' : 'star'}</span>
                 </div>
                 <div>
                   <h3 style={{
@@ -1360,58 +1401,118 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Calificar Servicio
+                    {hasRated ? 'Tu Calificacion' : 'Calificar Servicio'}
                   </h3>
+                  {hasRated && (
+                    <span style={{
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--success)',
+                      fontWeight: 'var(--font-medium)',
+                    }}>
+                      Ya calificaste este acarreo
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Star rating */}
-              <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-                {[1, 2, 3, 4, 5].map((star) => (
+              {hasRated && existingRating ? (
+                /* Mostrar calificacion existente */
+                <div>
+                  {/* Stars display */}
+                  <div style={{ display: 'flex', gap: 'var(--space-1)', marginBottom: 'var(--space-4)' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className="material-symbols-rounded"
+                        style={{
+                          fontSize: '1.75rem',
+                          color: existingRating.rating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                        }}
+                      >
+                        star
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Comment */}
+                  {existingRating.comment && (
+                    <p style={{
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text-secondary)',
+                      fontStyle: 'italic',
+                      marginBottom: 'var(--space-3)',
+                      padding: 'var(--space-3)',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 'var(--radius-sm)',
+                    }}>
+                      "{existingRating.comment}"
+                    </p>
+                  )}
+
+                  {/* Rated date */}
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-muted)',
+                  }}>
+                    Calificado el {new Date(existingRating.createdAt).toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              ) : (
+                /* Formulario de calificacion */
+                <>
+                  {/* Star rating */}
+                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setRating(star)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 'var(--space-1)',
+                          cursor: 'pointer',
+                          transition: 'transform var(--duration-fast) var(--ease-out)',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <span
+                          className="material-symbols-rounded"
+                          style={{
+                            fontSize: '2rem',
+                            color: rating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                            transition: 'color var(--duration-fast)',
+                          }}
+                        >
+                          star
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    className="input"
+                    placeholder="Comentario (opcional)"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    style={{ marginBottom: 'var(--space-4)' }}
+                  />
+
                   <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 'var(--space-1)',
-                      cursor: 'pointer',
-                      transition: 'transform var(--duration-fast) var(--ease-out)',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    onClick={handleRate}
+                    disabled={rating === 0}
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
                   >
-                    <span
-                      className="material-symbols-rounded"
-                      style={{
-                        fontSize: '2rem',
-                        color: rating >= star ? 'var(--warning)' : 'var(--surface-3)',
-                        transition: 'color var(--duration-fast)',
-                      }}
-                    >
-                      star
-                    </span>
+                    <span className="material-symbols-rounded">send</span>
+                    Enviar Calificacion
                   </button>
-                ))}
-              </div>
-
-              <textarea
-                className="input"
-                placeholder="Comentario (opcional)"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                style={{ marginBottom: 'var(--space-4)' }}
-              />
-
-              <button
-                onClick={handleRate}
-                disabled={rating === 0}
-                className="btn btn-primary"
-                style={{ width: '100%' }}
-              >
-                <span className="material-symbols-rounded">send</span>
-                Enviar Calificacion
-              </button>
+                </>
+              )}
             </div>
           )}
         </div>

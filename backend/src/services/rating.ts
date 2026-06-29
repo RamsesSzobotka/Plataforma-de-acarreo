@@ -26,12 +26,16 @@ export async function createRatingAndUpdateAverage(
     throw new Error('Calificación debe estar entre 1 y 5')
   }
 
-  // Crear o actualizar la calificación (upsert para evitar duplicados)
-  const ratingRecord = await Rating.findOneAndUpdate(
-    { rideId, raterId, ratedId, role },
-    { rating, comment: comment || null, createdAt: new Date() },
-    { upsert: true, new: true },
-  )
+  // Verificar que no exista ya una calificación para este ride (1 review per ride)
+  const existing = await Rating.findOne({ rideId, raterId, ratedId, role })
+  if (existing) {
+    throw new Error(`Ya has calificado este acarreo. Calificación existente: ${existing.rating} estrellas.`)
+  }
+
+  // Crear la calificación (rechaza duplicados explícitamente)
+  const [ratingRecord] = await Rating.create([
+    { rideId, raterId, ratedId, role, rating, comment: comment || null },
+  ])
 
   // Si es calificación a driver, recalcular promedio
   if (role === 'driver') {

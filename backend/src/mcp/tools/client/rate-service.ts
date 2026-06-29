@@ -40,6 +40,7 @@ export async function handleRateService(
     const role = isClient ? 'driver' : 'client';
 
     // Usar el servicio centralizado de calificaciones
+    // createRatingAndUpdateAverage rechaza duplicados (1 review per ride)
     const ratingRecord = await createRatingAndUpdateAverage(
       input.rideId,
       userId,

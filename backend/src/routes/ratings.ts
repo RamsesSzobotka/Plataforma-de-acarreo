@@ -4,6 +4,56 @@ import { Rating } from '../models/rating'
 
 const ratings = new Hono()
 
+// GET /api/ratings/ride/:rideId - Obtener todas las reseñas de un ride específico
+ratings.get('/ride/:rideId', authMiddleware, async (c) => {
+  const rideId = c.req.param('rideId')
+
+  try {
+    const ratingsData = await Rating.find({ rideId })
+      .sort({ createdAt: -1 })
+      .lean()
+
+    // Enriquecer con datos de quien calificó (rater)
+    const { db } = await import('../db/mongo')
+    const enrichedRatings = await Promise.all(
+      ratingsData.map(async (r) => {
+        let rater = null
+        try {
+          const userDoc = await db.collection('users').findOne(
+            { clerkId: r.raterId },
+            { projection: { firstName: 1, lastName: 1, imageUrl: 1 } }
+          )
+          if (userDoc) {
+            rater = {
+              firstName: userDoc.firstName,
+              lastName: userDoc.lastName,
+              imageUrl: userDoc.imageUrl,
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching rater:', err)
+        }
+        return {
+          _id: r._id,
+          rideId: r.rideId,
+          raterId: r.raterId,
+          ratedId: r.ratedId,
+          role: r.role,
+          rating: r.rating,
+          comment: r.comment,
+          createdAt: r.createdAt,
+          rater,
+        }
+      })
+    )
+
+    return c.json({ ratings: enrichedRatings })
+  } catch (err) {
+    console.error('Error fetching ride ratings:', err)
+    return c.json({ error: 'Error al obtener reseñas del acarreo' }, 500)
+  }
+})
+
 // GET /api/ratings/driver/:userId - Obtener reseñas de un conductor (paginated)
 ratings.get('/driver/:userId', authMiddleware, async (c) => {
   const userId = c.req.param('userId')
