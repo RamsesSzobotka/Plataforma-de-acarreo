@@ -24,7 +24,8 @@ export async function handleListMyRides(
 
     // ── Query rides ─────────────────────────────────────────────────────
     const { status, page = 1, limit = 10 } = input;
-    const filter: Record<string, any> = { clientId: userId };
+    // Allow drivers to see rides where they are the assigned driver, not just client rides
+    const filter: Record<string, any> = { $or: [{ clientId: userId }, { driverId: userId }] };
     if (status) filter.status = status;
 
     const [rides, total] = await Promise.all([
@@ -38,23 +39,28 @@ export async function handleListMyRides(
       db.collection('rides').countDocuments(filter),
     ]);
 
-    // ── Bulk-resolve user names (avoid N+1) ─────────────────────────────
+    // ── Collect all referenced IDs ──────────────────────────────────────
     const referencedIds = new Set<string>();
     for (const r of rides) {
       if (r.clientId) referencedIds.add(r.clientId);
       if (r.driverId) referencedIds.add(r.driverId);
     }
 
-    const usersByName = new Map<string, any>();
-    if (referencedIds.size > 0) {
-      const found = await db
-        .collection('users')
-        .find({ clerkId: { $in: Array.from(referencedIds) } })
-        .toArray();
-      for (const u of found) {
-        usersByName.set(u.clerkId, u);
-      }
-    }
+    // ── Fetch users AND drivers in parallel ─────────────────────────────
+    const [users, drivers] = await Promise.all([
+      referencedIds.size > 0
+        ? db.collection('users').find({ clerkId: { $in: Array.from(referencedIds) } }).toArray()
+        : [],
+      db
+        .collection('drivers')
+        .find({
+          userId: { $in: rides.filter((r: any) => r.driverId).map((r: any) => r.driverId) },
+        })
+        .toArray(),
+    ]);
+
+    const usersByClerkId = new Map((users as any[]).map((u) => [u.clerkId, u]));
+    const driversByUserId = new Map((drivers as any[]).map((d) => [d.userId, d]));
 
     function buildUserName(u: any): string {
       if (!u) return '';
@@ -65,19 +71,36 @@ export async function handleListMyRides(
     }
 
     // ── Map response ────────────────────────────────────────────────────
-    const mapped = rides.map((r: any) => ({
-      id: r._id?.toString() ?? r.id,
-      title: r.title,
-      type: r.type,
-      status: r.status,
-      estimatedPrice: r.estimatedPrice,
-      finalPrice: r.finalPrice,
-      pickupAddress: r.pickupLocation?.address ?? '',
-      dropoffAddress: r.dropoffLocation?.address ?? '',
-      clientName: buildUserName(r.clientId ? usersByName.get(r.clientId) : undefined),
-      driverName: buildUserName(r.driverId ? usersByName.get(r.driverId) : undefined),
-      createdAt: r.createdAt?.toISOString?.() ?? r.createdAt,
-    }));
+    const mapped = rides.map((r: any) => {
+      const driver = r.driverId ? driversByUserId.get(r.driverId) : null;
+      const driverUser = r.driverId ? usersByClerkId.get(r.driverId) : null;
+
+      return {
+        id: r._id?.toString() ?? r.id,
+        title: r.title,
+        type: r.type,
+        status: r.status,
+        estimatedPrice: r.estimatedPrice,
+        finalPrice: r.finalPrice,
+        pickupAddress: r.pickupLocation?.address ?? '',
+        dropoffAddress: r.dropoffLocation?.address ?? '',
+        clientName: buildUserName(r.clientId ? usersByClerkId.get(r.clientId) : undefined),
+        createdAt: r.createdAt?.toISOString?.() ?? r.createdAt,
+        // Driver profile when assigned
+        ...(r.driverId
+          ? {
+              driverId: r.driverId,
+              driverName: buildUserName(driverUser),
+              driverRating: driver?.rating ?? 0,
+              driverTotalRides: driver?.totalRides ?? 0,
+              driverImageUrl: driverUser?.imageUrl ?? null,
+              driverVehicleType: driver?.vehicleType ?? null,
+              driverPlate: driver?.plate ?? null,
+              driverVerificationStatus: driver?.verificationStatus ?? null,
+            }
+          : {}),
+      };
+    });
 
     return {
       content: [{ type: 'text', text: JSON.stringify({ rides: mapped, total, page, limit }) }],

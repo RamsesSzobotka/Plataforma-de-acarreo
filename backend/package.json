@@ -10,9 +10,13 @@
     "db:down": "docker compose -f ../docker-compose.yml down",
     "db:logs": "docker compose -f ../docker-compose.yml logs -f mongodb redis",
     "db:init": "bun run src/scripts/create-admin.ts",
+<<<<<<< HEAD
     "db:audit": "bun run src/scripts/ver-auditoria.ts",
     "db:dedupe:ratings": "bun run src/scripts/cleanup-duplicate-ratings.ts",
-    "migrate": "bun run src/db/migrate.ts"
+    "migrate": "bun run src/db/migrate.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+>>>>>>> 19c27902c29f36981adbd9aee7fd281c53e79faa
   },
   "dependencies": {
     "@clerk/clerk-sdk-node": "^5.0.0",

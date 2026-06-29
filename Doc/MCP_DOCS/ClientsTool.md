@@ -1,3 +1,8 @@
+# ClientsTool.md — OBSOLETO
+Ver: MCP-STADO.md para el estado actual.
+
+---
+
 # ClientsTool.md — MCP Tools del Cliente
 
 > **Proyecto**: Plataforma de Acarreos — MCP Server

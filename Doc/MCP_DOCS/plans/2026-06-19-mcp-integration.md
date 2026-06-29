@@ -1,3 +1,9 @@
+# 2026-06-19-mcp-integration.md — OBSOLETO
+Este plan fue ejecutado. La integración MCP está completa.
+Ver: MCP-STADO.md
+
+---
+
 # MCP Integration Implementation Plan
 
 > **For agentic workers:** Use subagent-driven-development to implement this plan. Tasks run in parallel phases. READ each task's "Context" section first for dependencies.

@@ -1,3 +1,8 @@
+# mcp-integration-design.md — OBSOLETO
+Ver: MCP-STADO.md para el estado actual.
+
+---
+
 # MCP Integration Design — Carglyn MCP
 
 > **Estado**: Aprobado para implementación

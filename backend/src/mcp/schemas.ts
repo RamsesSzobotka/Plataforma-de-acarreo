@@ -19,6 +19,8 @@ const rideTypeEnum = z.enum([
   'otros',
 ]);
 
+const offerStatusEnum = z.enum(['pending', 'accepted', 'rejected', 'cancelled']);
+
 const paginationSchema = {
   page: z.coerce.number().int().min(1).optional().default(1).describe('Número de página (default: 1)'),
   limit: z.coerce.number().int().min(1).max(50).optional().default(10).describe('Elementos por página (max: 50)'),
@@ -56,8 +58,7 @@ export const viewOffersSchema = z.object({
 
 export const acceptOfferSchema = z.object({
   rideId: z.string().min(1).describe('ID del acarreo'),
-  driverId: z.string().min(1).describe('ID del conductor (clerkId)'),
-  agreedPrice: z.number().positive().optional().describe('Precio acordado con el conductor'),
+  offerId: z.string().min(1).describe('ID de la oferta a aceptar'),
 });
 
 export const confirmDeliverySchema = z.object({
@@ -73,4 +74,42 @@ export const rateServiceSchema = z.object({
   rideId: z.string().min(1).describe('ID del acarreo'),
   rating: z.number().int().min(1).max(5).describe('Calificación de 1 a 5 estrellas'),
   comment: z.string().max(1000).optional().describe('Comentario opcional sobre la calificación'),
+});
+
+// Phase 5: Driver tools schemas
+export const proposePriceSchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo'),
+  amount: z.number().positive().describe('Precio propuesto en USD'),
+  message: z.string().max(500).optional().describe('Mensaje opcional para el cliente'),
+});
+
+export const listAvailableRidesSchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(10),
+});
+
+export const sendMessageSchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo'),
+  content: z.string().min(1).max(1000).describe('Contenido del mensaje'),
+});
+
+export const startTripSchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo'),
+});
+
+export const uploadDeliveryPhotoSchema = z.object({
+  rideId: z.string().min(1).describe('ID del acarreo'),
+  photoUrl: z.string().url().describe('URL de la foto de entrega'),
+  publicId: z.string().optional().describe('Public ID de Cloudinary'),
+});
+
+export const getPaymentHistorySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(10),
+});
+
+export const getDriverProfileSchema = z.object({});
+
+export const getPublicDriverProfileSchema = z.object({
+  driverId: z.string().min(1).describe('ID del conductor (clerkId)'),
 });

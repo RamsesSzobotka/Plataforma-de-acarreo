@@ -1,3 +1,9 @@
+# ASIGNACION.md — OBSOLETO
+Ver: MCP-STADO.md para el estado actual.
+Este documento refleja el estado PRE-Fase 4-11.
+
+---
+
 # Asignación de Responsabilidades — MCP Server
 
 > **Proyecto**: Plataforma de Acarreos — MCP Server
