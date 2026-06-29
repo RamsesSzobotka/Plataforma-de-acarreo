@@ -2,7 +2,6 @@ import type { Ride, Message, PaginatedResponse } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
-// WebSocket connection helper
 export class WebSocketService {
   private ws: WebSocket | null = null
   private rideId: string | null = null
@@ -22,13 +21,11 @@ export class WebSocketService {
 
     // Already connected to this ride
     if (this.ws?.readyState === WebSocket.OPEN && this.rideId === rideId) {
-      console.log('WebSocket already connected to ride:', rideId)
       return
     }
 
     // Different ride - disconnect first
     if (this.ws && this.rideId !== rideId) {
-      console.log('Switching WebSocket from ride', this.rideId, 'to', rideId)
       this.disconnectInternal()
     }
 
@@ -36,11 +33,9 @@ export class WebSocketService {
     this.token = token
     const wsUrl = `${API_URL.replace('http', 'ws')}${pathPrefix}${rideId}`
     
-    console.log('WebSocket connecting to:', wsUrl)
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected successfully')
       this.reconnectAttempts = 0
       // Send auth token after connection is open
       if (this.ws?.readyState === WebSocket.OPEN) {
@@ -77,13 +72,11 @@ export class WebSocketService {
       })
     }
 
-    this.ws.onclose = (event) => {
-      console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason)
+    this.ws.onclose = () => {
       this.stopHeartbeat()
       
       // Don't reconnect if intentionally disconnected
       if (this.isIntentionallyDisconnected) {
-        console.log('Skipping reconnect - intentional disconnect')
         return
       }
 
@@ -91,14 +84,11 @@ export class WebSocketService {
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++
         const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
-        console.log(`Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
         setTimeout(() => {
           if (this.rideId && this.token && !this.isIntentionallyDisconnected) {
             this.connect(this.rideId, this.token)
           }
         }, delay)
-      } else {
-        console.error('Max reconnection attempts reached')
       }
     }
   }
@@ -145,9 +135,7 @@ export class WebSocketService {
     }
   }
 
-  // Intentional disconnect - stops all reconnection attempts
   disconnect() {
-    console.log('WebSocket intentional disconnect')
     this.isIntentionallyDisconnected = true
     this.stopHeartbeat()
     if (this.ws) {
@@ -158,9 +146,7 @@ export class WebSocketService {
     this.token = null
   }
 
-  // Resume connection after intentional disconnect
   reconnect(rideId: string, token: string) {
-    console.log('WebSocket reconnect requested')
     this.isIntentionallyDisconnected = false
     this.connect(rideId, token)
   }
@@ -207,7 +193,6 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: stri
   return response.json()
 }
 
-// Rides API
 export const ridesAPI = {
   // Listar pedidos disponibles (para drivers)
   listAvailable: (params?: { type?: string; page?: number; limit?: number }, token?: string) => {
@@ -291,7 +276,6 @@ export const ridesAPI = {
     ),
 }
 
-// Messages API
 export const messagesAPI = {
   getByRide: (rideId: string, params?: { page?: number; limit?: number }, token?: string) => {
     const searchParams = new URLSearchParams()
@@ -314,7 +298,6 @@ export const messagesAPI = {
     }, token),
 }
 
-// Users API
 export const usersAPI = {
   get: (clerkId: string, token?: string) => fetchAPI<any>(`/api/users/${clerkId}`, {}, token),
 
@@ -365,7 +348,6 @@ export const usersAPI = {
     ),
 }
 
-// Payments API
 export const paymentsAPI = {
   createSetupIntent: (token?: string) =>
     fetchAPI<{ clientSecret: string; setupIntentId: string; stripeCustomerId: string }>(

@@ -225,9 +225,6 @@ const server = Bun.serve({
   },
 })
 
-// Necesitas declarar el tipo ServerWebSocket si TypeScript lo pide
-declare const ServerWebSocket: any
-
 async function initServer() {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`)
   try {

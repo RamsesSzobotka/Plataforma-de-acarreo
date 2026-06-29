@@ -4,6 +4,7 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import ChatButton from '../components/ChatButton'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
+import type { Ride } from '../types'
 import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
 import { showConfirm } from '../services/alerts'
 import { useDriverLocation } from '../hooks/useDriverLocation'
@@ -20,25 +21,6 @@ interface Driver {
   isAvailable?: boolean
   stripeAccountId?: string
   payoutsEnabled?: boolean
-}
-
-interface Ride {
-  _id: string
-  title: string
-  type: string
-  status: string
-  estimatedPrice: number
-  finalPrice?: number
-  pickupLocation: { address: string; coordinates?: { type: string; coordinates: number[] } }
-  dropoffLocation: { address: string; coordinates?: { type: string; coordinates: number[] } }
-  description: string
-  images?: { url: string; publicId?: string }[]
-  packages?: number
-  weight?: number
-  distance?: number
-  driverId?: string
-  clientId?: string
-  deliveryPhoto?: { url: string }
 }
 
 const verificationBanners = {
@@ -82,11 +64,11 @@ function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'available' | 'mine'>('available')
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+  const [_totalPages, setTotalPages] = useState(1)
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [photoError, setPhotoError] = useState<string | null>(null)
+  const [_photoError, setPhotoError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Tracking automático cuando hay un viaje activo ──
@@ -116,8 +98,7 @@ function DriverDashboard() {
       const token = await getToken()
       await paymentsAPI.getConnectStatus(token || undefined)
       loadDriver()
-    } catch (error) {
-      console.error('Error refreshing Stripe status:', error)
+    } catch {
       loadDriver()
     }
   }
@@ -137,7 +118,7 @@ function DriverDashboard() {
             lng: position.coords.longitude
           })
         },
-        (error) => console.error('Error getting location:', error),
+        () => {},
         { enableHighAccuracy: true }
       )
     }
@@ -148,8 +129,7 @@ function DriverDashboard() {
       const token = await getToken()
       const data = await usersAPI.getDriver('me', token || undefined)
       setDriver(data)
-    } catch (error) {
-      console.error('Error loading driver:', error)
+    } catch {
     } finally {
       setLoading(false)
     }
@@ -172,20 +152,7 @@ function DriverDashboard() {
           setTotalPages(data.pagination.pages)
         }
       }
-    } catch (error) {
-      console.error('Error loading rides:', error)
-    }
-  }
-
-  async function handleAcceptRide(rideId: string, price: number) {
-    if (!user) return
-
-    try {
-      const token = await getToken()
-      await ridesAPI.accept(rideId, user.id, price, token || undefined)
-      loadRides()
-    } catch (error) {
-      console.error('Error accepting ride:', error)
+    } catch {
     }
   }
 
@@ -196,8 +163,7 @@ function DriverDashboard() {
       if (data.onboardingUrl) {
         window.location.href = data.onboardingUrl
       }
-    } catch (error) {
-      console.error('Error connecting Stripe:', error)
+    } catch {
     }
   }
 
@@ -230,13 +196,12 @@ function DriverDashboard() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconhecido'
       setPhotoError(message)
-      console.error('Error uploading photo:', err)
     } finally {
       setUploadingPhoto(false)
     }
   }
 
-  function handleDeliveryPhotoClick(rideId: string) {
+  function handleDeliveryPhotoClick(_rideId: string) {
     fileInputRef.current?.click()
   }
 
@@ -921,7 +886,7 @@ function DriverDashboard() {
                           ${ride.estimatedPrice.toLocaleString()}
                         </div>
                       </div>
-                      <ChatButton rideId={ride._id} variant="outline" size="sm" />
+                      <ChatButton rideId={ride._id} variant="outline" />
                     </div>
                   </div>
                 </div>
@@ -1035,8 +1000,7 @@ function DriverDashboard() {
                             const token = await getToken()
                             await ridesAPI.start(ride._id, token || undefined)
                             loadRides()
-                          } catch (error) {
-                            console.error('Error starting ride:', error)
+                          } catch {
                           }
                         }}
                       >

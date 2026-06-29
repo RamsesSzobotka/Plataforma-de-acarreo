@@ -57,27 +57,23 @@ async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: 
     
     // Si ya está adjunto a este customer, no hacer nada
     if (paymentMethod.customer === customerId) {
-      console.log(`✅ PaymentMethod ${paymentMethodId} ya está adjuntado al Customer ${customerId}`)
       return paymentMethod
     }
 
     // Si está adjunto a otro customer o no está adjunto, adjuntarlo
     if (paymentMethod.customer && paymentMethod.customer !== customerId) {
-      console.log(`⚠️ PaymentMethod ${paymentMethodId} está adjuntado a otro customer, será revinculado`)
+      console.debug(`PaymentMethod ${paymentMethodId} está adjuntado a otro customer, será revinculado`)
     }
 
-    console.log(`💳 Adjuntando PaymentMethod ${paymentMethodId} al Customer ${customerId}...`)
     const attachedPaymentMethod = await stripe.paymentMethods.attach(
       paymentMethodId,
       { customer: customerId }
     )
 
-    console.log(`✅ PaymentMethod ${paymentMethodId} adjuntado exitosamente al Customer ${customerId}`)
     return attachedPaymentMethod
   } catch (error: any) {
     // Si ya está adjunto, ignorar el error
     if (error.message?.includes('already attached')) {
-      console.log(`✅ PaymentMethod ${paymentMethodId} ya estaba adjuntado`)
       return await stripe.paymentMethods.retrieve(paymentMethodId)
     }
     throw error
@@ -127,7 +123,6 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
   try {
     await ensurePaymentMethodAttached(paymentMethodId, customerId)
   } catch (attachError: any) {
-    console.error(`⚠️ Error adjuntando PaymentMethod en charge: ${attachError.message}`)
     // Continuar de todas formas, Stripe dará un error más específico
   }
 
@@ -208,12 +203,6 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
 
 export async function refreshDriverPayoutStatus(stripeAccountId: string) {
   const account = await stripe.accounts.retrieve(stripeAccountId)
-  console.log({
-    payouts_enabled: account.payouts_enabled,
-    charges_enabled: account.charges_enabled,
-    details_submitted: account.details_submitted,
-    requirements: account.requirements,
-  })
   const driver = await Driver.findOneAndUpdate(
     { stripeAccountId },
     { payoutsEnabled: !!account.payouts_enabled, updatedAt: new Date() },

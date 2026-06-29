@@ -98,10 +98,7 @@ export default function RegisterDriver() {
           setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
           return
         }
-      } catch (err: any) {
-        if (err?.response?.status !== 404) {
-          console.error('Error checking driver status:', err)
-        }
+      } catch {
         setIsLoadingStatus(false)
       }
     }

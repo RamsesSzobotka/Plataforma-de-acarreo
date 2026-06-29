@@ -4,7 +4,6 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
-import type { Stripe, StripeElements, PaymentMethod } from '@stripe/stripe-js'
 
 interface SavePaymentMethodProps {
   onPaymentMethodSaved: (paymentMethodId: string, lastDigits: string) => void
@@ -46,8 +45,6 @@ export function SavePaymentMethod({
         throw new Error('Card element no encontrado')
       }
 
-      // Crear Payment Method en Stripe
-      console.log('💳 Creando Payment Method en Stripe...')
       const { error: pmError, paymentMethod } =
         await stripe.createPaymentMethod({
           type: 'card',
@@ -65,8 +62,6 @@ export function SavePaymentMethod({
         throw new Error('No se pudo crear el método de pago')
       }
 
-      console.log('✅ Payment Method creado:', paymentMethod.id)
-
       // Obtener últimos dígitos de la tarjeta
       const lastDigits =
         paymentMethod.card?.last4 || '****'
@@ -76,13 +71,9 @@ export function SavePaymentMethod({
       // Notificar al componente padre
       onPaymentMethodSaved(paymentMethod.id, `${brand.toUpperCase()} ****${lastDigits}`)
 
-      console.log(
-        `💾 Método de pago guardado: ${brand} ****${lastDigits}`
-      )
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Error desconocido'
-      console.error('❌ Error:', message)
       setError(message)
       onError(message)
     } finally {

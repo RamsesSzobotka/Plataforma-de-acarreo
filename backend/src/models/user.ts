@@ -24,7 +24,6 @@ const userSchema = new mongoose.Schema({
   // Para clientes
   phone: { type: String },
   stripeCustomerId: { type: String },
-  paymentMethodId: { type: String },
   
   // Stripe Payment Method ID (guardado para uso en pedidos)
   stripePaymentMethodId: { type: String },
@@ -32,8 +31,6 @@ const userSchema = new mongoose.Schema({
   // Contraseña hasheada (para login directo de admin)
   password: { type: String },
   
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
 })

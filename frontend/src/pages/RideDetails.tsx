@@ -7,32 +7,11 @@ import { wsService } from '../services/api'
 import { StatusBadge } from '../components/StatusBadge'
 import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact } from '../types'
+import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
-
-interface Ride {
-  _id: string
-  clientId: string
-  driverId?: string
-  title: string
-  description: string
-  type: 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros'
-  images: { url: string }[]
-  pickupLocation: { address: string; type?: string; coordinates: [number, number] }
-  dropoffLocation: { address: string; type?: string; coordinates: [number, number] }
-  estimatedPrice: number
-  finalPrice?: number
-  status: 'requested' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled' | 'failed'
-  deliveryPhoto?: { url: string }
-  createdAt: string
-  updatedAt: string
-  chatEnabled: boolean
-  paymentIntentId?: string
-  paidAt?: string
-  stripePaymentMethodId?: string
-}
 
 interface Driver {
   _id: string
@@ -137,24 +116,44 @@ function RideDetails() {
           setContacts(contactsData.data || [])
         }
       }
-    } catch (error) {
-      console.error('Error loading ride:', error)
+    } catch {
     } finally {
       setLoading(false)
     }
   }
 
+  // Conectar WebSocket para recibir eventos en vivo del ride
   useEffect(() => {
     if (!id || !user) return
 
+    // Conectar WS si no lo está ya
+    ;(async () => {
+      const token = await getToken()
+      if (token) {
+        wsService.connect(id, token)
+      }
+    })()
+
+    // Escuchar eventos: mensajes nuevos y cambios de estado
     const unsubscribe = wsService.onMessage((data) => {
-      if (data.type === 'new_message' && data.data && data.data.rideId === id) {
+      const eventRideId = data.data?.rideId || data.data?._id || data.rideId
+      if (eventRideId === id || data.type === 'ride_status_changed') {
         loadRide()
       }
     })
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      wsService.disconnect()
+    }
   }, [id, user])
+
+  // Polling cada 15s como fallback si WS no está disponible
+  useEffect(() => {
+    if (!id) return
+    const interval = setInterval(loadRide, 15000)
+    return () => clearInterval(interval)
+  }, [id])
 
   async function handleCancel() {
     if (!id) return
@@ -171,8 +170,7 @@ function RideDetails() {
       const token = await getToken()
       await ridesAPI.cancel(id, 'Cancelado por el cliente', token || undefined)
       loadRide()
-    } catch (error) {
-      console.error('Error canceling ride:', error)
+    } catch {
     }
   }
 
@@ -217,7 +215,6 @@ function RideDetails() {
 
       loadRide()
     } catch (error) {
-      console.error('Error confirming delivery:', error)
       await showError(error instanceof Error ? error.message : 'Error al confirmar entrega')
     }
   }
@@ -255,8 +252,7 @@ function RideDetails() {
         setComment('')
         loadRide()
       }
-    } catch (error) {
-      console.error('Error rating:', error)
+    } catch {
     }
   }
 
