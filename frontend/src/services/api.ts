@@ -1,8 +1,7 @@
-import type { Ride, Message, PaginatedResponse } from '../types'
+import type { Ride, Message, PaginatedResponse, RatingWithRater } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
-// WebSocket connection helper
 export class WebSocketService {
   private ws: WebSocket | null = null
   private rideId: string | null = null
@@ -16,34 +15,27 @@ export class WebSocketService {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private isIntentionallyDisconnected = false
 
-  connect(rideId: string, token: string) {
-    // Don't reconnect if we intentionally disconnected
-    if (this.isIntentionallyDisconnected) {
-      console.log('WebSocket intentionally disconnected, skipping reconnect')
-      return
-    }
+  connect(rideId: string, token: string, pathPrefix = '/ws/chat/') {
+    // Reset flag to allow reconnection (tracking uses this)
+    this.isIntentionallyDisconnected = false
 
     // Already connected to this ride
     if (this.ws?.readyState === WebSocket.OPEN && this.rideId === rideId) {
-      console.log('WebSocket already connected to ride:', rideId)
       return
     }
 
     // Different ride - disconnect first
     if (this.ws && this.rideId !== rideId) {
-      console.log('Switching WebSocket from ride', this.rideId, 'to', rideId)
       this.disconnectInternal()
     }
 
     this.rideId = rideId
     this.token = token
-    const wsUrl = `${API_URL.replace('http', 'ws')}/ws/chat/${rideId}`
+    const wsUrl = `${API_URL.replace('http', 'ws')}${pathPrefix}${rideId}`
     
-    console.log('WebSocket connecting to:', wsUrl)
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected successfully')
       this.reconnectAttempts = 0
       // Send auth token after connection is open
       if (this.ws?.readyState === WebSocket.OPEN) {
@@ -80,13 +72,11 @@ export class WebSocketService {
       })
     }
 
-    this.ws.onclose = (event) => {
-      console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason)
+    this.ws.onclose = () => {
       this.stopHeartbeat()
       
       // Don't reconnect if intentionally disconnected
       if (this.isIntentionallyDisconnected) {
-        console.log('Skipping reconnect - intentional disconnect')
         return
       }
 
@@ -94,14 +84,11 @@ export class WebSocketService {
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++
         const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
-        console.log(`Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
         setTimeout(() => {
           if (this.rideId && this.token && !this.isIntentionallyDisconnected) {
             this.connect(this.rideId, this.token)
           }
         }, delay)
-      } else {
-        console.error('Max reconnection attempts reached')
       }
     }
   }
@@ -148,9 +135,7 @@ export class WebSocketService {
     }
   }
 
-  // Intentional disconnect - stops all reconnection attempts
   disconnect() {
-    console.log('WebSocket intentional disconnect')
     this.isIntentionallyDisconnected = true
     this.stopHeartbeat()
     if (this.ws) {
@@ -161,9 +146,7 @@ export class WebSocketService {
     this.token = null
   }
 
-  // Resume connection after intentional disconnect
   reconnect(rideId: string, token: string) {
-    console.log('WebSocket reconnect requested')
     this.isIntentionallyDisconnected = false
     this.connect(rideId, token)
   }
@@ -186,6 +169,91 @@ export class WebSocketService {
 }
 
 export const wsService = new WebSocketService()
+
+/**
+ * WebSocket Service for user-level notifications.
+ * Connects to /ws/user and receives events like rating_updated.
+ * This is a separate connection from ride-level chat/tracking WS.
+ */
+export class UserWebSocketService {
+  private ws: WebSocket | null = null
+  private token: string | null = null
+  private messageCallbacks: Set<(data: any) => void> = new Set()
+  private isConnected = false
+
+  connect(token: string) {
+    if (this.ws?.readyState === WebSocket.OPEN && this.token === token) return
+    
+    this.disconnect()
+    this.token = token
+    
+    const API_URL = import.meta.env.VITE_API_URL || ''
+    const wsUrl = `${API_URL.replace('http', 'ws')}/ws/user`
+    
+    this.ws = new WebSocket(wsUrl)
+
+    this.ws.onopen = () => {
+      // Send auth after connection
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'auth', token }))
+      }
+    }
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        // auth_success means we're connected
+        if (data.type === 'auth_success') {
+          this.isConnected = true
+          return
+        }
+        // Dispatch to callbacks
+        this.messageCallbacks.forEach(cb => {
+          try { cb(data) } catch (err) { console.error('Error in user WS callback:', err) }
+        })
+      } catch (err) {
+        console.error('Error parsing user WS message:', err)
+      }
+    }
+
+    this.ws.onclose = () => {
+      this.isConnected = false
+      // Auto-reconnect after 5s
+      if (this.token) {
+        setTimeout(() => {
+          if (this.token) this.connect(this.token)
+        }, 5000)
+      }
+    }
+
+    this.ws.onerror = () => {
+      // onclose will handle reconnect
+    }
+  }
+
+  onMessage(callback: (data: any) => void): () => void {
+    this.messageCallbacks.add(callback)
+    return () => {
+      this.messageCallbacks.delete(callback)
+    }
+  }
+
+  disconnect() {
+    this.isConnected = false
+    this.token = null
+    if (this.ws) {
+      this.ws.close(1000, 'User left')
+      this.ws = null
+    }
+  }
+
+  getConnected(): boolean {
+    return this.isConnected
+  }
+}
+
+// Singleton instance
+export const userWsService = new UserWebSocketService()
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: string): Promise<T> {
   const headers: HeadersInit = {
@@ -210,7 +278,6 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: stri
   return response.json()
 }
 
-// Rides API
 export const ridesAPI = {
   // Listar pedidos disponibles (para drivers)
   listAvailable: (params?: { type?: string; page?: number; limit?: number }, token?: string) => {
@@ -284,9 +351,16 @@ export const ridesAPI = {
     fetchAPI<{ success: boolean; message: string; ride: Ride }>(`/api/rides/${id}/confirm-delivery`, {
       method: 'POST',
     }, token),
+
+  // Obtener ubicación actual del conductor desde Redis (tracking)
+  getDriverLocation: (id: string, token?: string) =>
+    fetchAPI<{ data: { driverId: string; latitude: number; longitude: number; heading: number; speed: number; updatedAt: number } | null }>(
+      `/api/rides/${id}/driver-location`,
+      {},
+      token
+    ),
 }
 
-// Messages API
 export const messagesAPI = {
   getByRide: (rideId: string, params?: { page?: number; limit?: number }, token?: string) => {
     const searchParams = new URLSearchParams()
@@ -309,7 +383,6 @@ export const messagesAPI = {
     }, token),
 }
 
-// Users API
 export const usersAPI = {
   get: (clerkId: string, token?: string) => fetchAPI<any>(`/api/users/${clerkId}`, {}, token),
 
@@ -360,7 +433,28 @@ export const usersAPI = {
     ),
 }
 
-// Payments API
+export const ratingsAPI = {
+  getDriverRatings: (userId: string, params?: { page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<RatingWithRater>>(
+      `/api/ratings/driver/${userId}${query ? `?${query}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  getRideRatings: (rideId: string, token?: string) => {
+    return fetchAPI<{ ratings: RatingWithRater[] }>(
+      `/api/ratings/ride/${rideId}`,
+      {},
+      token
+    )
+  },
+}
+
 export const paymentsAPI = {
   createSetupIntent: (token?: string) =>
     fetchAPI<{ clientSecret: string; setupIntentId: string; stripeCustomerId: string }>(

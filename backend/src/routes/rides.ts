@@ -1,12 +1,36 @@
 import { Hono } from 'hono/tiny'
 import { Ride } from '../models/ride'
-import { Rating } from '../models/rating'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 import { createMarketplaceCharge, MarketplaceStripeError } from '../services/stripeMarketplace'
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
+import { logAudit } from '../services/audit'
+import { getDriverLocation } from '../services/redis'
+import { createRatingAndUpdateAverage } from '../services/rating'
+
+/**
+ * Intenta realizar el cobro automático con el marketplace charge.
+ * Modifica el objeto `update` in-place con paymentIntentId, platformFee, driverAmount, paidAt y status.
+ * No lanza error — captura MarketplaceStripeError y loggea advirtiendo.
+ */
+async function processAutoCharge(rideId: string, update: Record<string, any>): Promise<void> {
+  try {
+    const chargeResult = await createMarketplaceCharge(rideId, { skipStatusCheck: true })
+    update.paymentIntentId = chargeResult.paymentIntent.id
+    update.platformFee = chargeResult.platformFee
+    update.driverAmount = chargeResult.driverAmount
+    update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
+    update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
+  } catch (err) {
+    if (err instanceof MarketplaceStripeError) {
+      console.warn(`Cobro automático omitido para ride ${rideId}: ${err.message}`)
+    } else {
+      console.error(`Error intentando cobrar automáticamente:`, err)
+    }
+  }
+}
 
 const rides = new Hono()
 
@@ -173,6 +197,19 @@ rides.post('/', authMiddleware, async (c) => {
 
     await ride.save()
 
+    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+    const userAgent = c.req.header('user-agent') || ''
+    await logAudit({
+      action: 'ride.created',
+      entityType: 'ride',
+      entityId: ride._id.toString(),
+      userId: currentUser?.clerkId || null,
+      userRole: currentUser?.role,
+      details: { title: ride.title },
+      ip,
+      userAgent,
+    })
+
     return c.json(ride, 201)
   } catch (error: any) {
     console.error('Error creating ride:', error)
@@ -247,6 +284,7 @@ rides.patch('/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   // TODO: Verificar ownership del ride
+  const currentUser = (c as any).get('user') as AuthUser
   
   const ride = await Ride.findByIdAndUpdate(id, body, { new: true })
   
@@ -254,6 +292,18 @@ rides.patch('/:id', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.updated',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  })
+
   return c.json(ride)
 })
 
@@ -261,6 +311,7 @@ rides.patch('/:id', authMiddleware, async (c) => {
 rides.patch('/:id/status', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const { status, reason } = await c.req.json()
+  const currentUser = (c as any).get('user') as AuthUser
   
   // Obtener el ride
   const ride = await Ride.findById(id)
@@ -273,23 +324,7 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
   
   // LÓGICA: Si el estado cambia a 'completed', automáticamente cobrar
   if (status === 'completed' && !ride.paymentIntentId) {
-    try {
-      console.log(`💳 Cobrando automáticamente al completar ride ${id}...`)
-      const chargeResult = await createMarketplaceCharge(id, { skipStatusCheck: true })
-      update.paymentIntentId = chargeResult.paymentIntent.id
-      update.platformFee = chargeResult.platformFee
-      update.driverAmount = chargeResult.driverAmount
-      update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
-      update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
-    } catch (err) {
-      if (err instanceof MarketplaceStripeError) {
-        console.warn(`ℹ️ Cobro automático omitido para ride ${id}: ${err.message}`)
-      } else {
-        console.error(`❌ Error intentando cobrar automáticamente:`, err)
-      }
-      // NO retornar error, dejar que el cliente intente pagar manualmente
-      console.log(`ℹ️ Ride ${id} se completará, pero requiere pago manual`)
-    }
+    await processAutoCharge(id, update)
   }
 
   const oldStatus = ride.status
@@ -305,6 +340,19 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
       ride: updatedRide,
       timestamp: new Date().toISOString(),
     },
+  })
+
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.status_change',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { from: oldStatus, to: updatedRide.status },
+    ip,
+    userAgent,
   })
 
   return c.json(updatedRide)
@@ -370,6 +418,19 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { isActive: false }
   )
 
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.accepted',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { driverId: currentUser?.clerkId },
+    ip,
+    userAgent,
+  })
+
   // Emitir via WebSocket
   broadcastToRide(id, {
     type: 'ride_status_changed',
@@ -426,6 +487,18 @@ rides.post('/:id/start', authMiddleware, async (c) => {
     },
   })
 
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.started',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     message: 'Viaje iniciado',
@@ -468,6 +541,18 @@ rides.post('/:id/delivery-photo', authMiddleware, async (c) => {
     deliveryPhoto: { url, publicId }
   }, { new: true })
   
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.delivery_photo',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     message: 'Foto de entrega guardada',
@@ -509,21 +594,7 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   const update: any = { status: 'completed' }
   
   if (!ride.paymentIntentId) {
-    try {
-      console.log(`💳 Cobrando automáticamente al confirmar entrega ${id}...`)
-      const chargeResult = await createMarketplaceCharge(id, { skipStatusCheck: true })
-      update.paymentIntentId = chargeResult.paymentIntent.id
-      update.platformFee = chargeResult.platformFee
-      update.driverAmount = chargeResult.driverAmount
-      update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
-      update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
-    } catch (err) {
-      if (err instanceof MarketplaceStripeError) {
-        console.warn(`ℹ️ Cobro automático omitido para ride ${id}: ${err.message}`)
-      } else {
-        console.error(`❌ Error intentando cobrar automáticamente:`, err)
-      }
-    }
+    await processAutoCharge(id, update)
   }
   
   const updatedRide = await Ride.findByIdAndUpdate(id, update, { new: true })
@@ -538,6 +609,19 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
       ride: updatedRide,
       timestamp: new Date().toISOString(),
     },
+  })
+
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.delivery_confirmed',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { status: 'completed' },
+    ip,
+    userAgent,
   })
 
   return c.json({
@@ -593,7 +677,43 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     },
   })
 
-  return c.json(updatedRide)
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  await logAudit({
+    action: 'ride.cancelled',
+    entityType: 'ride',
+    entityId: id,
+    userId: currentUser?.clerkId || null,
+    userRole: currentUser?.role,
+    details: { reason: reason || 'No especificado' },
+    ip,
+    userAgent,
+  })
+
+  return c.json(updatedRide)  
+})
+
+// Obtener ubicación actual del conductor (tracking en vivo)
+// Expone la ubicación guardada en Redis para que el cliente la obtenga al cargar la página
+rides.get('/:id/driver-location', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const currentUser = (c as any).get('user') as AuthUser
+
+  // Verificar que el ride existe
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Solo participantes o admin pueden ver la ubicación
+  const isParticipant = ride.clientId === currentUser.clerkId || ride.driverId === currentUser.clerkId
+  if (!isParticipant && currentUser.role !== 'admin') {
+    return c.json({ error: 'No tienes permiso para ver este ride' }, 403)
+  }
+
+  // Obtener ubicación desde Redis
+  const location = await getDriverLocation(id)
+  return c.json({ data: location })
 })
 
 // Calificar conductor (cliente) o cliente (conductor) - requiere autenticación
@@ -631,33 +751,50 @@ rides.post('/:id/rate', authMiddleware, async (c) => {
     return c.json({ error: 'No tienes permiso para calificar este ride' }, 403)
   }
   
-  // Crear o actualizar la calificación
-  const ratingRecord = await Rating.findOneAndUpdate(
-    { rideId: id, raterId, ratedId, role },
-    { rating, comment, createdAt: new Date() },
-    { upsert: true, new: true }
-  )
+  // Usar el servicio centralizado de calificaciones
+  let ratingRecord
+  try {
+    ratingRecord = await createRatingAndUpdateAverage(
+      id, raterId, ratedId, role, rating, comment,
+    )
+  } catch (err) {
+    const message = (err as Error).message
+    if (message.includes('Ya has calificado')) {
+      return c.json({ error: message }, 409)
+    }
+    throw err
+  }
 
-  // Si la calificación es para un driver, recalcular promedio y total
+  // Emitir via WebSocket — notificar al conductor sobre nueva calificación
   if (role === 'driver') {
     try {
-      const agg = await Rating.aggregate([
-        { $match: { ratedId: ratedId, role: 'driver' } },
-        { $group: { _id: '$ratedId', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
-      ])
+      const { Driver } = await import('../models/driver')
+      const driverData = await Driver.findOne({ userId: ratedId }).select('rating totalRides')
 
-      if (agg && agg.length > 0) {
-        const { avg, count } = agg[0]
-        // Actualizar el Driver.rating y totalRides
-        const { Driver } = await import('../models/driver')
-        await Driver.findOneAndUpdate(
-          { userId: ratedId },
-          { rating: Number(avg.toFixed(2)), totalRides: count },
-          { new: true }
-        )
-      }
+      // Broadcast a la sala del ride (para quien esté viendo el detalle/chat)
+      broadcastToRide(id, {
+        type: 'rating_updated',
+        data: {
+          rideId: id,
+          ratedId,
+          rating: driverData?.rating,
+          totalRides: driverData?.totalRides,
+          role,
+        },
+      })
+
+      // Broadcast directamente al conductor (para el driver dashboard en vivo)
+      const { broadcastToUser } = await import('../services/websocket')
+      broadcastToUser(ratedId, {
+        type: 'rating_updated',
+        data: {
+          rideId: id,
+          rating: driverData?.rating,
+          totalRides: driverData?.totalRides,
+        },
+      })
     } catch (err) {
-      console.error('Error actualizando promedio de driver:', err)
+      console.error('Error broadcasting rating update:', err)
     }
   }
 

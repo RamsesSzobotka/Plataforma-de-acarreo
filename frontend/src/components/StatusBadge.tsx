@@ -82,6 +82,7 @@ export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
         textTransform: 'uppercase',
         letterSpacing: '0.03em',
         whiteSpace: 'nowrap',
+        transition: 'all 0.2s var(--ease-out)',
       }}
     >
       <span className="material-symbols-rounded" style={{ fontSize: 'inherit' }}>

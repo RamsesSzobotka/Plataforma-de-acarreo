@@ -63,10 +63,11 @@ services:
     environment:
       # Override: apuntar a MongoDB y Redis dentro de la red Docker
       DATABASE_URL: mongodb://admin:password@mongodb:27017/plataforma_acarreo?authSource=admin
+      REDIS_URL: redis://redis:6379
       PORT: 3000
       NODE_ENV: development
     healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/health/ready').then(r => process.exit(r.ok?0:1)).catch(() => process.exit(1))"]
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/').then(r => process.exit(r.ok?0:1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 15

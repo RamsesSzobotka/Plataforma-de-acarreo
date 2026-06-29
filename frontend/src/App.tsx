@@ -14,8 +14,12 @@ import RegisterDriver from './pages/RegisterDriver'
 import AddPaymentMethodPage from './pages/AddPaymentMethod'
 import PaymentHistory from './pages/PaymentHistory'
 import SettingsMcp from './pages/SettingsMcp'
+import DriverPublicProfile from './pages/DriverPublicProfile'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+import ErrorBoundary from './components/ErrorBoundary'
+import PageTransition from './components/PageTransition'
 import { hideLoading, showLoading } from './services/alerts'
+import ToastContainer from './components/Toast'
 
 function SessionLoading({ message }: { message: string }) {
   useEffect(() => {
@@ -60,7 +64,9 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <PageTransition>
+        <Routes>
       {/* Ruta publica de autenticacion - SIN Layout */}
       <Route
         path="/sign-in"
@@ -123,6 +129,13 @@ function App() {
           </ProtectedRoute>
         } />
         
+        {/* Profile routes */}
+        <Route path="profile/:clerkId" element={
+          <ProtectedRoute>
+            <DriverPublicProfile />
+          </ProtectedRoute>
+        } />
+        
         {/* Payment routes */}
         <Route path="add-payment-method" element={
           <ProtectedRoute>
@@ -141,6 +154,9 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+      </PageTransition>
+      <ToastContainer />
+    </ErrorBoundary>
   )
 }
 

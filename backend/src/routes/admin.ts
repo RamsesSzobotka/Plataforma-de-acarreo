@@ -2,6 +2,7 @@ import { Hono } from 'hono/tiny'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
+import { logAudit } from '../services/audit'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
 interface ClerkProfile {
@@ -56,6 +57,8 @@ const admin = new Hono()
 // Login de admin (desde base de datos)
 admin.post('/login', async (c) => {
   const { email, password } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
   
   if (!email || !password) {
     return c.json({ error: 'Email y contraseña son requeridos' }, 400)
@@ -85,6 +88,16 @@ admin.post('/login', async (c) => {
   }
   
   // Devolver info del admin (sin contraseña)
+  await logAudit({
+    action: 'admin.login',
+    entityType: 'user',
+    entityId: email || 'unknown',
+    userId: null,
+    details: { success: true },
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     user: {
@@ -248,6 +261,9 @@ admin.get('/users/:clerkId', async (c) => {
 admin.patch('/users/:clerkId', async (c) => {
   const clerkId = c.req.param('clerkId')
   const body = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const updateData: any = { updatedAt: new Date() }
   if (body.firstName) updateData.firstName = body.firstName
@@ -268,18 +284,42 @@ admin.patch('/users/:clerkId', async (c) => {
     return c.json({ error: 'Usuario no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.user_update',
+    entityType: 'user',
+    entityId: clerkId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { fields: Object.keys(updateData) },
+    ip,
+    userAgent,
+  })
+
   return c.json(user)
 })
 
 // Eliminar usuario
 admin.delete('/users/:clerkId', async (c) => {
   const clerkId = c.req.param('clerkId')
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const user = await User.findOneAndDelete({ clerkId })
 
   if (!user) {
     return c.json({ error: 'Usuario no encontrado' }, 404)
   }
+
+  await logAudit({
+    action: 'admin.user_delete',
+    entityType: 'user',
+    entityId: clerkId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    ip,
+    userAgent,
+  })
 
   return c.json({ success: true, message: 'Usuario eliminado' })
 })
@@ -362,6 +402,9 @@ admin.get('/drivers/:userId', async (c) => {
 // Aprobar driver
 admin.post('/drivers/:userId/approve', async (c) => {
   const userId = c.req.param('userId')
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const driver = await Driver.findOneAndUpdate(
     { userId },
@@ -384,6 +427,16 @@ admin.post('/drivers/:userId/approve', async (c) => {
     { role: 'driver', updatedAt: new Date() }
   )
 
+  await logAudit({
+    action: 'admin.driver_approve',
+    entityType: 'driver',
+    entityId: userId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     driver: {
@@ -397,6 +450,9 @@ admin.post('/drivers/:userId/approve', async (c) => {
 admin.post('/drivers/:userId/reject', async (c) => {
   const userId = c.req.param('userId')
   const { reason } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const driver = await Driver.findOneAndUpdate(
     { userId },
@@ -412,6 +468,17 @@ admin.post('/drivers/:userId/reject', async (c) => {
     return c.json({ error: 'Driver no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.driver_reject',
+    entityType: 'driver',
+    entityId: userId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { reason: reason || 'No especificado' },
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     driver: {
@@ -425,6 +492,9 @@ admin.post('/drivers/:userId/reject', async (c) => {
 // Revisar driver (poner en review)
 admin.post('/drivers/:userId/review', async (c) => {
   const userId = c.req.param('userId')
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const driver = await Driver.findOneAndUpdate(
     { userId },
@@ -436,6 +506,16 @@ admin.post('/drivers/:userId/review', async (c) => {
     return c.json({ error: 'Driver no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.driver_review',
+    entityType: 'driver',
+    entityId: userId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     driver: { userId: driver.userId, verificationStatus: driver.verificationStatus },
@@ -446,6 +526,9 @@ admin.post('/drivers/:userId/review', async (c) => {
 admin.post('/drivers/:userId/suspend', async (c) => {
   const userId = c.req.param('userId')
   const { reason } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const driver = await Driver.findOneAndUpdate(
     { userId },
@@ -462,6 +545,17 @@ admin.post('/drivers/:userId/suspend', async (c) => {
     return c.json({ error: 'Driver no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.driver_suspend',
+    entityType: 'driver',
+    entityId: userId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { reason: reason || 'No especificado' },
+    ip,
+    userAgent,
+  })
+
   return c.json({
     success: true,
     driver: { userId: driver.userId, verificationStatus: driver.verificationStatus },
@@ -472,6 +566,9 @@ admin.post('/drivers/:userId/suspend', async (c) => {
 admin.patch('/drivers/:userId', async (c) => {
   const userId = c.req.param('userId')
   const body = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const updateData: any = { updatedAt: new Date() }
 
@@ -486,6 +583,17 @@ admin.patch('/drivers/:userId', async (c) => {
   if (!driver) {
     return c.json({ error: 'Driver no encontrado' }, 404)
   }
+
+  await logAudit({
+    action: 'admin.driver_update',
+    entityType: 'driver',
+    entityId: userId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { fields: Object.keys(updateData) },
+    ip,
+    userAgent,
+  })
 
   return c.json(driver)
 })
@@ -610,6 +718,9 @@ admin.get('/rides/:id', async (c) => {
 admin.patch('/rides/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const updateData: any = { updatedAt: new Date() }
   if (body.title) updateData.title = body.title
@@ -626,6 +737,16 @@ admin.patch('/rides/:id', async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.ride_update',
+    entityType: 'ride',
+    entityId: id,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    ip,
+    userAgent,
+  })
+
   return c.json(ride)
 })
 
@@ -633,6 +754,9 @@ admin.patch('/rides/:id', async (c) => {
 admin.patch('/rides/:id/status', async (c) => {
   const id = c.req.param('id')
   const { status } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const validStatuses = ['requested', 'accepted', 'in_progress', 'completed', 'paid', 'failed', 'cancelled']
   if (!status || !validStatuses.includes(status)) {
@@ -649,6 +773,17 @@ admin.patch('/rides/:id/status', async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.ride_status_change',
+    entityType: 'ride',
+    entityId: id,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { to: status },
+    ip,
+    userAgent,
+  })
+
   return c.json(ride)
 })
 
@@ -656,6 +791,9 @@ admin.patch('/rides/:id/status', async (c) => {
 admin.patch('/rides/:id/assign', async (c) => {
   const id = c.req.param('id')
   const { driverId } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   if (!driverId) {
     return c.json({ error: 'driverId es requerido' }, 400)
@@ -676,6 +814,17 @@ admin.patch('/rides/:id/assign', async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.ride_assign',
+    entityType: 'ride',
+    entityId: id,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { driverId },
+    ip,
+    userAgent,
+  })
+
   return c.json(ride)
 })
 
@@ -683,6 +832,9 @@ admin.patch('/rides/:id/assign', async (c) => {
 admin.post('/rides/:id/cancel', async (c) => {
   const id = c.req.param('id')
   const { reason } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const ride = await Ride.findByIdAndUpdate(
     id,
@@ -694,18 +846,42 @@ admin.post('/rides/:id/cancel', async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
+  await logAudit({
+    action: 'admin.ride_cancel',
+    entityType: 'ride',
+    entityId: id,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { reason: reason || 'No especificado' },
+    ip,
+    userAgent,
+  })
+
   return c.json(ride)
 })
 
 // Eliminar ride
 admin.delete('/rides/:id', async (c) => {
   const id = c.req.param('id')
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
 
   const ride = await Ride.findByIdAndDelete(id)
 
   if (!ride) {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
+
+  await logAudit({
+    action: 'admin.ride_delete',
+    entityType: 'ride',
+    entityId: id,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    ip,
+    userAgent,
+  })
 
   return c.json({ success: true, message: 'Ride eliminado' })
 })

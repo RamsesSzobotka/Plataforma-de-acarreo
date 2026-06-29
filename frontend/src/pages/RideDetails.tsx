@@ -1,36 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
-import { ridesAPI, usersAPI } from '../services/api'
+import { ridesAPI, usersAPI, ratingsAPI } from '../services/api'
 import { wsService } from '../services/api'
 import { StatusBadge } from '../components/StatusBadge'
 import { TimelineStepper } from '../components/TimelineStepper'
-import type { DriverContact } from '../types'
+import type { DriverContact, RatingWithRater } from '../types'
+import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
-
-interface Ride {
-  _id: string
-  clientId: string
-  driverId?: string
-  title: string
-  description: string
-  type: 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros'
-  images: { url: string }[]
-  pickupLocation: { address: string; type?: string; coordinates: [number, number] }
-  dropoffLocation: { address: string; type?: string; coordinates: [number, number] }
-  estimatedPrice: number
-  finalPrice?: number
-  status: 'requested' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled' | 'failed'
-  deliveryPhoto?: { url: string }
-  createdAt: string
-  updatedAt: string
-  chatEnabled: boolean
-  paymentIntentId?: string
-  paidAt?: string
-  stripePaymentMethodId?: string
-}
+import { useRideTracking } from '../hooks/useRideTracking'
+import RouteMapWrapper from '../components/RouteMapWrapper'
+import DriverProfilePopup from '../components/DriverProfilePopup'
 
 interface Driver {
   _id: string
@@ -61,7 +43,6 @@ function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
   const { getToken } = useAuth()
-  const navigate = useNavigate()
   const { unreadCounts } = useNotifications()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
@@ -69,11 +50,21 @@ function RideDetails() {
   const [contacts, setContacts] = useState<DriverContact[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [driverPopup, setDriverPopup] = useState<{ driverUser: any; driver: any; rideId?: string; position: { x: number; y: number } } | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
+  const [existingRating, setExistingRating] = useState<RatingWithRater | null>(null)
+  const [hasRated, setHasRated] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [userHasPaymentMethod, setUserHasPaymentMethod] = useState(false)
+
+  // ── Tracking en vivo del conductor ──
+  const { driverLocation, isTracking } = useRideTracking({
+    rideId: id ?? '',
+    rideStatus: ride?.status ?? '',
+    getToken: async () => (await getToken()) ?? '',
+  })
 
   // Verificar método de pago actual del usuario (no el del ride, que puede estar desactualizado)
   useEffect(() => {
@@ -90,10 +81,57 @@ function RideDetails() {
     checkUserPaymentMethod()
   }, [getToken])
 
+  // Verificar si el usuario ya ha calificado este acarreo
+  useEffect(() => {
+    async function checkExistingRating() {
+      if (!ride || ride.status !== 'paid' || !user?.id) return
+      
+      // Solo el cliente puede calificar en este contexto
+      const isOwner = ride.clientId === user.id
+      if (!isOwner) return
+
+      try {
+        const token = await getToken()
+        if (!token) return
+
+        const response = await ratingsAPI.getRideRatings(ride._id, token)
+        const userRating = response.ratings.find((r) => r.raterId === user.id)
+
+        if (userRating) {
+          setExistingRating(userRating)
+          setHasRated(true)
+        } else {
+          setExistingRating(null)
+          setHasRated(false)
+        }
+      } catch (err) {
+        console.error('Error checking existing rating:', err)
+        setHasRated(false)
+      }
+    }
+
+    checkExistingRating()
+  }, [ride, user, getToken])
+
   useEffect(() => {
     if (!id || !user) return
     loadRide()
   }, [id, user, getToken])
+
+  async function loadDriverData(driverId: string) {
+    try {
+      const token = await getToken()
+      if (!token) return
+
+      const driverData = await usersAPI.get(driverId, token)
+      setDriverUser(driverData)
+
+      const driverProfile = await usersAPI.getDriver(driverId, token)
+      setDriver(driverProfile)
+    } catch (err) {
+      console.error('Error loading driver data:', err)
+    }
+  }
 
   async function loadRide() {
     if (!id) {
@@ -128,24 +166,77 @@ function RideDetails() {
           setContacts(contactsData.data || [])
         }
       }
-    } catch (error) {
-      console.error('Error loading ride:', error)
+    } catch {
     } finally {
       setLoading(false)
     }
   }
 
+  // Conectar WebSocket para recibir eventos en vivo del ride
   useEffect(() => {
     if (!id || !user) return
 
+    let isCancelled = false
+
+    ;(async () => {
+      const token = await getToken()
+      if (token && !isCancelled) {
+        wsService.connect(id, token)
+      }
+    })()
+
     const unsubscribe = wsService.onMessage((data) => {
-      if (data.type === 'new_message' && data.data && data.data.rideId === id) {
-        loadRide()
+      if (isCancelled) return
+
+      const eventRideId = data.data?.rideId || data.data?._id || data.rideId
+
+      if (eventRideId === id || data.type === 'ride_status_changed') {
+        switch (data.type) {
+          case 'ride_status_changed': {
+            const { newStatus, ride: updatedRide } = data.data || {}
+            if (newStatus) {
+              setRide(prev => prev ? {
+                ...prev,
+                status: newStatus,
+                ...(updatedRide?.driverId ? { driverId: updatedRide.driverId } : {}),
+                ...(updatedRide?.finalPrice ? { finalPrice: updatedRide.finalPrice } : {}),
+                ...(updatedRide?.deliveryPhoto ? { deliveryPhoto: updatedRide.deliveryPhoto } : {}),
+              } : prev)
+
+              if (updatedRide?.driverId && !ride?.driverId) {
+                loadDriverData(updatedRide.driverId)
+              }
+            }
+            break
+          }
+
+          case 'new_message':
+            break
+
+          case 'price_proposed':
+          case 'price_accepted':
+          case 'price_rejected':
+            break
+
+          default:
+            loadRide()
+        }
       }
     })
 
-    return unsubscribe
+    return () => {
+      isCancelled = true
+      unsubscribe()
+      wsService.disconnect()
+    }
   }, [id, user])
+
+  // Polling cada 15s como fallback si WS no está disponible
+  useEffect(() => {
+    if (!id) return
+    const interval = setInterval(loadRide, 30000)
+    return () => clearInterval(interval)
+  }, [id])
 
   async function handleCancel() {
     if (!id) return
@@ -162,8 +253,7 @@ function RideDetails() {
       const token = await getToken()
       await ridesAPI.cancel(id, 'Cancelado por el cliente', token || undefined)
       loadRide()
-    } catch (error) {
-      console.error('Error canceling ride:', error)
+    } catch {
     }
   }
 
@@ -208,7 +298,6 @@ function RideDetails() {
 
       loadRide()
     } catch (error) {
-      console.error('Error confirming delivery:', error)
       await showError(error instanceof Error ? error.message : 'Error al confirmar entrega')
     }
   }
@@ -245,14 +334,31 @@ function RideDetails() {
         setRating(0)
         setComment('')
         loadRide()
+      } else if (response.status === 409) {
+        // Intento de duplicar calificación — el backend rechaza correctamente
+        const data = await response.json()
+        await showError(data.error || 'Ya has calificado este acarreo')
+      } else {
+        await showError('Error al enviar la calificacion')
       }
-    } catch (error) {
-      console.error('Error rating:', error)
+    } catch (err) {
+      await showError((err as Error).message || 'Error al enviar la calificacion')
     }
   }
 
-  const handleChatClick = (contact: DriverContact) => {
-    navigate(`/chat/${id}?contactId=${contact._id}&driverId=${contact.driverId}`)
+  const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
+    const driverData = {
+      clerkId: contact.driverId,
+      firstName: contact.driver?.firstName,
+      lastName: contact.driver?.lastName,
+      imageUrl: contact.driver?.imageUrl,
+    }
+    setDriverPopup({
+      driverUser: driverData,
+      driver: null,
+      rideId: `${id}?contactId=${contact._id}&driverId=${contact.driverId}`,
+      position: { x: e.clientX, y: e.clientY },
+    })
   }
 
   if (loading) {
@@ -624,6 +730,49 @@ function RideDetails() {
                 </div>
               </div>
             </div>
+
+            {/* Route Map */}
+            {ride.pickupLocation?.coordinates && ride.dropoffLocation?.coordinates && (
+              <div style={{ marginTop: '1rem' }}>
+                <RouteMapWrapper
+                  pickup={{
+                    address: ride.pickupLocation.address,
+                    coordinates: {
+                      lat: ride.pickupLocation.coordinates[1],
+                      lng: ride.pickupLocation.coordinates[0],
+                    },
+                  }}
+                  dropoff={{
+                    address: ride.dropoffLocation.address,
+                    coordinates: {
+                      lat: ride.dropoffLocation.coordinates[1],
+                      lng: ride.dropoffLocation.coordinates[0],
+                    },
+                  }}
+                  driverLocation={driverLocation}
+                />
+                {/* Tracking active badge */}
+                {isTracking && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginTop: '8px',
+                    padding: '6px 12px',
+                    background: 'var(--success-subtle)',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--success)',
+                    fontWeight: 'var(--font-medium)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
+                      my_location
+                    </span>
+                    Conductor en vivo — ubicacion actualizada en tiempo real
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Delivery Photo */}
@@ -737,28 +886,47 @@ function RideDetails() {
                   <img
                     src={driverUser.imageUrl}
                     alt={driverUser.firstName}
+                    onClick={(e) => setDriverPopup({
+                      driverUser,
+                      driver,
+                      rideId: ride?._id,
+                      position: { x: e.clientX, y: e.clientY },
+                    })}
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '3px solid var(--primary-subtle)',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                    />
+                  ) : (
+                    <div
+                      onClick={(e) => setDriverPopup({
+                      driverUser,
+                      driver,
+                      rideId: ride?._id,
+                      position: { x: e.clientX, y: e.clientY },
+                    })}
                     style={{
                       width: '64px',
                       height: '64px',
                       borderRadius: '50%',
-                      objectFit: 'cover',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 'var(--text-xl)',
+                      fontWeight: 'var(--font-bold)',
                       border: '3px solid var(--primary-subtle)',
+                      cursor: 'pointer',
                     }}
-                  />
-                ) : (
-                  <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    background: 'var(--primary)',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 'var(--text-xl)',
-                    fontWeight: 'var(--font-bold)',
-                    border: '3px solid var(--primary-subtle)',
-                  }}>
+                  >
                     {driverUser.firstName?.charAt(0) || 'D'}
                   </div>
                 )}
@@ -876,7 +1044,7 @@ function RideDetails() {
                 {contacts.map((contact) => (
                   <div
                     key={contact._id}
-                    onClick={() => handleChatClick(contact)}
+                    onClick={(e) => handleContactClick(contact, e)}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -1220,11 +1388,11 @@ function RideDetails() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'var(--warning-subtle)',
-                  color: 'var(--warning)',
+                  background: hasRated ? 'var(--success-subtle)' : 'var(--warning-subtle)',
+                  color: hasRated ? 'var(--success)' : 'var(--warning)',
                   borderRadius: 'var(--radius)',
                 }}>
-                  <span className="material-symbols-rounded">star</span>
+                  <span className="material-symbols-rounded">{hasRated ? 'check_circle' : 'star'}</span>
                 </div>
                 <div>
                   <h3 style={{
@@ -1233,58 +1401,118 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Calificar Servicio
+                    {hasRated ? 'Tu Calificacion' : 'Calificar Servicio'}
                   </h3>
+                  {hasRated && (
+                    <span style={{
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--success)',
+                      fontWeight: 'var(--font-medium)',
+                    }}>
+                      Ya calificaste este acarreo
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Star rating */}
-              <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-                {[1, 2, 3, 4, 5].map((star) => (
+              {hasRated && existingRating ? (
+                /* Mostrar calificacion existente */
+                <div>
+                  {/* Stars display */}
+                  <div style={{ display: 'flex', gap: 'var(--space-1)', marginBottom: 'var(--space-4)' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className="material-symbols-rounded"
+                        style={{
+                          fontSize: '1.75rem',
+                          color: existingRating.rating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                        }}
+                      >
+                        star
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Comment */}
+                  {existingRating.comment && (
+                    <p style={{
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text-secondary)',
+                      fontStyle: 'italic',
+                      marginBottom: 'var(--space-3)',
+                      padding: 'var(--space-3)',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 'var(--radius-sm)',
+                    }}>
+                      "{existingRating.comment}"
+                    </p>
+                  )}
+
+                  {/* Rated date */}
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-muted)',
+                  }}>
+                    Calificado el {new Date(existingRating.createdAt).toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              ) : (
+                /* Formulario de calificacion */
+                <>
+                  {/* Star rating */}
+                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setRating(star)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 'var(--space-1)',
+                          cursor: 'pointer',
+                          transition: 'transform var(--duration-fast) var(--ease-out)',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <span
+                          className="material-symbols-rounded"
+                          style={{
+                            fontSize: '2rem',
+                            color: rating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                            transition: 'color var(--duration-fast)',
+                          }}
+                        >
+                          star
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    className="input"
+                    placeholder="Comentario (opcional)"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    style={{ marginBottom: 'var(--space-4)' }}
+                  />
+
                   <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 'var(--space-1)',
-                      cursor: 'pointer',
-                      transition: 'transform var(--duration-fast) var(--ease-out)',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    onClick={handleRate}
+                    disabled={rating === 0}
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
                   >
-                    <span
-                      className="material-symbols-rounded"
-                      style={{
-                        fontSize: '2rem',
-                        color: rating >= star ? 'var(--warning)' : 'var(--surface-3)',
-                        transition: 'color var(--duration-fast)',
-                      }}
-                    >
-                      star
-                    </span>
+                    <span className="material-symbols-rounded">send</span>
+                    Enviar Calificacion
                   </button>
-                ))}
-              </div>
-
-              <textarea
-                className="input"
-                placeholder="Comentario (opcional)"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                style={{ marginBottom: 'var(--space-4)' }}
-              />
-
-              <button
-                onClick={handleRate}
-                disabled={rating === 0}
-                className="btn btn-primary"
-                style={{ width: '100%' }}
-              >
-                <span className="material-symbols-rounded">send</span>
-                Enviar Calificacion
-              </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1340,6 +1568,17 @@ function RideDetails() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {/* Driver Profile Popup */}
+      {driverPopup && (
+        <DriverProfilePopup
+          driverUser={driverPopup.driverUser}
+          driver={driverPopup.driver}
+          rideId={driverPopup.rideId}
+          position={driverPopup.position}
+          onClose={() => setDriverPopup(null)}
+        />
       )}
     </div>
   )

@@ -50,15 +50,10 @@ const driverSchema = new mongoose.Schema({
   rating: { type: Number, default: 0 },
   totalRides: { type: Number, default: 0 },
   
-  // Legacy - mantener por compatibilidad
-  isVerified: { type: Boolean, default: false },
-
   // Stripe Connect
   stripeAccountId: { type: String },
   payoutsEnabled: { type: Boolean, default: false },
 
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
 })

@@ -44,7 +44,7 @@ const rideSchema = new mongoose.Schema({
 // Estado del ride
   status: {
     type: String,
-    enum: ['requested', 'accepted', 'in_progress', 'completed', 'paid', 'failed', 'cancelled'],
+    enum: ['requested', 'negotiating', 'accepted', 'in_progress', 'completed', 'paid', 'failed', 'cancelled'],
     default: 'requested'
   },
 
@@ -64,9 +64,6 @@ const rideSchema = new mongoose.Schema({
   driverAmount: { type: Number },
   paidAt: { type: Date }, // Fecha de pago automático
   
-  // Timestamps
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
 })

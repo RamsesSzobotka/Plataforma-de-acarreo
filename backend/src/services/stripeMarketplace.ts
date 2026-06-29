@@ -68,13 +68,12 @@ async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: 
     
     // Si ya está adjunto a este customer, no hacer nada
     if (paymentMethod.customer === customerId) {
-      console.log(`✅ PaymentMethod ${paymentMethodId} ya está adjuntado al Customer ${customerId}`)
       return paymentMethod
     }
 
     // Si está adjunto a otro customer o no está adjunto, adjuntarlo
     if (paymentMethod.customer && paymentMethod.customer !== customerId) {
-      console.log(`⚠️ PaymentMethod ${paymentMethodId} está adjuntado a otro customer, será revinculado`)
+      console.debug(`PaymentMethod ${paymentMethodId} está adjuntado a otro customer, será revinculado`)
     }
 
     console.log(`💳 Adjuntando PaymentMethod ${paymentMethodId} al Customer ${customerId}...`)
@@ -83,11 +82,11 @@ async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: 
       { customer: customerId }
     )
 
-    console.log(`✅ PaymentMethod ${paymentMethodId} adjuntado exitosamente al Customer ${customerId}`)
     return attachedPaymentMethod
   } catch (error: any) {
     // Si ya está adjunto, ignorar el error
     if (error.message?.includes('already attached')) {
+<<<<<<< HEAD
       console.log(`✅ PaymentMethod ${paymentMethodId} ya estaba adjuntado`)
       return await getStripe().paymentMethods.retrieve(paymentMethodId)
     }
@@ -138,7 +137,6 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
   try {
     await ensurePaymentMethodAttached(paymentMethodId, customerId)
   } catch (attachError: any) {
-    console.error(`⚠️ Error adjuntando PaymentMethod en charge: ${attachError.message}`)
     // Continuar de todas formas, Stripe dará un error más específico
   }
 

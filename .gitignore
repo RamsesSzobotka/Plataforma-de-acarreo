@@ -29,3 +29,5 @@ Thumbs.db
 
 # MongoDB data (docker)
 mongo_data
+
+.atl

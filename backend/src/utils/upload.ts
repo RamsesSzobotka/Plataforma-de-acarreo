@@ -48,31 +48,3 @@ export async function uploadImage(file: Buffer, folder: string): Promise<UploadR
   })
 }
 
-/**
- * Sube múltiples imágenes a Cloudinary
- * @param files - Array de buffers
- * @param folder - Subcarpeta
- * @returns Array de resultados
- */
-export async function uploadImages(files: Buffer[], folder: string): Promise<UploadResult[]> {
-  const uploads = files.map((file) => uploadImage(file, folder))
-  return Promise.all(uploads)
-}
-
-/**
- * Elimina una imagen de Cloudinary
- * @param publicId - Public ID de la imagen
- */
-export async function deleteImage(publicId: string): Promise<void> {
-  await cloudinary.uploader.destroy(publicId)
-}
-
-/**
- * Elimina múltiples imágenes de Cloudinary
- * @param publicIds - Array de publicIds
- */
-export async function deleteImages(publicIds: string[]): Promise<void> {
-  await Promise.all(publicIds.map((id) => deleteImage(id)))
-}
-
-export { cloudinary }

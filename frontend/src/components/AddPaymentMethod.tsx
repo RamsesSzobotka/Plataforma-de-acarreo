@@ -27,7 +27,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [savedMethodId, setSavedMethodId] = useState<string | null>(null)
+  const [_savedMethodId, setSavedMethodId] = useState<string | null>(null)
 
   useEffect(() => {
     async function checkPaymentMethod() {

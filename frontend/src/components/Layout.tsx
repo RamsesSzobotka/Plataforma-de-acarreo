@@ -1,9 +1,10 @@
 import { Outlet, Link } from 'react-router-dom'
-import { useAuth, UserButton } from '@clerk/clerk-react'
+import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
 
 function Layout() {
   const { isSignedIn } = useAuth()
+  const { user } = useUser()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -175,6 +176,11 @@ function Layout() {
                     }}
                   >
                     <UserButton.MenuItems>
+                      <UserButton.Link
+                        label="Ver Perfil Público"
+                        labelIcon={<span className="material-symbols-rounded">person</span>}
+                        href={`/profile/${user?.id}`}
+                      />
                       <UserButton.Link
                         label="Método de Pago"
                         labelIcon={<span className="material-symbols-rounded">credit_card</span>}
@@ -379,6 +385,11 @@ function Layout() {
                 }}
               >
                 <UserButton.MenuItems>
+                  <UserButton.Link
+                    label="Ver Perfil Público"
+                    labelIcon={<span className="material-symbols-rounded">person</span>}
+                    href={`/profile/${user?.id}`}
+                  />
                   <UserButton.Link
                     label="Método de Pago"
                     labelIcon={<span className="material-symbols-rounded">credit_card</span>}

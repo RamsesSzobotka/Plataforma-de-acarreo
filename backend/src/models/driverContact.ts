@@ -12,8 +12,7 @@ const driverContactSchema = new mongoose.Schema({
   // Propuesta de precio
   proposedPrice: { type: Number },
   priceProposedAt: { type: Date },
-  proposalCount: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
+  proposalCount: { type: Number, default: 0 }
 }, {
   timestamps: true
 })
