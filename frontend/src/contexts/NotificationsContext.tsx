@@ -17,7 +17,7 @@ interface NotificationsContextType {
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined)
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const { isSignedIn, isLoaded, getToken } = useAuth()
+  const { isSignedIn, isLoaded, getToken, userId } = useAuth()
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({})
   
   // Fetch unread counts from backend
@@ -45,21 +45,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   
   // Handle new message from WebSocket - increment unread count
   useEffect(() => {
-    if (!isSignedIn) return
+    if (!isSignedIn || !userId) return
     
     const unsubscribe = wsService.onMessage((data) => {
       if (data.type === 'new_message' && data.data) {
         const message = data.data
-        // Increment unread for this ride (if it's not from us)
-        setUnreadCounts(prev => ({
-          ...prev,
-          [message.rideId]: (prev[message.rideId] || 0) + 1
-        }))
+        // Solo contar mensajes de OTROS usuarios, no los propios
+        if (message.senderId !== userId) {
+          setUnreadCounts(prev => ({
+            ...prev,
+            [message.rideId]: (prev[message.rideId] || 0) + 1
+          }))
+        }
       }
     })
     
     return unsubscribe
-  }, [isSignedIn])
+  }, [isSignedIn, userId])
   
   // Fetch initial unread counts and poll every 5 seconds (for real-time-ish updates)
   useEffect(() => {
