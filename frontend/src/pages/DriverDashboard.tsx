@@ -6,6 +6,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
 import { showConfirm } from '../services/alerts'
+import { useDriverLocation } from '../hooks/useDriverLocation'
 
 interface Driver {
   _id: string
@@ -87,6 +88,15 @@ function DriverDashboard() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Tracking automático cuando hay un viaje activo ──
+  const activeRide = myRides.find(r => r.status === 'in_progress')
+  const { isSharing: isTrackingActive, error: trackingError } = useDriverLocation({
+    rideId: activeRide?._id ?? '',
+    rideStatus: activeRide?.status ?? '',
+    getToken: async () => (await getToken()) ?? '',
+    enabled: true,
+  })
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -1037,6 +1047,41 @@ function DriverDashboard() {
 
                     {ride.status === 'in_progress' && (
                       <>
+                        {/* Tracking activo badge */}
+                        {isTrackingActive && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            background: 'var(--success-subtle)',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: 'var(--text-xs)',
+                            color: 'var(--success)',
+                            fontWeight: 'var(--font-medium)',
+                            marginBottom: 'var(--space-2)',
+                          }}>
+                            <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>my_location</span>
+                            Compartiendo ubicacion
+                          </div>
+                        )}
+                        {trackingError && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            background: 'var(--error-subtle)',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: 'var(--text-xs)',
+                            color: 'var(--error)',
+                            fontWeight: 'var(--font-medium)',
+                            marginBottom: 'var(--space-2)',
+                          }}>
+                            <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>warning</span>
+                            Error de ubicacion
+                          </div>
+                        )}
                         <input
                           type="file"
                           accept="image/*"

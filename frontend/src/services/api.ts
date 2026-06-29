@@ -16,12 +16,9 @@ export class WebSocketService {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private isIntentionallyDisconnected = false
 
-  connect(rideId: string, token: string) {
-    // Don't reconnect if we intentionally disconnected
-    if (this.isIntentionallyDisconnected) {
-      console.log('WebSocket intentionally disconnected, skipping reconnect')
-      return
-    }
+  connect(rideId: string, token: string, pathPrefix = '/ws/chat/') {
+    // Reset flag to allow reconnection (tracking uses this)
+    this.isIntentionallyDisconnected = false
 
     // Already connected to this ride
     if (this.ws?.readyState === WebSocket.OPEN && this.rideId === rideId) {
@@ -37,7 +34,7 @@ export class WebSocketService {
 
     this.rideId = rideId
     this.token = token
-    const wsUrl = `${API_URL.replace('http', 'ws')}/ws/chat/${rideId}`
+    const wsUrl = `${API_URL.replace('http', 'ws')}${pathPrefix}${rideId}`
     
     console.log('WebSocket connecting to:', wsUrl)
     this.ws = new WebSocket(wsUrl)
@@ -284,6 +281,14 @@ export const ridesAPI = {
     fetchAPI<{ success: boolean; message: string; ride: Ride }>(`/api/rides/${id}/confirm-delivery`, {
       method: 'POST',
     }, token),
+
+  // Obtener ubicación actual del conductor desde Redis (tracking)
+  getDriverLocation: (id: string, token?: string) =>
+    fetchAPI<{ data: { driverId: string; latitude: number; longitude: number; heading: number; speed: number; updatedAt: number } | null }>(
+      `/api/rides/${id}/driver-location`,
+      {},
+      token
+    ),
 }
 
 // Messages API

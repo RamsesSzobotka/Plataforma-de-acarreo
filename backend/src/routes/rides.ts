@@ -8,6 +8,7 @@ import { createMarketplaceCharge, MarketplaceStripeError } from '../services/str
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
+import { getDriverLocation } from '../services/redis'
 
 const rides = new Hono()
 
@@ -698,6 +699,29 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
   })
 
   return c.json(updatedRide)  
+})
+
+// Obtener ubicación actual del conductor (tracking en vivo)
+// Expone la ubicación guardada en Redis para que el cliente la obtenga al cargar la página
+rides.get('/:id/driver-location', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const currentUser = (c as any).get('user') as AuthUser
+
+  // Verificar que el ride existe
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Solo participantes o admin pueden ver la ubicación
+  const isParticipant = ride.clientId === currentUser.clerkId || ride.driverId === currentUser.clerkId
+  if (!isParticipant && currentUser.role !== 'admin') {
+    return c.json({ error: 'No tienes permiso para ver este ride' }, 403)
+  }
+
+  // Obtener ubicación desde Redis
+  const location = await getDriverLocation(id)
+  return c.json({ data: location })
 })
 
 // Calificar conductor (cliente) o cliente (conductor) - requiere autenticación
