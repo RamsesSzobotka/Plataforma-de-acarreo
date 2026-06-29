@@ -11,7 +11,6 @@ import Redis from 'ioredis'
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
 
 let redis: Redis | null = null
-let connected = false
 
 export function getRedis(): Redis {
   if (!redis) {
@@ -29,20 +28,11 @@ export function getRedis(): Redis {
     })
 
     redis.on('connect', () => {
-      connected = true
       console.log('🔴 Redis conectado')
-    })
-
-    redis.on('ready', () => {
-      connected = true
     })
 
     redis.on('error', (err) => {
       console.error('❌ Redis error:', err.message)
-    })
-
-    redis.on('close', () => {
-      connected = false
     })
   }
 
@@ -62,10 +52,6 @@ export async function connectRedis(): Promise<void> {
   } catch (err) {
     console.warn('⚠️ Redis no disponible al iniciar, se reintentará al usar tracking:', (err as Error).message)
   }
-}
-
-export function isRedisConnected(): boolean {
-  return connected && redis?.status === 'ready'
 }
 
 // ── Helpers de Tracking ────────────────────────────────────
@@ -124,27 +110,4 @@ export async function getDriverLocation(
   }
 }
 
-/**
- * Eliminar ubicación de tracking (cuando el viaje termina).
- */
-export async function clearDriverLocation(rideId: string): Promise<void> {
-  try {
-    const r = getRedis()
-    const key = `tracking:location:${rideId}`
-    await r.del(key)
-  } catch (err) {
-    console.error('❌ Error limpiando ubicación de Redis:', err)
-  }
-}
 
-/**
- * Cerrar la conexión Redis gracefulmente.
- */
-export async function closeRedis(): Promise<void> {
-  if (redis) {
-    await redis.quit()
-    redis = null
-    connected = false
-    console.log('🔴 Redis desconectado')
-  }
-}

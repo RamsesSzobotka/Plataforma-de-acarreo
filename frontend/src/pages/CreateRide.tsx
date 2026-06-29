@@ -78,8 +78,7 @@ function CreateRide() {
         if (result.stripePaymentMethodId) {
           setPaymentMethodId(result.stripePaymentMethodId)
         }
-      } catch (err) {
-        console.error('Error checking payment method:', err)
+      } catch {
         setHasSavedPaymentMethod(false)
       } finally {
         setCheckingPaymentMethod(false)
@@ -99,9 +98,7 @@ function CreateRide() {
             setPaymentMethodId(result.stripePaymentMethodId)
           }
         })
-      ).catch((err) => {
-        console.error('Error re-checking payment method:', err)
-      })
+      ).catch(() => {})
     }
   }, [searchParams, getToken])
 
@@ -163,7 +160,6 @@ function CreateRide() {
 
       navigate('/my-rides')
     } catch (error) {
-      console.error('Error creating ride:', error)
       const message = error instanceof Error ? error.message : 'Error al crear el pedido'
       await showError(message)
     } finally {
@@ -581,6 +577,7 @@ function CreateRide() {
           </div>
 
           <MultiFileUpload
+            label="Imágenes del acarreo"
             required
             maxFiles={8}
             value={formData.images}

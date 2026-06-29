@@ -38,8 +38,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const data = await response.json()
         setUnreadCounts(data.data || {})
       }
-    } catch (err) {
-      console.error('Error fetching unread counts:', err)
+    } catch {
+      // Silently handle fetch errors — polling will retry
     }
   }, [isSignedIn, getToken])
   

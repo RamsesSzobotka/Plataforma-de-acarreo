@@ -1,6 +1,5 @@
 import { Hono } from 'hono/tiny'
 import { Ride } from '../models/ride'
-import { Rating } from '../models/rating'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
@@ -9,6 +8,29 @@ import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
 import { getDriverLocation } from '../services/redis'
+import { createRatingAndUpdateAverage } from '../services/rating'
+
+/**
+ * Intenta realizar el cobro automático con el marketplace charge.
+ * Modifica el objeto `update` in-place con paymentIntentId, platformFee, driverAmount, paidAt y status.
+ * No lanza error — captura MarketplaceStripeError y loggea advirtiendo.
+ */
+async function processAutoCharge(rideId: string, update: Record<string, any>): Promise<void> {
+  try {
+    const chargeResult = await createMarketplaceCharge(rideId, { skipStatusCheck: true })
+    update.paymentIntentId = chargeResult.paymentIntent.id
+    update.platformFee = chargeResult.platformFee
+    update.driverAmount = chargeResult.driverAmount
+    update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
+    update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
+  } catch (err) {
+    if (err instanceof MarketplaceStripeError) {
+      console.warn(`Cobro automático omitido para ride ${rideId}: ${err.message}`)
+    } else {
+      console.error(`Error intentando cobrar automáticamente:`, err)
+    }
+  }
+}
 
 const rides = new Hono()
 
@@ -302,23 +324,7 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
   
   // LÓGICA: Si el estado cambia a 'completed', automáticamente cobrar
   if (status === 'completed' && !ride.paymentIntentId) {
-    try {
-      console.log(`💳 Cobrando automáticamente al completar ride ${id}...`)
-      const chargeResult = await createMarketplaceCharge(id, { skipStatusCheck: true })
-      update.paymentIntentId = chargeResult.paymentIntent.id
-      update.platformFee = chargeResult.platformFee
-      update.driverAmount = chargeResult.driverAmount
-      update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
-      update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
-    } catch (err) {
-      if (err instanceof MarketplaceStripeError) {
-        console.warn(`ℹ️ Cobro automático omitido para ride ${id}: ${err.message}`)
-      } else {
-        console.error(`❌ Error intentando cobrar automáticamente:`, err)
-      }
-      // NO retornar error, dejar que el cliente intente pagar manualmente
-      console.log(`ℹ️ Ride ${id} se completará, pero requiere pago manual`)
-    }
+    await processAutoCharge(id, update)
   }
 
   const oldStatus = ride.status
@@ -588,21 +594,7 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   const update: any = { status: 'completed' }
   
   if (!ride.paymentIntentId) {
-    try {
-      console.log(`💳 Cobrando automáticamente al confirmar entrega ${id}...`)
-      const chargeResult = await createMarketplaceCharge(id, { skipStatusCheck: true })
-      update.paymentIntentId = chargeResult.paymentIntent.id
-      update.platformFee = chargeResult.platformFee
-      update.driverAmount = chargeResult.driverAmount
-      update.paidAt = chargeResult.paymentIntent.status === 'succeeded' ? new Date() : undefined
-      update.status = chargeResult.paymentIntent.status === 'succeeded' ? 'paid' : 'completed'
-    } catch (err) {
-      if (err instanceof MarketplaceStripeError) {
-        console.warn(`ℹ️ Cobro automático omitido para ride ${id}: ${err.message}`)
-      } else {
-        console.error(`❌ Error intentando cobrar automáticamente:`, err)
-      }
-    }
+    await processAutoCharge(id, update)
   }
   
   const updatedRide = await Ride.findByIdAndUpdate(id, update, { new: true })
@@ -759,35 +751,10 @@ rides.post('/:id/rate', authMiddleware, async (c) => {
     return c.json({ error: 'No tienes permiso para calificar este ride' }, 403)
   }
   
-  // Crear o actualizar la calificación
-  const ratingRecord = await Rating.findOneAndUpdate(
-    { rideId: id, raterId, ratedId, role },
-    { rating, comment, createdAt: new Date() },
-    { upsert: true, new: true }
+  // Usar el servicio centralizado de calificaciones
+  const ratingRecord = await createRatingAndUpdateAverage(
+    id, raterId, ratedId, role, rating, comment,
   )
-
-  // Si la calificación es para un driver, recalcular promedio y total
-  if (role === 'driver') {
-    try {
-      const agg = await Rating.aggregate([
-        { $match: { ratedId: ratedId, role: 'driver' } },
-        { $group: { _id: '$ratedId', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
-      ])
-
-      if (agg && agg.length > 0) {
-        const { avg, count } = agg[0]
-        // Actualizar el Driver.rating y totalRides
-        const { Driver } = await import('../models/driver')
-        await Driver.findOneAndUpdate(
-          { userId: ratedId },
-          { rating: Number(avg.toFixed(2)), totalRides: count },
-          { new: true }
-        )
-      }
-    } catch (err) {
-      console.error('Error actualizando promedio de driver:', err)
-    }
-  }
 
   return c.json(ratingRecord)
 })

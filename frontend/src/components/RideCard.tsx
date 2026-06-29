@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import { StatusBadge } from './StatusBadge'
 
@@ -18,7 +17,7 @@ interface RideCardProps {
   showDriverInfo?: boolean
 }
 
-export function RideCard({ ride, onChatClick, showDriverInfo = false }: RideCardProps) {
+export function RideCard({ ride, onChatClick, showDriverInfo: _showDriverInfo = false }: RideCardProps) {
   const firstImage = ride.images?.[0]?.url
 
   return (

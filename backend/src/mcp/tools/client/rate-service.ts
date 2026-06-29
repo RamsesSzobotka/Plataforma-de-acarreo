@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { ObjectId } from 'mongodb';
-import { db } from '../../../db/mongo';
+import { Ride } from '../../../models/ride';
+import { User } from '../../../models/user';
 import { rateServiceSchema } from '../../schemas';
 import { McpError } from '../../errors';
+import { createRatingAndUpdateAverage } from '../../../services/rating';
 
 export async function handleRateService(
   input: z.infer<typeof rateServiceSchema>,
@@ -11,14 +12,14 @@ export async function handleRateService(
   userId: string,
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   try {
-    const user = await db.collection('users').findOne({ clerkId: userId });
+    const user = await User.findOne({ clerkId: userId });
     if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
     const allowedRoles = ['client', 'driver'];
     if (!allowedRoles.includes(user.role)) {
       throw new McpError('FORBIDDEN', `No tienes permisos para usar esta herramienta. Se requiere rol: ${allowedRoles.join(' o ')}`, 403);
     }
 
-    const ride = await db.collection('rides').findOne({ _id: new ObjectId(input.rideId) });
+    const ride = await Ride.findById(input.rideId);
     if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado', 404);
 
     const isClient = ride.clientId === userId;
@@ -38,43 +39,22 @@ export async function handleRateService(
 
     const role = isClient ? 'driver' : 'client';
 
-    const ratingRecord = {
-      rideId: input.rideId,
-      raterId: userId,
+    // Usar el servicio centralizado de calificaciones
+    const ratingRecord = await createRatingAndUpdateAverage(
+      input.rideId,
+      userId,
       ratedId,
       role,
-      rating: input.rating,
-      comment: input.comment || null,
-      createdAt: new Date(),
-    };
-
-    const result = await db.collection('ratings').insertOne(ratingRecord);
-
-    if (role === 'driver') {
-      try {
-        const agg = await db.collection('ratings').aggregate([
-          { $match: { ratedId, role: 'driver' } },
-          { $group: { _id: '$ratedId', avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-        ]).toArray();
-
-        if (agg && agg.length > 0) {
-          const { avg, count } = agg[0];
-          await db.collection('drivers').updateOne(
-            { userId: ratedId },
-            { $set: { rating: Number((avg as number).toFixed(2)), totalRides: count, updatedAt: new Date() } },
-          );
-        }
-      } catch (aggError) {
-        console.error('Error actualizando promedio de driver:', aggError);
-      }
-    }
+      input.rating,
+      input.comment,
+    );
 
     return {
       content: [{
         type: 'text',
         text: JSON.stringify({
           rating: {
-            id: result.insertedId.toString(),
+            id: ratingRecord._id.toString(),
             rideId: ratingRecord.rideId,
             raterId: ratingRecord.raterId,
             ratedId: ratingRecord.ratedId,

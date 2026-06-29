@@ -4,26 +4,30 @@ export type TransitionResult = {
 }
 
 export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  'requested': ['accepted', 'cancelled'],
+  'requested': ['negotiating', 'accepted', 'cancelled'],
+  'negotiating': ['requested', 'accepted', 'cancelled'],
   'accepted': ['in_progress', 'cancelled'],
   'in_progress': ['completed'],
   'completed': ['paid', 'failed'],
   'paid': [],
-  'failed': [],
+  'failed': ['requested'],
   'cancelled': [],
 }
 
 export const TRANSITION_ROLES: Record<string, { from: string; to: string; allowedRoles: string[] }[]> = {
+  'requested->negotiating': [{ from: 'requested', to: 'negotiating', allowedRoles: ['client', 'driver', 'admin'] }],
   'requested->accepted': [{ from: 'requested', to: 'accepted', allowedRoles: ['driver', 'admin'] }],
   'requested->cancelled': [{ from: 'requested', to: 'cancelled', allowedRoles: ['client', 'admin'] }],
+  'negotiating->requested': [{ from: 'negotiating', to: 'requested', allowedRoles: ['client', 'admin'] }],
+  'negotiating->accepted': [{ from: 'negotiating', to: 'accepted', allowedRoles: ['driver', 'admin'] }],
+  'negotiating->cancelled': [{ from: 'negotiating', to: 'cancelled', allowedRoles: ['client', 'admin'] }],
   'accepted->in_progress': [{ from: 'accepted', to: 'in_progress', allowedRoles: ['driver', 'admin'] }],
   'accepted->cancelled': [{ from: 'accepted', to: 'cancelled', allowedRoles: ['driver', 'admin'] }],
   'in_progress->completed': [{ from: 'in_progress', to: 'completed', allowedRoles: ['client', 'admin'] }],
   'completed->paid': [{ from: 'completed', to: 'paid', allowedRoles: ['system', 'client', 'admin'] }],
   'completed->failed': [{ from: 'completed', to: 'failed', allowedRoles: ['system', 'admin'] }],
+  'failed->requested': [{ from: 'failed', to: 'requested', allowedRoles: ['client', 'admin'] }],
 }
-
-export const ADMIN_OVERRIDE_STATUSES = ['in_progress', 'completed', 'paid', 'failed']
 
 export function canTransition(from: string, to: string, role: string): TransitionResult {
   if (to === 'cancelled' && role === 'admin') {
@@ -59,6 +63,10 @@ export function canCancel(status: string, role: string): TransitionResult {
       return role === 'client'
         ? { allowed: true }
         : { allowed: false, reason: 'Solo el cliente puede cancelar un pedido en estado solicitado' }
+    case 'negotiating':
+      return role === 'client'
+        ? { allowed: true }
+        : { allowed: false, reason: 'Solo el cliente puede cancelar un pedido en negociación' }
     case 'accepted':
       return role === 'driver'
         ? { allowed: true }

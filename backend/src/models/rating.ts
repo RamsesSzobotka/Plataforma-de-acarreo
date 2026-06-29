@@ -40,4 +40,4 @@ const ratingSchema = new mongoose.Schema({
 // Unique constraint: un rater solo puede calificar un ride específico una vez
 ratingSchema.index({ rideId: 1, raterId: 1, ratedId: 1, role: 1 }, { unique: true })
 
-export const Rating = mongoose.model('Rating', ratingSchema)
+export const Rating = mongoose.models.Rating || mongoose.model('Rating', ratingSchema)

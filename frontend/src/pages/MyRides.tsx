@@ -106,8 +106,7 @@ function MyRides() {
         setTotal(data.pagination.total)
         setTotalPages(data.pagination.pages)
       }
-    } catch (error) {
-      console.error('Error loading rides:', error)
+    } catch {
     } finally {
       setLoading(false)
     }
