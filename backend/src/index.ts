@@ -39,6 +39,29 @@ async function getVerifiedSession(token: string): Promise<string | null> {
 
 const app = new Hono()
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+]
+
+function getAllowedOrigins() {
+  const configuredOrigins = process.env.ALLOWED_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? []
+
+  const frontendUrl = process.env.FRONTEND_URL?.trim()
+  const devOrigins = process.env.NODE_ENV === 'production' ? [] : DEFAULT_ALLOWED_ORIGINS
+  const origins = new Set([
+    ...devOrigins,
+    ...configuredOrigins,
+    ...(frontendUrl ? [frontendUrl] : []),
+  ])
+
+  return origins
+}
+
 // Powered-by inline middleware (Hono v4 compatible)
 app.use('*', async (c, next) => {
   c.header('X-Powered-By', 'PlataformaAcarreos')
@@ -48,9 +71,10 @@ app.use('*', async (c, next) => {
 // CORS middleware inline (Hono v4 compatible)
 app.use('*', async (c, next) => {
   const origin = c.req.header('origin')
-  const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000']
-  if (origin && allowedOrigins.includes(origin)) {
+  const allowedOrigins = getAllowedOrigins()
+  if (origin && allowedOrigins.has(origin)) {
     c.header('Access-Control-Allow-Origin', origin)
+    c.header('Vary', 'Origin')
   }
   c.header('Access-Control-Allow-Credentials', 'true')
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, MCP_API_KEY, mcp-session-id')
@@ -102,6 +126,7 @@ app.get('/ws/tracking/:rideId', (c) => {
   return c.text('WebSocket upgrade failed', 400)
 })
 
+app.get('/health', (c) => c.json({ ok: true }))
 app.get('/', (c) => c.json({ message: 'Carglyn API', version: '1.0.0' }))
 app.route('/api/auth', auth)
 app.route('/api/rides', rides)

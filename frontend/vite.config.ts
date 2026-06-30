@@ -11,6 +11,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      ...(process.env.VITE_E2E_AUTH_MOCK === '1'
+        ? { '@clerk/clerk-react': path.resolve(__dirname, './src/test-mocks/clerk-react.tsx') }
+        : {}),
       '@': path.resolve(__dirname, './src'),
     },
   },
