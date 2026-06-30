@@ -18,6 +18,10 @@ build
 npm-debug.log*
 bun-debug.log*
 
+# Playwright
+playwright-report
+test-results
+
 # IDE
 .vscode
 .idea
