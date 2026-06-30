@@ -5,27 +5,35 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir ./dist --target node",
-    "db:up": "docker compose -f docker-compose.yml up -d",
-    "db:down": "docker compose -f docker-compose.yml down",
-    "db:logs": "docker compose -f docker-compose.yml logs -f",
+    "build": "bun build src/index.ts --outdir ./dist --target bun",
+    "db:up": "docker compose -f ../docker-compose.yml up -d mongodb redis",
+    "db:down": "docker compose -f ../docker-compose.yml down",
+    "db:logs": "docker compose -f ../docker-compose.yml logs -f mongodb redis",
     "db:init": "bun run src/scripts/create-admin.ts",
-    "db:dedupe:ratings": "bun run src/scripts/cleanup-duplicate-ratings.ts"
+    "db:audit": "bun run src/scripts/ver-auditoria.ts",
+    "db:dedupe:ratings": "bun run src/scripts/cleanup-duplicate-ratings.ts",
+    "migrate": "bun run src/db/migrate.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
   },
   "dependencies": {
-    "hono": "^4.0.0",
-    "mongoose": "^8.9.0",
     "@clerk/clerk-sdk-node": "^5.0.0",
-    "stripe": "^17.0.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.0",
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "bcryptjs": "^2.4.3",
     "cloudinary": "^2.0.0",
-    "bcryptjs": "^2.4.3"
+    "dotenv": "^16.4.0",
+    "hono": "^4.0.0",
+    "ioredis": "^5.11.1",
+    "mongoose": "^8.9.0",
+    "nodemailer": "^6.9.0",
+    "stripe": "^17.0.0",
+    "zod": "^3.24.0",
+    "zod-to-json-schema": "^3.24.0"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",
-    "@types/cors": "^2.8.17",
     "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^6.4.17",
     "typescript": "^5.7.0"
   }
 }

@@ -4,8 +4,19 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { ProcessedEvent } from '../models/processedEvent'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+let _stripe: Stripe | null = null
 const PLATFORM_COMMISSION = 0.10
+
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY
+    if (!key) {
+      throw new Error('STRIPE_SECRET_KEY is not configured')
+    }
+    _stripe = new Stripe(key)
+  }
+  return _stripe
+}
 
 export class MarketplaceStripeError extends Error {
   statusCode: number
@@ -18,7 +29,7 @@ export class MarketplaceStripeError extends Error {
 }
 
 export function getStripeClient() {
-  return stripe
+  return getStripe()
 }
 
 export function calculateMarketplaceAmounts(amountInCents: number) {
@@ -33,7 +44,7 @@ async function ensureStripeCustomer(user: any) {
     return user.stripeCustomerId as string
   }
 
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email: user.email,
     name: [user.firstName, user.lastName].filter(Boolean).join(' ') || undefined,
     metadata: { clerkId: user.clerkId },
@@ -53,32 +64,30 @@ async function ensureStripeCustomer(user: any) {
 async function ensurePaymentMethodAttached(paymentMethodId: string, customerId: string) {
   try {
     // Intentar recuperar el PaymentMethod
-    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId)
+    const paymentMethod = await getStripe().paymentMethods.retrieve(paymentMethodId)
     
     // Si ya está adjunto a este customer, no hacer nada
     if (paymentMethod.customer === customerId) {
-      console.log(`✅ PaymentMethod ${paymentMethodId} ya está adjuntado al Customer ${customerId}`)
       return paymentMethod
     }
 
     // Si está adjunto a otro customer o no está adjunto, adjuntarlo
     if (paymentMethod.customer && paymentMethod.customer !== customerId) {
-      console.log(`⚠️ PaymentMethod ${paymentMethodId} está adjuntado a otro customer, será revinculado`)
+      console.debug(`PaymentMethod ${paymentMethodId} está adjuntado a otro customer, será revinculado`)
     }
 
     console.log(`💳 Adjuntando PaymentMethod ${paymentMethodId} al Customer ${customerId}...`)
-    const attachedPaymentMethod = await stripe.paymentMethods.attach(
+    const attachedPaymentMethod = await getStripe().paymentMethods.attach(
       paymentMethodId,
       { customer: customerId }
     )
 
-    console.log(`✅ PaymentMethod ${paymentMethodId} adjuntado exitosamente al Customer ${customerId}`)
     return attachedPaymentMethod
   } catch (error: any) {
     // Si ya está adjunto, ignorar el error
     if (error.message?.includes('already attached')) {
       console.log(`✅ PaymentMethod ${paymentMethodId} ya estaba adjuntado`)
-      return await stripe.paymentMethods.retrieve(paymentMethodId)
+      return await getStripe().paymentMethods.retrieve(paymentMethodId)
     }
     throw error
   }
@@ -114,7 +123,7 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
 
 
 
-  const paymentMethodId = client.paymentMethodId || ride.stripePaymentMethodId
+  const paymentMethodId = client.paymentMethodId || client.stripePaymentMethodId || ride.stripePaymentMethodId
   if (!paymentMethodId) {
     throw new MarketplaceStripeError('El cliente no tiene método de pago guardado', 400)
   }
@@ -127,11 +136,10 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
   try {
     await ensurePaymentMethodAttached(paymentMethodId, customerId)
   } catch (attachError: any) {
-    console.error(`⚠️ Error adjuntando PaymentMethod en charge: ${attachError.message}`)
     // Continuar de todas formas, Stripe dará un error más específico
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
+  const paymentIntent = await getStripe().paymentIntents.create({
     amount: amountInCents,
     currency: 'usd',
     customer: customerId,
@@ -175,7 +183,7 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
   }
 
   if (!driver.stripeAccountId) {
-    const account = await stripe.accounts.create({
+    const account = await getStripe().accounts.create({
       type: 'express',
       country: 'PA',
       email: params.email,
@@ -193,7 +201,7 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
     await driver.save()
   }
 
-  const accountLink = await stripe.accountLinks.create({
+  const accountLink = await getStripe().accountLinks.create({
     account: driver.stripeAccountId,
     refresh_url: `${params.origin}/driver/payments?refresh=1`,
     return_url: `${params.origin}/driver/payments?connected=1`,
@@ -207,7 +215,7 @@ export async function createDriverConnectAccount(params: { clerkId: string; emai
 }
 
 export async function refreshDriverPayoutStatus(stripeAccountId: string) {
-  const account = await stripe.accounts.retrieve(stripeAccountId)
+  const account = await getStripe().accounts.retrieve(stripeAccountId)
   console.log({
     payouts_enabled: account.payouts_enabled,
     charges_enabled: account.charges_enabled,
@@ -243,14 +251,36 @@ export async function handleStripeWebhookEvent(event: Stripe.Event) {
       const paymentIntent = event.data.object as Stripe.PaymentIntent
       const rideId = paymentIntent.metadata?.rideId
       if (rideId) {
-        await Ride.findByIdAndUpdate(rideId, {
+        const ride = await Ride.findByIdAndUpdate(rideId, {
           status: 'paid',
           paymentIntentId: paymentIntent.id,
           platformFee: paymentIntent.metadata?.platformFee ? Number(paymentIntent.metadata.platformFee) : undefined,
           driverAmount: paymentIntent.metadata?.driverAmount ? Number(paymentIntent.metadata.driverAmount) : undefined,
           paidAt: new Date(),
           updatedAt: new Date(),
-        })
+        }, { new: true })
+
+        // Notify driver via email that payment was received
+        if (ride?.driverId) {
+          const { sendEmail, getUserEmail, paymentReceivedEmail } = await import('./notifications/email')
+          const driverEmail = await getUserEmail(ride.driverId)
+          if (driverEmail) {
+            const amount = ride.finalPrice || Number(paymentIntent.amount) / 100
+            const emailContent = paymentReceivedEmail(driverEmail, amount, {
+              rideId: ride._id.toString(),
+              title: ride.title,
+              pickupAddress: ride.pickupLocation.address,
+              dropoffAddress: ride.dropoffLocation.address,
+              finalPrice: amount,
+            })
+            console.log(`[Email] Sending payment notification to driver: ${driverEmail} for ride: ${ride._id}`)
+            sendEmail(emailContent)
+              .then(() => console.log(`[Email] Payment notification sent to: ${driverEmail}`))
+              .catch(err => console.error(`[Email] Failed to send payment notification: ${err}`))
+          } else {
+            console.warn(`[Email] Cannot send payment notification - no email found for driver: ${ride.driverId}`)
+          }
+        }
       }
       break
     }

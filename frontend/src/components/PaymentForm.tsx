@@ -39,10 +39,7 @@ export function PaymentForm({
 
     try {
       const token = await getToken()
-      console.log('📱 Creating marketplace charge...')
-      const chargeResult = await paymentsAPI.chargeRide(ride._id, token || undefined)
-
-      console.log('✅ Charge requested:', chargeResult.paymentIntentId, chargeResult.status)
+      await paymentsAPI.chargeRide(ride._id, token || undefined)
 
       const updatedRide = await ridesAPI.get(ride._id, token || undefined)
       setSuccess(true)
@@ -54,7 +51,6 @@ export function PaymentForm({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Error desconocido en el pago'
-      console.error('❌ Payment error:', message)
       setError(message)
       onPaymentError(message)
     } finally {

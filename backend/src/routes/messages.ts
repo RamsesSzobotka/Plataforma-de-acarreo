@@ -2,7 +2,7 @@ import { Hono } from 'hono/tiny'
 import { Message } from '../models/message'
 import { Ride } from '../models/ride'
 import { DriverContact } from '../models/driverContact'
-import { broadcastToRide } from '../index'
+import { broadcastToRide } from '../services/websocket'
 import { authMiddleware } from '../middleware/auth'
 
 const messages = new Hono()
@@ -273,11 +273,11 @@ messages.post('/accept-price', authMiddleware, async (c) => {
   }
 
   // Aceptar: cambiar ride a 'accepted'
-  const updatedRide = await Ride.findByIdAndUpdate(rideId, {
-    status: 'accepted',
-    driverId: driverId,
-    finalPrice: contact.proposedPrice
-  }, { new: true })
+  const updatedRide = await Ride.findByIdAndUpdate(
+    { _id: rideId, status: 'requested' },
+    { $set: { status: 'accepted', driverId, finalPrice: contact.proposedPrice, chatEnabled: true } },
+    { new: true }
+  )
 
   // Desactivar todos los otros contacts
   await DriverContact.updateMany(
@@ -292,6 +292,18 @@ messages.post('/accept-price', authMiddleware, async (c) => {
     content: `✅ Precio aceptado: $${contact.proposedPrice}. ¡Contrato iniciado!`
   })
   await message.save()
+
+  // Emitir cambio de estado
+  broadcastToRide(rideId, {
+    type: 'ride_status_changed',
+    data: {
+      rideId,
+      previousStatus: 'requested',
+      newStatus: 'accepted',
+      ride: updatedRide,
+      timestamp: new Date().toISOString(),
+    },
+  })
 
   // Emitir via WebSocket a todos
   broadcastToRide(rideId, {

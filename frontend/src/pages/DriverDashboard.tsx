@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import ChatButton from '../components/ChatButton'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
-import { ridesAPI, usersAPI, paymentsAPI } from '../services/api'
+import type { Ride } from '../types'
+import { ridesAPI, usersAPI, paymentsAPI, userWsService } from '../services/api'
 import { showConfirm } from '../services/alerts'
+import { useDriverLocation } from '../hooks/useDriverLocation'
 
 interface Driver {
   _id: string
@@ -19,25 +21,6 @@ interface Driver {
   isAvailable?: boolean
   stripeAccountId?: string
   payoutsEnabled?: boolean
-}
-
-interface Ride {
-  _id: string
-  title: string
-  type: string
-  status: string
-  estimatedPrice: number
-  finalPrice?: number
-  pickupLocation: { address: string; coordinates?: { type: string; coordinates: number[] } }
-  dropoffLocation: { address: string; coordinates?: { type: string; coordinates: number[] } }
-  description: string
-  images?: { url: string; publicId?: string }[]
-  packages?: number
-  weight?: number
-  distance?: number
-  driverId?: string
-  clientId?: string
-  deliveryPhoto?: { url: string }
 }
 
 const verificationBanners = {
@@ -81,12 +64,29 @@ function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'available' | 'mine'>('available')
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+  const [_totalPages, setTotalPages] = useState(1)
   const [typeFilter, setTypeFilter] = useState<string>('')
+  const [mineFilter, setMineFilter] = useState<string>('all')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
+  const filteredMyRides = useMemo(() => {
+    return myRides.filter(ride => {
+      if (mineFilter === 'all') return true
+      if (mineFilter === 'pending') return ['requested', 'negotiating', 'accepted'].includes(ride.status)
+      return ride.status === mineFilter
+    })
+  }, [myRides, mineFilter])
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [photoError, setPhotoError] = useState<string | null>(null)
+  const [_photoError, setPhotoError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Tracking automático cuando hay un viaje activo ──
+  const activeRide = myRides.find(r => r.status === 'in_progress')
+  const { isSharing: isTrackingActive, error: trackingError } = useDriverLocation({
+    rideId: activeRide?._id ?? '',
+    rideStatus: activeRide?.status ?? '',
+    getToken: async () => (await getToken()) ?? '',
+    enabled: true,
+  })
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -106,8 +106,7 @@ function DriverDashboard() {
       const token = await getToken()
       await paymentsAPI.getConnectStatus(token || undefined)
       loadDriver()
-    } catch (error) {
-      console.error('Error refreshing Stripe status:', error)
+    } catch {
       loadDriver()
     }
   }
@@ -127,19 +126,47 @@ function DriverDashboard() {
             lng: position.coords.longitude
           })
         },
-        (error) => console.error('Error getting location:', error),
+        () => {},
         { enableHighAccuracy: true }
       )
     }
   }, [])
+
+  // Conectar WebSocket de usuario para notificaciones en vivo (rating_updated, etc.)
+  useEffect(() => {
+    if (!user) return
+
+    async function connectUserWs() {
+      const token = await getToken()
+      if (token) {
+        userWsService.connect(token)
+      }
+    }
+    connectUserWs()
+
+    const unsubscribe = userWsService.onMessage((data) => {
+      if (data.type === 'rating_updated' && data.data) {
+        // Actualizar rating del conductor sin recargar todo
+        setDriver(prev => prev ? {
+          ...prev,
+          rating: data.data.rating ?? prev.rating,
+          totalRides: data.data.totalRides ?? prev.totalRides,
+        } : prev)
+      }
+    })
+
+    return () => {
+      unsubscribe()
+      userWsService.disconnect()
+    }
+  }, [user, getToken])
 
   async function loadDriver() {
     try {
       const token = await getToken()
       const data = await usersAPI.getDriver('me', token || undefined)
       setDriver(data)
-    } catch (error) {
-      console.error('Error loading driver:', error)
+    } catch {
     } finally {
       setLoading(false)
     }
@@ -162,20 +189,7 @@ function DriverDashboard() {
           setTotalPages(data.pagination.pages)
         }
       }
-    } catch (error) {
-      console.error('Error loading rides:', error)
-    }
-  }
-
-  async function handleAcceptRide(rideId: string, price: number) {
-    if (!user) return
-
-    try {
-      const token = await getToken()
-      await ridesAPI.accept(rideId, user.id, price, token || undefined)
-      loadRides()
-    } catch (error) {
-      console.error('Error accepting ride:', error)
+    } catch {
     }
   }
 
@@ -186,8 +200,7 @@ function DriverDashboard() {
       if (data.onboardingUrl) {
         window.location.href = data.onboardingUrl
       }
-    } catch (error) {
-      console.error('Error connecting Stripe:', error)
+    } catch {
     }
   }
 
@@ -220,13 +233,12 @@ function DriverDashboard() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error desconhecido'
       setPhotoError(message)
-      console.error('Error uploading photo:', err)
     } finally {
       setUploadingPhoto(false)
     }
   }
 
-  function handleDeliveryPhotoClick(rideId: string) {
+  function handleDeliveryPhotoClick(_rideId: string) {
     fileInputRef.current?.click()
   }
 
@@ -762,6 +774,46 @@ function DriverDashboard() {
         </div>
       )}
 
+      {/* Filters for my rides */}
+      {tab === 'mine' && (
+        <div style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          marginBottom: 'var(--space-6)',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}>
+          {[
+            { value: 'all', label: 'Todos', icon: 'list' },
+            { value: 'pending', label: 'Pendientes', icon: 'pending_actions' },
+            { value: 'in_progress', label: 'En viaje', icon: 'local_shipping' },
+            { value: 'paid', label: 'Pagados', icon: 'payments' },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setMineFilter(opt.value); setPage(1) }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                padding: 'var(--space-2) var(--space-3)',
+                background: mineFilter === opt.value ? 'var(--primary)' : 'var(--bg-secondary)',
+                color: mineFilter === opt.value ? 'white' : 'var(--text-secondary)',
+                border: mineFilter === opt.value ? 'none' : '1px solid var(--border)',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 'var(--font-medium)',
+                cursor: 'pointer',
+                transition: 'all var(--duration-fast) var(--ease-out)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>{opt.icon}</span>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Rides List */}
       {tab === 'available' ? (
         availableRides.length === 0 ? (
@@ -911,7 +963,7 @@ function DriverDashboard() {
                           ${ride.estimatedPrice.toLocaleString()}
                         </div>
                       </div>
-                      <ChatButton rideId={ride._id} variant="outline" size="sm" />
+                      <ChatButton rideId={ride._id} variant="outline" />
                     </div>
                   </div>
                 </div>
@@ -919,23 +971,20 @@ function DriverDashboard() {
             })}
           </div>
         )
-      ) : myRides.length === 0 ? (
-        <EmptyState
-          icon="work_off"
-          title="No tienes acarreos aceptados"
-          description="Cuando aceptes un pedido, aparecera aqui."
-          action={{
-            label: 'Ver Pedidos Disponibles',
-            onClick: () => setTab('available'),
-          }}
-        />
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: 'var(--space-4)',
-        }} className="stagger-children">
-          {myRides.map((ride) => {
+      ) : filteredMyRides.length === 0 ? (
+          <EmptyState
+            icon="work_off"
+            title={mineFilter === 'all' ? 'No tienes acarreos aceptados' : `No hay acarreos ${mineFilter === 'pending' ? 'pendientes' : mineFilter === 'in_progress' ? 'en viaje' : 'pagados'}`}
+            description={mineFilter === 'all' ? 'Cuando aceptes un pedido, aparecera aqui.' : 'Prueba cambiar el filtro.'}
+            action={mineFilter !== 'all' ? { label: 'Ver Todos', onClick: () => setMineFilter('all') } : { label: 'Ver Pedidos Disponibles', onClick: () => setTab('available') }}
+          />
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 'var(--space-4)',
+          }} className="stagger-children">
+            {filteredMyRides.map((ride) => {
             const firstImage = ride.images?.[0]?.url
 
             return (
@@ -1025,8 +1074,7 @@ function DriverDashboard() {
                             const token = await getToken()
                             await ridesAPI.start(ride._id, token || undefined)
                             loadRides()
-                          } catch (error) {
-                            console.error('Error starting ride:', error)
+                          } catch {
                           }
                         }}
                       >
@@ -1037,6 +1085,41 @@ function DriverDashboard() {
 
                     {ride.status === 'in_progress' && (
                       <>
+                        {/* Tracking activo badge */}
+                        {isTrackingActive && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            background: 'var(--success-subtle)',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: 'var(--text-xs)',
+                            color: 'var(--success)',
+                            fontWeight: 'var(--font-medium)',
+                            marginBottom: 'var(--space-2)',
+                          }}>
+                            <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>my_location</span>
+                            Compartiendo ubicacion
+                          </div>
+                        )}
+                        {trackingError && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            background: 'var(--error-subtle)',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: 'var(--text-xs)',
+                            color: 'var(--error)',
+                            fontWeight: 'var(--font-medium)',
+                            marginBottom: 'var(--space-2)',
+                          }}>
+                            <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>warning</span>
+                            Error de ubicacion
+                          </div>
+                        )}
                         <input
                           type="file"
                           accept="image/*"

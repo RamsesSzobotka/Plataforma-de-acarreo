@@ -5,6 +5,8 @@ import { wsService } from '../services/api'
 import { showConfirm, showError, showSuccess, showWarning } from '../services/alerts'
 import type { UserRole, Ride } from '../types'
 import { StatusBadge } from '../components/StatusBadge'
+import DriverProfilePopup from '../components/DriverProfilePopup'
+import { usersAPI } from '../services/api'
 
 interface Message {
   _id: string
@@ -39,6 +41,9 @@ function Chat() {
   const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null)
   const [proposedPrice, setProposedPrice] = useState('')
   const [submittingProposal, setSubmittingProposal] = useState(false)
+  const [chatDriverUser, setChatDriverUser] = useState<any>(null)
+  const [chatDriverProfile, setChatDriverProfile] = useState<any>(null)
+  const [driverPopupPos, setDriverPopupPos] = useState<{ x: number; y: number } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const contactId = searchParams.get('contactId')
@@ -78,23 +83,42 @@ function Chat() {
             if (rideResponse.ok) {
               const rideData = await rideResponse.json()
               setRideInfo(rideData)
+
+            // Load driver user data for client
+            if (rideData.driverId && data.role === 'client' && token) {
+              try {
+                const [dUser, dProfile] = await Promise.all([
+                  usersAPI.get(rideData.driverId, token),
+                  usersAPI.getDriver(rideData.driverId, token).catch(() => null),
+                ])
+                setChatDriverUser(dUser)
+                setChatDriverProfile(dProfile)
+              } catch (err) {
+                console.error('Error loading driver data:', err)
+              }
+            }
             }
 
-            if (data.role === 'client' && driverId) {
+            // Cargar propuestas desde contacts para ambos roles
+            const contactId = data.role === 'client' ? driverId : user.id
+            if (contactId) {
               const contactResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${rideId}/contacts`, {
                 headers: { Authorization: `Bearer ${token}` }
               })
               if (contactResponse.ok) {
                 const contactsData = await contactResponse.json()
-                const driverContact = contactsData.data?.find((c: any) => c.driverId === driverId)
-                if (driverContact) {
+                // Cliente busca por driverId, driver busca su propio contacto
+                const driverContact = contactsData.data?.find(
+                  (c: any) => data.role === 'client' ? c.driverId === driverId : c.driverId === user.id
+                )
+                if (driverContact && driverContact.proposedPrice) {
                   setProposalInfo({
                     driverId: driverContact.driverId,
                     proposedPrice: driverContact.proposedPrice,
                     proposalCount: driverContact.proposalCount || 0,
                     remainingProposals: 3 - (driverContact.proposalCount || 0),
                     canProposeMore: (driverContact.proposalCount || 0) < 3,
-                    status: driverContact.proposedPrice ? 'pending' : undefined
+                    status: 'pending'
                   })
                 }
               }
@@ -228,8 +252,50 @@ function Chat() {
           }
         })
         const data = await response.json()
-        setMessages(data.data || [])
+        const messageList: Message[] = data.data || []
+        setMessages(messageList)
         setLoading(false)
+
+        // Detectar estado de propuesta desde mensajes del sistema (solo driver)
+        if (!proposalInfo && userRole === 'driver' && currentUser && currentRideId) {
+          for (let i = messageList.length - 1; i >= 0; i--) {
+            const msg = messageList[i]
+            if (msg.senderId !== 'system') continue
+
+            if (msg.content.startsWith('💰 Propuesta de precio:')) {
+              const priceMatch = msg.content.match(/\$([\d.]+)/)
+              const proposedPrice = priceMatch ? parseFloat(priceMatch[1]) : undefined
+              setProposalInfo({
+                driverId: currentUser.id,
+                proposedPrice,
+                proposalCount: 1,
+                remainingProposals: 2,
+                canProposeMore: true,
+                status: 'pending'
+              })
+              break
+            }
+            if (msg.content.includes('Precio rechazado')) {
+              // Buscar el contacto del driver para obtener el proposalCount actual
+              const contactResp = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${currentRideId}/contacts`, {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+              const contactsData = await contactResp.json()
+              const myContact = contactsData.data?.find(
+                (c: any) => c.driverId === currentUser.id
+              )
+              const count = myContact?.proposalCount || 1
+              setProposalInfo({
+                driverId: currentUser.id,
+                proposalCount: count,
+                remainingProposals: 3 - count,
+                canProposeMore: count < 3,
+                status: 'rejected'
+              })
+              break
+            }
+          }
+        }
 
         const unsubscribeMessage = wsService.onMessage(handleNewMessage)
         const unsubscribeError = wsService.onError(handleWsError)
@@ -580,6 +646,96 @@ function Chat() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Client side - Driver info card */}
+      {isClient && chatDriverUser && (
+        <div
+          className="card"
+          style={{
+            marginBottom: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            background: 'var(--surface-1)',
+            border: '1px solid var(--border-subtle)',
+            animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+          }}
+        >
+          {/* Driver avatar - clickable */}
+          {chatDriverUser.imageUrl ? (
+            <img
+              src={chatDriverUser.imageUrl}
+              alt={chatDriverUser.firstName}
+              onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid var(--primary-subtle)',
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            />
+          ) : (
+            <div
+              onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                background: 'var(--primary)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 'var(--text-base)',
+                fontWeight: 'var(--font-bold)',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {chatDriverUser.firstName?.charAt(0) || 'C'}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 'var(--font-semibold)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {chatDriverUser.firstName} {chatDriverUser.lastName}
+            </div>
+            {chatDriverProfile && (
+              <div style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+              }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '0.75rem', color: 'var(--warning)' }}>star</span>
+                {chatDriverProfile.rating} ({chatDriverProfile.totalRides} viajes)
+              </div>
+            )}
+          </div>
+          <button
+            onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+            className="btn btn-ghost"
+            style={{ padding: 'var(--space-2)', color: 'var(--text-muted)', flexShrink: 0 }}
+            title="Ver perfil del conductor"
+          >
+            <span className="material-symbols-rounded">person</span>
+          </button>
         </div>
       )}
 
@@ -982,6 +1138,17 @@ function Chat() {
           <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', marginBottom: 'var(--space-2)' }}>chat_bubble_disabled</span>
           <p>Chat no disponible en este estado del pedido.</p>
         </div>
+      )}
+
+      {/* Driver Profile Popup */}
+      {driverPopupPos && (
+        <DriverProfilePopup
+          driverUser={chatDriverUser}
+          driver={chatDriverProfile}
+          rideId={rideId}
+          position={driverPopupPos}
+          onClose={() => setDriverPopupPos(null)}
+        />
       )}
     </div>
   )

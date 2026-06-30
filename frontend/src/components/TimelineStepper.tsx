@@ -1,4 +1,3 @@
-import React from 'react'
 import { StatusBadge } from './StatusBadge'
 
 interface TimelineStep {
@@ -16,17 +15,17 @@ interface TimelineStepperProps {
 
 const statusOrder = [
   'requested',
-  'negotiating',
   'accepted',
   'in_progress',
   'completed',
   'paid',
+  'failed',
 ]
 
 export function TimelineStepper({ steps, currentStatus, orientation = 'horizontal' }: TimelineStepperProps) {
   const currentIndex = statusOrder.indexOf(currentStatus)
 
-  const getStepState = (stepStatus: string, index: number) => {
+  const getStepState = (_stepStatus: string, index: number) => {
     if (index < currentIndex) return 'completed'
     if (index === currentIndex) return 'active'
     return 'pending'

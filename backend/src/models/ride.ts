@@ -64,9 +64,6 @@ const rideSchema = new mongoose.Schema({
   driverAmount: { type: Number },
   paidAt: { type: Date }, // Fecha de pago automático
   
-  // Timestamps
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
 })

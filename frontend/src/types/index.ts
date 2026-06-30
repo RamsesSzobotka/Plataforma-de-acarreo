@@ -1,4 +1,3 @@
-// Ride types
 export interface Ride {
   _id: string
   clientId: string
@@ -37,8 +36,8 @@ export type RideStatus =
   | 'in_progress' 
   | 'completed' 
   | 'paid' 
-  | 'failed'
   | 'cancelled'
+  | 'failed'
 
 export interface RideImage {
   url: string
@@ -51,7 +50,6 @@ export interface Location {
   coordinates: [number, number]
 }
 
-// User types
 export interface User {
   clerkId: string
   email: string
@@ -69,7 +67,6 @@ export interface User {
 
 export type UserRole = 'client' | 'driver' | 'admin'
 
-// Driver types
 export interface Driver {
   userId: string
   vehicleType: string
@@ -83,13 +80,27 @@ export interface Driver {
   rating: number
   totalRides: number
   isVerified: boolean
+  verificationStatus?: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
+  rejectionReason?: string
+  vehicleImages?: string[]
+  licenseType?: string
+  licenseImage?: string
+  cedulaFront?: string
+  cedulaBack?: string
+  ruvDocument?: string
+  plateImage?: string
+  insurancePolicy?: string
+  phone?: string
+  carneBlanco?: string
+  carneVerde?: string
+  carneTransporteCarga?: string
+  fumigationCertificate?: string
   stripeAccountId?: string
   payoutsEnabled?: boolean
   createdAt: string
   updatedAt: string
 }
 
-// Message types
 export interface Message {
   _id: string
   rideId: string
@@ -99,7 +110,6 @@ export interface Message {
   createdAt: string
 }
 
-// Driver Contact types
 export interface DriverContact {
   _id: string
   driverId: string
@@ -112,7 +122,20 @@ export interface DriverContact {
   } | null
 }
 
-// API Response types
+export interface RatingWithRater {
+  _id: string
+  rideId: string
+  raterId: string
+  rating: number
+  comment?: string
+  createdAt: string
+  rater: {
+    firstName?: string
+    lastName?: string
+    imageUrl?: string
+  } | null
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   pagination: {

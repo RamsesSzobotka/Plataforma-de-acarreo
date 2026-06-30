@@ -4,8 +4,7 @@ const messageSchema = new mongoose.Schema({
   rideId: { type: String, required: true },
   senderId: { type: String, required: true },
   content: { type: String, required: true },
-  read: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  read: { type: Boolean, default: false }
 }, {
   timestamps: true
 })

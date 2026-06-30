@@ -483,6 +483,11 @@ h6 { font-size: var(--text-base); font-weight: var(--font-semibold); }
   transition: all var(--duration-normal) var(--ease-out);
 }
 
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
 .card-hover:hover {
   border-color: var(--border-accent);
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--border-accent);
@@ -956,16 +961,22 @@ h6 { font-size: var(--text-base); font-weight: var(--font-semibold); }
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--surface-1);
+  background: var(--surface-0);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--surface-3);
+  background: var(--text-muted);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) var(--surface-0);
 }
 
 /* ==========================================================================
@@ -1204,4 +1215,37 @@ h6 { font-size: var(--text-base); font-weight: var(--font-semibold); }
   .desktop-nav {
     display: none !important;
   }
+}
+
+/* ==========================================================================
+   FOCUS VISIBLE - Keyboard accessibility
+   ========================================================================== */
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ==========================================================================
+   RIDE CARD IMAGE HOVER ZOOM
+   ========================================================================== */
+
+.ride-card-image {
+  transition: transform var(--duration-slow) var(--ease-out);
+}
+
+.card-hover:hover .ride-card-image {
+  transform: scale(1.05);
 }

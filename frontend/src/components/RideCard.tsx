@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import { StatusBadge } from './StatusBadge'
 
@@ -18,7 +17,7 @@ interface RideCardProps {
   showDriverInfo?: boolean
 }
 
-export function RideCard({ ride, onChatClick, showDriverInfo = false }: RideCardProps) {
+export function RideCard({ ride, onChatClick, showDriverInfo: _showDriverInfo = false }: RideCardProps) {
   const firstImage = ride.images?.[0]?.url
 
   return (
@@ -49,6 +48,7 @@ export function RideCard({ ride, onChatClick, showDriverInfo = false }: RideCard
             <img
               src={firstImage}
               alt={ride.title}
+              className="ride-card-image"
               style={{
                 width: '100%',
                 height: '100%',
@@ -154,7 +154,7 @@ export function RideCard({ ride, onChatClick, showDriverInfo = false }: RideCard
               })}
             </span>
 
-            {ride.status === 'negotiating' || ride.status === 'accepted' ? (
+            {(ride.status === 'accepted' || (ride.driverId && (ride.status === 'in_progress' || ride.status === 'completed'))) ? (
               <button
                 onClick={(e) => {
                   e.preventDefault()
