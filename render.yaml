@@ -41,7 +41,8 @@ services:
         - "backend/**"
         - render.yaml
 
-  - type: static_site
+  - type: web
+    runtime: static
     name: plataforma-acarreo-frontend
     rootDir: frontend
     buildCommand: bun install && bun run build
@@ -57,7 +58,7 @@ services:
         sync: false
     routes:
       - type: rewrite
-        source: "/*"
+        source: /*
         destination: /index.html
     buildFilter:
       paths:
