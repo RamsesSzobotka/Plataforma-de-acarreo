@@ -67,9 +67,10 @@ function App() {
     <ErrorBoundary>
       <PageTransition>
         <Routes>
-      {/* Ruta publica de autenticacion - SIN Layout */}
+      {/* Rutas publicas de autenticacion - SIN Layout */}
+      {/* Usar path="/sign-in/*" para que Clerk pueda manejar subrutas como /sign-in/sso-callback */}
       <Route
-        path="/sign-in"
+        path="/sign-in/*"
         element={
           <PublicAuthRoute>
             <AuthPage />
