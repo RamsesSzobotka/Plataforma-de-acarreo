@@ -6,7 +6,7 @@ RUN bun install --frozen-lockfile
 
 # ── Dev target (hot-reload con volúmenes) ──
 FROM base AS dev
-# El source se monta como volumen en docker-compose
+# El source se monta como volumen externo
 EXPOSE 5173
 CMD ["bun", "run", "dev", "--host", "0.0.0.0"]
 
@@ -17,7 +17,9 @@ RUN bun run build
 
 # ── Production target (Nginx) ──
 FROM nginx:alpine AS prod
+# envsubst para reemplazar ${BACKEND_URL} en nginx.conf
+RUN apk add --no-cache gettext
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/bin/sh", "-c", "envsubst '${BACKEND_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
