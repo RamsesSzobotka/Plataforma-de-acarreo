@@ -903,6 +903,71 @@ h6 { font-size: var(--text-base); font-weight: var(--font-semibold); }
   animation: pulse 2s ease-in-out infinite;
 }
 
+/* ==========================================================================
+   TIMELINE STEPPER ANIMATIONS
+   ========================================================================== */
+
+/* Active step glow pulse */
+@keyframes step-active-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px var(--primary-glow), 0 0 24px var(--primary-subtle);
+  }
+  50% {
+    box-shadow: 0 0 20px var(--primary-glow), 0 0 40px var(--primary-subtle), 0 0 60px rgba(13, 148, 136, 0.1);
+  }
+}
+
+/* Truck movement animation for in_progress step */
+@keyframes truck-bounce {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(4px); }
+  50% { transform: translateX(-1px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Connector line fill animation (horizontal) */
+@keyframes line-fill-horizontal {
+  from { width: 0; }
+}
+
+/* Connector line fill animation (vertical) */
+@keyframes line-fill-vertical {
+  from { height: 0; }
+}
+
+/* Step appear animation */
+@keyframes step-appear {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Utility classes for timeline animations */
+.timeline-step-active {
+  animation: step-active-pulse 2s ease-in-out infinite;
+}
+
+.timeline-truck-active {
+  animation: truck-bounce 1.2s ease-in-out infinite;
+}
+
+.timeline-step-appear {
+  animation: step-appear 0.4s var(--ease-out) forwards;
+}
+
+.timeline-line-fill-h {
+  animation: line-fill-horizontal 0.6s var(--ease-out) forwards;
+}
+
+.timeline-line-fill-v {
+  animation: line-fill-vertical 0.6s var(--ease-out) forwards;
+}
+
 /* Staggered animations for lists */
 .stagger-children > * {
   animation: fadeInUp var(--duration-normal) var(--ease-out) forwards;

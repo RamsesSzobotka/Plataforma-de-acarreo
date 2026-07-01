@@ -22,6 +22,16 @@ const statusOrder = [
   'failed',
 ]
 
+// Iconos específicos por estado — Material Symbols
+const statusIcons: Record<string, string> = {
+  requested: 'description',
+  accepted: 'check_circle',
+  in_progress: 'local_shipping',
+  completed: 'task_alt',
+  paid: 'payments',
+  failed: 'error',
+}
+
 export function TimelineStepper({ steps, currentStatus, orientation = 'horizontal' }: TimelineStepperProps) {
   const currentIndex = statusOrder.indexOf(currentStatus)
 
@@ -29,6 +39,16 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
     if (index < currentIndex) return 'completed'
     if (index === currentIndex) return 'active'
     return 'pending'
+  }
+
+  const getStepIcon = (stepStatus: string) => {
+    return statusIcons[stepStatus] || 'radio_button_unchecked'
+  }
+
+  const getActiveAnimation = (stepStatus: string) => {
+    // El camión rebota cuando está activo
+    if (stepStatus === 'in_progress') return 'timeline-truck-active'
+    return 'timeline-step-active'
   }
 
   if (orientation === 'vertical') {
@@ -42,6 +62,7 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
         {steps.map((step, index) => {
           const state = getStepState(step.status, index)
           const isLast = index === steps.length - 1
+          const icon = getStepIcon(step.status)
 
           return (
             <div
@@ -64,30 +85,46 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
                   background: index < currentIndex
                     ? 'var(--primary)'
                     : 'var(--surface-2)',
+                  zIndex: 0,
+                  animation: index < currentIndex
+                    ? 'line-fill-vertical 0.6s var(--ease-out) forwards'
+                    : undefined,
                 }} />
               )}
 
-              {/* Icon */}
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                zIndex: 1,
-                background: state === 'completed'
-                  ? 'var(--success)'
-                  : state === 'active'
-                    ? 'var(--primary)'
-                    : 'var(--surface-2)',
-                color: state === 'pending' ? 'var(--text-muted)' : 'white',
-                boxShadow: state === 'active' ? '0 0 16px var(--primary-glow)' : 'none',
-                transition: 'all var(--duration-normal) var(--ease-out)',
-              }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
-                  {state === 'completed' ? 'check' : state === 'active' ? 'radio_button_checked' : 'radio_button_unchecked'}
+              {/* Icon circle */}
+              <div
+                className={
+                  state === 'active'
+                    ? `${getActiveAnimation(step.status)} timeline-step-appear`
+                    : ''
+                }
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  zIndex: 1,
+                  background: state === 'completed'
+                    ? 'var(--success)'
+                    : state === 'active'
+                      ? 'var(--primary)'
+                      : 'var(--surface-2)',
+                  color: state === 'pending' ? 'var(--text-muted)' : 'white',
+                  boxShadow: state === 'active' ? '0 0 16px var(--primary-glow)' : 'none',
+                  transition: 'all var(--duration-normal) var(--ease-out)',
+                }}
+              >
+                <span className="material-symbols-rounded" style={{
+                  fontSize: '1rem',
+                  animation: state === 'active' && step.status === 'in_progress'
+                    ? 'truck-bounce 1.2s ease-in-out infinite'
+                    : undefined,
+                }}>
+                  {state === 'completed' ? 'check' : icon}
                 </span>
               </div>
 
@@ -152,10 +189,12 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
       {steps.map((step, index) => {
         const state = getStepState(step.status, index)
         const isLast = index === steps.length - 1
+        const icon = getStepIcon(step.status)
 
         return (
           <div
             key={step.status}
+            className={state === 'active' ? 'timeline-step-appear' : ''}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -177,29 +216,44 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
                   ? 'var(--primary)'
                   : 'var(--surface-2)',
                 zIndex: 0,
+                animation: index < currentIndex
+                  ? 'line-fill-horizontal 0.6s var(--ease-out) forwards'
+                  : undefined,
               }} />
             )}
 
-            {/* Icon */}
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: state === 'completed'
-                ? 'var(--success)'
-                : state === 'active'
-                  ? 'var(--primary)'
-                  : 'var(--surface-2)',
-              color: state === 'pending' ? 'var(--text-muted)' : 'white',
-              boxShadow: state === 'active' ? '0 0 16px var(--primary-glow)' : 'none',
-              zIndex: 1,
-              transition: 'all var(--duration-normal) var(--ease-out)',
-            }}>
-              <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>
-                {state === 'completed' ? 'check' : state === 'active' ? 'radio_button_checked' : 'radio_button_unchecked'}
+            {/* Icon circle */}
+            <div
+              className={
+                state === 'active'
+                  ? `${getActiveAnimation(step.status)}`
+                  : ''
+              }
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: state === 'completed'
+                  ? 'var(--success)'
+                  : state === 'active'
+                    ? 'var(--primary)'
+                    : 'var(--surface-2)',
+                color: state === 'pending' ? 'var(--text-muted)' : 'white',
+                boxShadow: state === 'active' ? '0 0 16px var(--primary-glow)' : 'none',
+                zIndex: 1,
+                transition: 'all var(--duration-normal) var(--ease-out)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{
+                fontSize: '0.875rem',
+                animation: state === 'active' && step.status === 'in_progress'
+                  ? 'truck-bounce 1.2s ease-in-out infinite'
+                  : undefined,
+              }}>
+                {state === 'completed' ? 'check' : icon}
               </span>
             </div>
 
@@ -210,7 +264,6 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
               color: state === 'pending' ? 'var(--text-muted)' : 'var(--text-primary)',
               marginTop: 'var(--space-2)',
               textAlign: 'center',
-
             }}>
               {step.label}
             </span>
