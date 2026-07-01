@@ -58,6 +58,10 @@ function RideDetails() {
   const [hasRated, setHasRated] = useState(false)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [userHasPaymentMethod, setUserHasPaymentMethod] = useState(false)
+  const [driverRating, setDriverRating] = useState(0)
+  const [driverComment, setDriverComment] = useState('')
+  const [driverExistingRating, setDriverExistingRating] = useState<RatingWithRater | null>(null)
+  const [driverHasRated, setDriverHasRated] = useState(false)
 
   // ── Tracking en vivo del conductor ──
   const { driverLocation, isTracking } = useRideTracking({
@@ -86,9 +90,9 @@ function RideDetails() {
     async function checkExistingRating() {
       if (!ride || ride.status !== 'paid' || !user?.id) return
       
-      // Solo el cliente puede calificar en este contexto
-      const isOwner = ride.clientId === user.id
-      if (!isOwner) return
+      const isClient = ride.clientId === user.id
+      const isDriver = ride.driverId === user.id
+      if (!isClient && !isDriver) return
 
       try {
         const token = await getToken()
@@ -97,16 +101,30 @@ function RideDetails() {
         const response = await ratingsAPI.getRideRatings(ride._id, token)
         const userRating = response.ratings.find((r) => r.raterId === user.id)
 
-        if (userRating) {
-          setExistingRating(userRating)
-          setHasRated(true)
+        if (isClient) {
+          if (userRating) {
+            setExistingRating(userRating)
+            setHasRated(true)
+          } else {
+            setExistingRating(null)
+            setHasRated(false)
+          }
         } else {
-          setExistingRating(null)
-          setHasRated(false)
+          if (userRating) {
+            setDriverExistingRating(userRating)
+            setDriverHasRated(true)
+          } else {
+            setDriverExistingRating(null)
+            setDriverHasRated(false)
+          }
         }
       } catch (err) {
         console.error('Error checking existing rating:', err)
-        setHasRated(false)
+        if (isClient) {
+          setHasRated(false)
+        } else {
+          setDriverHasRated(false)
+        }
       }
     }
 
@@ -336,6 +354,39 @@ function RideDetails() {
         loadRide()
       } else if (response.status === 409) {
         // Intento de duplicar calificación — el backend rechaza correctamente
+        const data = await response.json()
+        await showError(data.error || 'Ya has calificado este acarreo')
+      } else {
+        await showError('Error al enviar la calificacion')
+      }
+    } catch (err) {
+      await showError((err as Error).message || 'Error al enviar la calificacion')
+    }
+  }
+
+  async function handleDriverRate() {
+    if (!ride || driverRating === 0 || !user || !id) return
+    try {
+      const token = await getToken()
+      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      const response = await fetch(`/api/rides/${id}/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rating: driverRating,
+          comment: driverComment,
+          raterId: user.id,
+        }),
+      })
+      if (response.ok) {
+        await showSuccess('Calificacion enviada')
+        setDriverRating(0)
+        setDriverComment('')
+        loadRide()
+      } else if (response.status === 409) {
         const data = await response.json()
         await showError(data.error || 'Ya has calificado este acarreo')
       } else {
@@ -1508,6 +1559,158 @@ function RideDetails() {
                   <button
                     onClick={handleRate}
                     disabled={rating === 0}
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
+                  >
+                    <span className="material-symbols-rounded">send</span>
+                    Enviar Calificacion
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Driver Rating */}
+          {ride.status === 'paid' && isDriverOwner && (
+            <div
+              className="card"
+              style={{
+                animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+                animationDelay: '300ms',
+                animationFillMode: 'both',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                marginBottom: 'var(--space-5)',
+                paddingBottom: 'var(--space-4)',
+                borderBottom: '1px solid var(--border-subtle)',
+              }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: driverHasRated ? 'var(--success-subtle)' : 'var(--warning-subtle)',
+                  color: driverHasRated ? 'var(--success)' : 'var(--warning)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <span className="material-symbols-rounded">{driverHasRated ? 'check_circle' : 'star'}</span>
+                </div>
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-semibold)',
+                    margin: 0,
+                  }}>
+                    {driverHasRated ? 'Tu Calificacion' : 'Calificar Cliente'}
+                  </h3>
+                  {driverHasRated && (
+                    <span style={{
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--success)',
+                      fontWeight: 'var(--font-medium)',
+                    }}>
+                      Ya calificaste este acarreo
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {driverHasRated && driverExistingRating ? (
+                /* Mostrar calificacion existente */
+                <div>
+                  {/* Stars display */}
+                  <div style={{ display: 'flex', gap: 'var(--space-1)', marginBottom: 'var(--space-4)' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className="material-symbols-rounded"
+                        style={{
+                          fontSize: '1.75rem',
+                          color: driverExistingRating.rating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                        }}
+                      >
+                        star
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Comment */}
+                  {driverExistingRating.comment && (
+                    <p style={{
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text-secondary)',
+                      fontStyle: 'italic',
+                      marginBottom: 'var(--space-3)',
+                      padding: 'var(--space-3)',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: 'var(--radius-sm)',
+                    }}>
+                      "{driverExistingRating.comment}"
+                    </p>
+                  )}
+
+                  {/* Rated date */}
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-muted)',
+                  }}>
+                    Calificado el {new Date(driverExistingRating.createdAt).toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              ) : (
+                /* Formulario de calificacion */
+                <>
+                  {/* Star rating */}
+                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setDriverRating(star)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 'var(--space-1)',
+                          cursor: 'pointer',
+                          transition: 'transform var(--duration-fast) var(--ease-out)',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <span
+                          className="material-symbols-rounded"
+                          style={{
+                            fontSize: '2rem',
+                            color: driverRating >= star ? 'var(--warning)' : 'var(--surface-3)',
+                            transition: 'color var(--duration-fast)',
+                          }}
+                        >
+                          star
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    className="input"
+                    placeholder="Comentario (opcional)"
+                    value={driverComment}
+                    onChange={(e) => setDriverComment(e.target.value)}
+                    style={{ marginBottom: 'var(--space-4)' }}
+                  />
+
+                  <button
+                    onClick={handleDriverRate}
+                    disabled={driverRating === 0}
                     className="btn btn-primary"
                     style={{ width: '100%' }}
                   >

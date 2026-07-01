@@ -126,6 +126,8 @@ export interface RatingWithRater {
   _id: string
   rideId: string
   raterId: string
+  ratedId: string
+  role: 'client' | 'driver'
   rating: number
   comment?: string
   createdAt: string
