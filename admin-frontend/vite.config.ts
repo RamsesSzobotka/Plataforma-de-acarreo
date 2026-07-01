@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/api': {
-        target: 'https://cargly-backend.onrender.com',
+        target: 'https://carglyn-backend.onrender.com',
         changeOrigin: true,
       },
     },
