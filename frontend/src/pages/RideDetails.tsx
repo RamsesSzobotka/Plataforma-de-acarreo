@@ -363,7 +363,7 @@ function RideDetails() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 var(--space-4)' }}>
         <div className="skeleton" style={{ height: '200px', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-4)' }} />
         <div className="skeleton" style={{ height: '300px', borderRadius: 'var(--radius-lg)' }} />
       </div>
@@ -389,7 +389,7 @@ function RideDetails() {
   }
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 var(--space-4)' }}>
       {/* Back button */}
       <Link
         to="/my-rides"
@@ -448,7 +448,7 @@ function RideDetails() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: '200px' }}>
+            <div style={{ flex: 1, minWidth: '200px', paddingRight: unreadCount > 0 ? '220px' : '140px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
                 <span style={{
                   display: 'inline-flex',
@@ -494,7 +494,7 @@ function RideDetails() {
           <TimelineStepper
             steps={timelineSteps}
             currentStatus={ride.status}
-            orientation="horizontal"
+            orientation={window.innerWidth < 640 ? 'vertical' : 'horizontal'}
           />
         </div>
       </div>
@@ -552,7 +552,7 @@ function RideDetails() {
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(120px, 1fr))',
+                gridTemplateColumns: ride.images.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(120px, 1fr))',
                 gap: 'var(--space-3)',
               }}>
                 {ride.images.map((img, idx) => (
@@ -881,7 +881,7 @@ function RideDetails() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {driverUser.imageUrl ? (
                   <img
                     src={driverUser.imageUrl}
@@ -961,6 +961,7 @@ function RideDetails() {
                     gap: 'var(--space-2)',
                     fontSize: 'var(--text-sm)',
                     color: 'var(--text-secondary)',
+                    flexWrap: 'wrap',
                   }}>
                     <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>local_shipping</span>
                     {driver.vehicleType} - {driver.plate}
@@ -1180,6 +1181,8 @@ function RideDetails() {
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: 'var(--space-5)',
+              gap: 'var(--space-3)',
+              flexWrap: 'wrap',
             }}>
               <div>
                 <div style={{

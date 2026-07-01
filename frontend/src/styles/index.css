@@ -1206,8 +1206,8 @@ h6 { font-size: var(--text-base); font-weight: var(--font-semibold); }
    MOBILE HAMBURGER MENU
    ========================================================================== */
 
-/* Mobile: < 768px - Show hamburger, hide desktop nav */
-@media (max-width: 767px) {
+/* Mobile: < 640px - Show hamburger, hide desktop nav */
+@media (max-width: 639px) {
   .hamburger-btn {
     display: flex !important;
   }

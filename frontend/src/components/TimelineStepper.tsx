@@ -210,7 +210,7 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
               color: state === 'pending' ? 'var(--text-muted)' : 'var(--text-primary)',
               marginTop: 'var(--space-2)',
               textAlign: 'center',
-              whiteSpace: 'nowrap',
+
             }}>
               {step.label}
             </span>

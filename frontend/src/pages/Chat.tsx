@@ -503,7 +503,7 @@ function Chat() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 var(--space-4)' }}>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -520,7 +520,7 @@ function Chat() {
 
   if (error) {
     return (
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: 'var(--space-8) 0', textAlign: 'center' }}>
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: 'var(--space-8) var(--space-4)', textAlign: 'center' }}>
         <div
           className="card"
           style={{
@@ -550,7 +550,7 @@ function Chat() {
   const canChat = isRequested || isAccepted || rideInfo?.status === 'in_progress' || rideInfo?.status === 'completed'
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 var(--space-4)' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -603,7 +603,7 @@ function Chat() {
             animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
                 <span className="material-symbols-rounded" style={{ color: 'var(--primary)' }}>local_shipping</span>
@@ -941,7 +941,7 @@ function Chat() {
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-5)' }}>
                     El conductor ha propuesto este precio para el servicio.
                   </p>
-                  <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button onClick={handleRejectPrice} className="btn btn-outline" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>
                       <span className="material-symbols-rounded">close</span>
                       Rechazar
@@ -1009,10 +1009,11 @@ function Chat() {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 'var(--space-3)',
+          flexWrap: 'wrap',
           animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
         }}>
           <span className="material-symbols-rounded" style={{ color: 'var(--success)', fontSize: '1.5rem' }}>check_circle</span>
-          <span style={{ color: 'var(--success)', fontWeight: 'var(--font-semibold)' }}>
+          <span style={{ color: 'var(--success)', fontWeight: 'var(--font-semibold)', wordBreak: 'break-word', textAlign: 'center' }}>
             Contrato activo - Precio: ${rideInfo?.finalPrice}
           </span>
         </div>
@@ -1095,6 +1096,8 @@ function Chat() {
                     margin: 0,
                     lineHeight: 1.5,
                     fontSize: 'var(--text-sm)',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
                   }}>{msg.content}</p>
                   <p style={{
                     fontSize: 'var(--text-xs)',
@@ -1123,7 +1126,7 @@ function Chat() {
             onChange={(e) => setNewMessage(e.target.value)}
             style={{ flex: 1 }}
           />
-          <button type="submit" className="btn btn-primary btn-lg" disabled={!isConnected}>
+          <button type="submit" className="btn btn-primary btn-icon" disabled={!isConnected}>
             <span className="material-symbols-rounded">send</span>
           </button>
         </form>
