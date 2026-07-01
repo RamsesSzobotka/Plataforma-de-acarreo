@@ -33,7 +33,7 @@ function ClientProfile({ clerkId }: ClientProfileProps) {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
       }
       
-      const response = await fetch(`/api/users/${clerkId}`, { headers })
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/users/${clerkId}`, { headers })
       if (response.ok) {
         const data = await response.json()
         setClient(data)

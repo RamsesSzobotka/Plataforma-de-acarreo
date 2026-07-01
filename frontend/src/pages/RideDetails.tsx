@@ -275,7 +275,7 @@ function RideDetails() {
       const token = await getToken()
       if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
 
-      const response = await fetch(`/api/rides/${id}/confirm-delivery`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/confirm-delivery`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -317,7 +317,7 @@ function RideDetails() {
     try {
       const token = await getToken()
       if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
-      const response = await fetch(`/api/rides/${id}/rate`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/rate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
