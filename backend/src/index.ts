@@ -151,7 +151,8 @@ const server = Bun.serve({
   websocket: {
     open(ws: ServerWebSocket<WsData>) {
       const { rideId } = ws.data
-      console.log(`WebSocket open: rideId=${rideId}`)
+      const isTracking = rideId?.startsWith('tracking:')
+      console.log(`🔌 [WS] WebSocket open: rideId=${rideId}, isTracking=${isTracking}`)
     },
     async message(ws: ServerWebSocket<WsData>, msg: string | Buffer) {
       const { rideId } = ws.data
@@ -184,6 +185,7 @@ const server = Bun.serve({
         }
 
         if (message.type === 'auth' && message.token) {
+          console.log(`🔐 [WS] Auth attempt for rideId=${rideId}`)
           const clerkId = await getVerifiedSession(message.token)
           if (!clerkId) {
             ws.send(JSON.stringify({ type: 'auth_error', error: 'Invalid token' }))
@@ -245,6 +247,7 @@ const server = Bun.serve({
           ws.data.authenticated = true
           ws.data.clerkId = clerkId
           addConnection(rideId, ws, clerkId)
+          console.log(`✅ [WS] Auth success: clerkId=${clerkId}, rideId=${rideId}`)
           ws.send(JSON.stringify({ type: 'auth_success', clerkId }))
           return
         }
@@ -267,16 +270,20 @@ const server = Bun.serve({
         if (message.type === 'location_update' && message.latitude && message.longitude) {
           // Extraer el rideId real (sin prefijo tracking:)
           const realRideId = rideId.startsWith('tracking:') ? rideId.slice(9) : rideId
+          console.log(`📍 [TRACKING] Received location_update for rideId=${realRideId} from clerkId=${ws.data.clerkId}`)
+          console.log(`📍 [TRACKING] Coords: lat=${message.latitude}, lng=${message.longitude}, heading=${message.heading}, speed=${message.speed}`)
 
           // Guardar en Redis con TTL
-          saveDriverLocation(realRideId, ws.data.clerkId!, {
+          const saveResult = await saveDriverLocation(realRideId, ws.data.clerkId!, {
             latitude: message.latitude,
             longitude: message.longitude,
             heading: message.heading,
             speed: message.speed,
           })
+          console.log(`📍 [TRACKING] Redis save result:`, saveResult)
 
           // Broadcast al rideId normal (los clientes escuchan en wsService/chat WS)
+          console.log(`📍 [TRACKING] Broadcasting driver_location to rideId=${realRideId}`)
           broadcastToRide(realRideId, {
             type: 'driver_location',
             driverId: ws.data.clerkId,
@@ -286,6 +293,7 @@ const server = Bun.serve({
             speed: message.speed ?? 0,
             timestamp: Date.now(),
           })
+          console.log(`📍 [TRACKING] Broadcast sent successfully`)
         }
       } catch {
         ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }))

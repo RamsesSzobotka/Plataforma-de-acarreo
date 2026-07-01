@@ -11,7 +11,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { connectTracking, sendTrackingLocation, disconnectTracking } from '../services/tracking-ws'
 
-const MIN_SEND_INTERVAL = 60000 // 60 segundos entre envíos (free tier necesita más tiempo)
+const MIN_SEND_INTERVAL = 10000 // 10 segundos entre envíos
 
 interface UseDriverLocationOptions {
   rideId: string

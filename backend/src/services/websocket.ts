@@ -35,6 +35,7 @@ export function getWsConnections(): Map<string, Set<WsConnection>> {
 /** Broadcast de un evento a todos los miembros de una sala */
 export function broadcastToRide(rideId: string, data: any) {
   const connections = wsConnections.get(rideId)
+  console.log(`📡 [WS] broadcastToRide: rideId=${rideId}, connectionCount=${connections?.size ?? 0}, type=${data.type}`)
   if (!connections) return
   const message = JSON.stringify(data)
   connections.forEach(({ ws }) => {

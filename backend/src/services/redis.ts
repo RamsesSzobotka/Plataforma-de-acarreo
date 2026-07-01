@@ -66,7 +66,7 @@ export async function saveDriverLocation(
   rideId: string,
   driverId: string,
   coords: { latitude: number; longitude: number; heading?: number; speed?: number },
-): Promise<void> {
+): Promise<{ success: boolean; error?: string }> {
   try {
     const r = getRedis()
     const key = `tracking:location:${rideId}`
@@ -79,8 +79,11 @@ export async function saveDriverLocation(
       updatedAt: Date.now(),
     })
     await r.setex(key, LOCATION_TTL, data)
+    console.log(`✅ [REDIS] Saved driver location for rideId=${rideId}, key=${key}`)
+    return { success: true }
   } catch (err) {
-    console.error('❌ Error guardando ubicación en Redis:', err)
+    console.error(`❌ [REDIS] Error saving location for rideId=${rideId}:`, err)
+    return { success: false, error: String(err) }
   }
 }
 
@@ -102,10 +105,14 @@ export async function getDriverLocation(
     const r = getRedis()
     const key = `tracking:location:${rideId}`
     const data = await r.get(key)
-    if (!data) return null
+    if (!data) {
+      console.log(`📭 [REDIS] No location found for rideId=${rideId}, key=${key}`)
+      return null
+    }
+    console.log(`✅ [REDIS] Got driver location for rideId=${rideId}:`, data)
     return JSON.parse(data)
   } catch (err) {
-    console.error('❌ Error leyendo ubicación de Redis:', err)
+    console.error(`❌ [REDIS] Error reading location for rideId=${rideId}:`, err)
     return null
   }
 }
