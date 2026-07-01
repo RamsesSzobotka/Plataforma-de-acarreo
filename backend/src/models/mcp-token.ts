@@ -12,19 +12,26 @@ export interface McpToken {
 export const MCP_TOKENS_COLLECTION = 'mcp_tokens';
 
 export async function createMcpTokenIndexes() {
-  const collection = db.collection<McpToken>(MCP_TOKENS_COLLECTION);
-  const indexes = await collection.indexes();
-  
-  // Index on tokenId for O(1) lookup during validation
-  const tokenIdExists = indexes.some(idx => idx.name === 'tokenId_1');
-  if (!tokenIdExists) {
-    await collection.createIndex({ tokenId: 1 }, { unique: true, name: 'tokenId_1' });
-  }
-  
-  // Index on clerkId for user lookups
-  const clerkIdExists = indexes.some(idx => idx.name === 'clerkId_1');
-  if (!clerkIdExists) {
-    await collection.createIndex({ clerkId: 1 }, { name: 'clerkId_1' });
+  const collection = db.collection(MCP_TOKENS_COLLECTION)
+  try {
+    const indexes = await collection.indexes()
+
+    // Index on tokenId for O(1) lookup during validation
+    const tokenIdExists = indexes.some(idx => idx.name === 'tokenId_1')
+    if (!tokenIdExists) {
+      await collection.createIndex({ tokenId: 1 }, { unique: true, name: 'tokenId_1' })
+    }
+
+    // Index on clerkId for user lookups
+    const clerkIdExists = indexes.some(idx => idx.name === 'clerkId_1')
+    if (!clerkIdExists) {
+      await collection.createIndex({ clerkId: 1 }, { name: 'clerkId_1' })
+    }
+  } catch (err: any) {
+    // La colección no existe — el migration la crea, ignorar error aquí
+    if (err.codeName !== 'NamespaceNotFound') {
+      console.warn('[MCP] createMcpTokenIndexes:', err.message)
+    }
   }
 }
 
