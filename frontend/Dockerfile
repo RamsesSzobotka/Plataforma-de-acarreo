@@ -12,6 +12,9 @@ CMD ["bun", "run", "dev", "--host", "0.0.0.0"]
 
 # ── Production build ──
 FROM base AS build
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_STRIPE_PUBLISHABLE_KEY
+ARG VITE_API_URL
 COPY . .
 RUN bun run build
 
