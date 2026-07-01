@@ -67,7 +67,7 @@ export default function MultiFileUpload({
         formData.append('file', file)
         formData.append('folder', folder)
 
-        const response = await fetch('/api/upload', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/upload`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,

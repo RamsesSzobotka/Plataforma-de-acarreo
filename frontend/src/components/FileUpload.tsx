@@ -48,7 +48,7 @@ export default function FileUpload({
         headers['Authorization'] = `Bearer ${token}`
       }
       
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/upload`, {
         method: 'POST',
         headers,
         body: formData,
