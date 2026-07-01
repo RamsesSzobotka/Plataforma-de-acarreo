@@ -446,6 +446,18 @@ export const ratingsAPI = {
     )
   },
 
+  getClientRatings: (userId: string, params?: { page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<RatingWithRater>>(
+      `/api/ratings/client/${userId}${query ? `?${query}` : ''}`,
+      {},
+      token
+    )
+  },
+
   getRideRatings: (rideId: string, token?: string) => {
     return fetchAPI<{ ratings: RatingWithRater[] }>(
       `/api/ratings/ride/${rideId}`,

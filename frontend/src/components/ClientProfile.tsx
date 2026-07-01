@@ -11,8 +11,6 @@ interface ClientData {
   lastName?: string
   imageUrl?: string
   email?: string
-  averageRating?: number
-  totalRides?: number
 }
 
 function ClientProfile({ clerkId }: ClientProfileProps) {
@@ -145,74 +143,23 @@ function ClientProfile({ clerkId }: ClientProfileProps) {
             <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: '#64748B' }}>person</span>
             {fullName}
           </h4>
-          
-          {/* Rating */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            marginTop: '0.25rem',
-          }}>
-            {client.averageRating && client.averageRating > 0 ? (
-              <>
-                <div style={{ display: 'flex' }}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <span 
-                      key={star}
-                      className="material-symbols-rounded"
-                      style={{
-                        fontSize: '1rem',
-                        color: star <= Math.round(client.averageRating!) ? '#F59E0B' : '#E2E8F0',
-                      }}
-                    >
-                      star
-                    </span>
-                  ))}
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                  {client.averageRating.toFixed(1)} ({client.totalRides || 0} acarreos)
-                </span>
-              </>
-            ) : (
-              <span style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                Sin calificaciones aun
-              </span>
-            )}
-          </div>
         </div>
       </div>
       
-      {/* Stats */}
-      <div style={{
-        display: 'flex',
-        gap: '1rem',
-        paddingTop: '0.75rem',
-        borderTop: '1px solid #E2E8F0',
-      }}>
+      {client.email && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '0.25rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #E2E8F0',
           fontSize: '0.75rem',
           color: '#64748B',
         }}>
-          <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>local_shipping</span>
-          <span>{client.totalRides || 0} acarreos</span>
+          <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>email</span>
+          <span>{client.email}</span>
         </div>
-        
-        {client.email && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            fontSize: '0.75rem',
-            color: '#64748B',
-          }}>
-            <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>email</span>
-            <span>{client.email}</span>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

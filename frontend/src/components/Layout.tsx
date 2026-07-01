@@ -135,24 +135,6 @@ function Layout() {
                   Nuevo Pedido
                 </Link>
 
-                {/* Hamburger Button - Mobile Only */}
-                <button
-                  onClick={() => setMobileMenuOpen(true)}
-                  style={{
-                    display: 'none',
-                    padding: 'var(--space-2)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    marginLeft: 'var(--space-2)',
-                  }}
-                  className="hamburger-btn"
-                  aria-label="Abrir menu"
-                >
-                  <span className="material-symbols-rounded">menu</span>
-                </button>
-
                 {/* User Button */}
                 <div style={{
                   marginLeft: 'var(--space-3)',
@@ -205,6 +187,25 @@ function Layout() {
               </Link>
             )}
           </nav>
+
+          {/* Hamburger Button - Mobile Only (outside desktop-nav) */}
+          {isSignedIn && (
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="hamburger-btn"
+              style={{
+                display: 'none',
+                padding: 'var(--space-2)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+              }}
+              aria-label="Abrir menú"
+            >
+              <span className="material-symbols-rounded">menu</span>
+            </button>
+          )}
         </div>
       </header>
 
