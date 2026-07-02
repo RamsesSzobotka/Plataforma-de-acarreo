@@ -4,14 +4,21 @@
  * Hook para que el conductor comparta su ubicación en tiempo real
  * durante un viaje activo (status === 'in_progress').
  *
- * Conecta al tracking WebSocket para enviar ubicación cada 60 segundos.
- * (Intervalo largo para no saturar el servidor free tier de Render)
+ * Usa watchPosition como método principal (ideal en teléfonos con GPS).
+ * Añade polling con getCurrentPosition cada MIN_SEND_INTERVAL como fallback
+ * para dispositivos sin GPS (desktops) donde watchPosition no dispara
+ * callbacks consistentemente.
+ *
+ * Ambos mecanismos comparten el mismo throttle (lastSentRef), sin duplicados.
+ *
+ * Conexión: tracking WebSocket a /ws/tracking/:rideId
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { connectTracking, sendTrackingLocation, disconnectTracking } from '../services/tracking-ws'
 
-const MIN_SEND_INTERVAL = 10000 // 10 segundos entre envíos
+const MIN_SEND_INTERVAL = 10000 // 10 segundos entre envío y envío
+const POLLING_INTERVAL = 15000 // 15s — polling fallback si watchPosition no dispara
 
 interface UseDriverLocationOptions {
   rideId: string
@@ -42,6 +49,25 @@ export function useDriverLocation({
   const isSharingRef = useRef(false)
   const wasInProgress = useRef(false)
   const lastSentRef = useRef<number>(0)
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Ayudante: toma coordenadas y envía si pasó el throttle
+  const trySendLocation = useCallback((latitude: number, longitude: number, heading?: number, speed?: number) => {
+    const now = Date.now()
+    if (now - lastSentRef.current < MIN_SEND_INTERVAL) return
+
+    lastSentRef.current = now
+    setLocation({ latitude, longitude })
+    setError(null)
+
+    if (!isSharingRef.current) {
+      isSharingRef.current = true
+      setIsSharing(true)
+    }
+
+    console.log('[TRACKING] Sending location update, rideId:', rideId, 'coords:', { latitude, longitude })
+    sendTrackingLocation(rideId, { latitude, longitude, heading, speed })
+  }, [rideId])
 
   async function startSharing() {
     console.log('[TRACKING] startSharing called, rideId:', rideId)
@@ -59,44 +85,51 @@ export function useDriverLocation({
       console.error('Error connecting tracking WS:', err)
     }
 
-    // Iniciar watchPosition — el GPS sigue actualizando pero solo enviamos cada MIN_SEND_INTERVAL
-    if (watchIdRef.current !== null) return
+    // ── Primero: watchPosition (GPS nativo, ideal en móviles) ──
+    if (watchIdRef.current === null) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          trySendLocation(
+            pos.coords.latitude,
+            pos.coords.longitude,
+            pos.coords.heading ?? undefined,
+            pos.coords.speed ?? undefined,
+          )
+        },
+        (err) => {
+          console.error('[TRACKING] watchPosition error:', err.message)
+          setError('Error al obtener ubicación: ' + err.message)
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 10000,
+        },
+      )
+    }
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const coords = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          heading: pos.coords.heading ?? undefined,
-          speed: pos.coords.speed ?? undefined,
-        }
-
-        setLocation({ latitude: coords.latitude, longitude: coords.longitude })
-        setError(null)
-
-        if (!isSharingRef.current) {
-          isSharingRef.current = true
-          setIsSharing(true)
-        }
-
-        // Enviar por WebSocket solo si pasaron MIN_SEND_INTERVAL desde el último envío
-        const now = Date.now()
-        if (now - lastSentRef.current >= MIN_SEND_INTERVAL) {
-          lastSentRef.current = now
-          console.log('[TRACKING] Sending location update, rideId:', rideId, 'coords:', coords)
-          sendTrackingLocation(rideId, coords)
-        }
-      },
-      (err) => {
-        console.error('Error getting location:', err)
-        setError('Error al obtener ubicación: ' + err.message)
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 10000,
-      },
-    )
+    // ── Segundo: polling fallback con getCurrentPosition ──
+    // Útil en desktops sin GPS donde watchPosition nunca dispara.
+    // Comparte lastSentRef para no duplicar envíos si watchPosition sí funciona.
+    if (pollingIntervalRef.current === null) {
+      const poll = () => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            trySendLocation(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              pos.coords.heading ?? undefined,
+              pos.coords.speed ?? undefined,
+            )
+          },
+          () => { /* polling fallback silencioso — no mostrar error si falla */ },
+          { enableHighAccuracy: false, maximumAge: 15000, timeout: 8000 },
+        )
+      }
+      // Primer poll inmediato + luego cada POLLING_INTERVAL
+      poll()
+      pollingIntervalRef.current = setInterval(poll, POLLING_INTERVAL)
+    }
   }
 
   const stopSharing = useCallback(() => {
@@ -104,6 +137,12 @@ export function useDriverLocation({
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
+    }
+
+    // Limpiar polling interval
+    if (pollingIntervalRef.current !== null) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
     }
 
     // Desconectar WebSocket
@@ -140,6 +179,7 @@ export function useDriverLocation({
         stopSharing()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rideStatus, rideId, enabled])
 
   // Cleanup total al desmontar
@@ -147,6 +187,9 @@ export function useDriverLocation({
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current)
+      }
+      if (pollingIntervalRef.current !== null) {
+        clearInterval(pollingIntervalRef.current)
       }
       disconnectTracking()
     }
