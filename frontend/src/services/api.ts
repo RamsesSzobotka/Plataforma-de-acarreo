@@ -394,12 +394,6 @@ export const usersAPI = {
       body: JSON.stringify({ isAvailable }),
     }, token),
 
-  updateDriverLocation: (userId: string, coordinates: [number, number], token?: string) =>
-    fetchAPI<any>(`/api/users/driver/${userId}/location`, {
-      method: 'PATCH',
-      body: JSON.stringify({ coordinates }),
-    }, token),
-
   getPaymentMethod: (token?: string) =>
     fetchAPI<{
       hasPaymentMethod: boolean,
