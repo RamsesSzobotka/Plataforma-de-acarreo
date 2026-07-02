@@ -68,6 +68,8 @@ function DriverDashboard() {
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [mineFilter, setMineFilter] = useState<string>('all')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
+  const [activeTrackingRideId, setActiveTrackingRideId] = useState<string | null>(null)
+  const [activeTrackingStatus, setActiveTrackingStatus] = useState<string>('')
   const filteredMyRides = useMemo(() => {
     return myRides.filter(ride => {
       if (mineFilter === 'all') return true
@@ -81,9 +83,11 @@ function DriverDashboard() {
 
   // ── Tracking automático cuando hay un viaje activo ──
   const activeRide = myRides.find(r => r.status === 'in_progress')
+  const trackingRideId = activeTrackingRideId ?? activeRide?._id ?? ''
+  const trackingRideStatus = activeTrackingStatus || (activeRide?.status ?? '')
   const { isSharing: isTrackingActive, error: trackingError } = useDriverLocation({
-    rideId: activeRide?._id ?? '',
-    rideStatus: activeRide?.status ?? '',
+    rideId: trackingRideId,
+    rideStatus: trackingRideStatus,
     getToken: async () => (await getToken()) ?? '',
     enabled: true,
   })
@@ -160,6 +164,17 @@ function DriverDashboard() {
       userWsService.disconnect()
     }
   }, [user, getToken])
+
+  useEffect(() => {
+    if (!activeTrackingRideId) return
+    const rideStillInProgress = myRides.find(
+      r => r._id === activeTrackingRideId && r.status === 'in_progress'
+    )
+    if (!rideStillInProgress) {
+      setActiveTrackingRideId(null)
+      setActiveTrackingStatus('')
+    }
+  }, [myRides, activeTrackingRideId])
 
   async function loadDriver() {
     try {
@@ -1074,8 +1089,10 @@ function DriverDashboard() {
                             const token = await getToken()
                             await ridesAPI.start(ride._id, token || undefined)
                             
-                            // ── FIX: Force immediate update of myRides with the ride now in in_progress ──
-                            // Load fresh data from server so useDriverLocation gets the correct rideId
+                            // ── KEY FIX: Set explicit tracking rideId BEFORE loading myRides ──
+                            setActiveTrackingRideId(ride._id)
+                            setActiveTrackingStatus('in_progress')
+
                             const data = await ridesAPI.list({ 
                               driverId: user?.id, 
                               page: 1, 
