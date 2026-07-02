@@ -1073,8 +1073,22 @@ function DriverDashboard() {
                           try {
                             const token = await getToken()
                             await ridesAPI.start(ride._id, token || undefined)
-                            loadRides()
-                          } catch {
+                            
+                            // ── FIX: Force immediate update of myRides with the ride now in in_progress ──
+                            // Load fresh data from server so useDriverLocation gets the correct rideId
+                            const data = await ridesAPI.list({ 
+                              driverId: user?.id, 
+                              page: 1, 
+                              limit: 50,
+                            }, token || undefined)
+                            setMyRides(data.data || [])
+                            
+                            // Switch to 'mine' tab so user can see the updated ride
+                            if (tab !== 'mine') {
+                              setTab('mine')
+                            }
+                          } catch (err) {
+                            console.error('Error starting trip:', err)
                           }
                         }}
                       >

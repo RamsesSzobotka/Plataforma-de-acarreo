@@ -44,6 +44,7 @@ export function useDriverLocation({
   const lastSentRef = useRef<number>(0)
 
   async function startSharing() {
+    console.log('[TRACKING] startSharing called, rideId:', rideId)
     if (!supported || !rideId) return
 
     setError(null)
@@ -82,6 +83,7 @@ export function useDriverLocation({
         const now = Date.now()
         if (now - lastSentRef.current >= MIN_SEND_INTERVAL) {
           lastSentRef.current = now
+          console.log('[TRACKING] Sending location update, rideId:', rideId, 'coords:', coords)
           sendTrackingLocation(rideId, coords)
         }
       },
