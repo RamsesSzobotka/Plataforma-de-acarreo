@@ -151,6 +151,7 @@ export function useDriverLocation({
     // Resetear refs para el próximo viaje
     lastSentRef.current = 0
     isSharingRef.current = false
+    wasInProgress.current = false  // CRITICAL: permite que el próximo in_progress vuelva a iniciar tracking
     setIsSharing(false)
   }, [])
 
