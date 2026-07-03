@@ -63,31 +63,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     return unsubscribe
   }, [isSignedIn, userId])
   
-  // Fetch initial unread counts and poll every 5 seconds (for real-time-ish updates)
+  // Fetch unread counts on mount (una sola vez). 
+  // Las actualizaciones en vivo llegan por WebSocket arriba.
   useEffect(() => {
     if (!isLoaded || !isSignedIn) {
       setUnreadCounts({})
       return
     }
 
-    // Initial fetch
     refreshUnreadCounts()
-
-    // Poll for updates every 5 seconds
-    const interval = setInterval(refreshUnreadCounts, 5000)
-
-    // Also refresh when tab becomes visible again
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refreshUnreadCounts()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
   }, [isLoaded, isSignedIn, refreshUnreadCounts])
   
   // Get unread count for a specific ride

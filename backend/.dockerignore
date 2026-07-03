@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+dist
+bun.lockb
+*.md
+tests
+node_modules/.cache

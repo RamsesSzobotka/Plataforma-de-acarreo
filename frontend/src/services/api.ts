@@ -394,12 +394,6 @@ export const usersAPI = {
       body: JSON.stringify({ isAvailable }),
     }, token),
 
-  updateDriverLocation: (userId: string, coordinates: [number, number], token?: string) =>
-    fetchAPI<any>(`/api/users/driver/${userId}/location`, {
-      method: 'PATCH',
-      body: JSON.stringify({ coordinates }),
-    }, token),
-
   getPaymentMethod: (token?: string) =>
     fetchAPI<{
       hasPaymentMethod: boolean,
@@ -441,6 +435,18 @@ export const ratingsAPI = {
     const query = searchParams.toString()
     return fetchAPI<PaginatedResponse<RatingWithRater>>(
       `/api/ratings/driver/${userId}${query ? `?${query}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  getClientRatings: (userId: string, params?: { page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<RatingWithRater>>(
+      `/api/ratings/client/${userId}${query ? `?${query}` : ''}`,
       {},
       token
     )

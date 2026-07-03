@@ -11,12 +11,9 @@ export async function handleSendMessage(
   userId: string,
 ): Promise<{ content: { type: 'text'; text: string }[] }> {
   try {
-    // ── Role check ──────────────────────────────────────────────────────
+    // ── User exists ─────────────────────────────────────────────────────
     const user = await db.collection('users').findOne({ clerkId: userId });
     if (!user) throw new McpError('UNAUTHORIZED', 'Usuario no encontrado', 401);
-    if (user.role !== 'driver') {
-      throw new McpError('FORBIDDEN', 'Solo los conductores pueden usar esta herramienta', 403);
-    }
 
     // ── Ride exists ─────────────────────────────────────────────────────
     let ride: any;
@@ -27,7 +24,10 @@ export async function handleSendMessage(
     }
     if (!ride) throw new McpError('NOT_FOUND', 'Acarreo no encontrado', 404);
 
-    // ── Driver must have an offer OR be the assigned driver ─────────────
+    // ── Authorization ───────────────────────────────────────────────────
+    // Cliente: debe ser el dueño del ride
+    const isClient = ride.clientId === userId;
+    // Conductor: debe tener una oferta (pendiente/aceptada) O ser el asignado
     const hasOffer = await db.collection('offers').findOne({
       rideId: input.rideId,
       driverId: userId,
@@ -35,10 +35,10 @@ export async function handleSendMessage(
     });
     const isAssignedDriver = ride.driverId === userId;
 
-    if (!hasOffer && !isAssignedDriver) {
+    if (!isClient && !hasOffer && !isAssignedDriver) {
       throw new McpError(
         'FORBIDDEN',
-        'No puedes enviar mensajes en este acarreo. Debes tener una oferta pendiente/aceptada o ser el conductor asignado.',
+        'No tienes permiso para enviar mensajes en este acarreo. Debes ser el cliente propietario, tener una oferta pendiente/aceptada o ser el conductor asignado.',
         403,
       );
     }

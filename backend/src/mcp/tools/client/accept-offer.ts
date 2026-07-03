@@ -43,59 +43,44 @@ export async function handleAcceptOffer(
       throw new McpError('CONFLICT', `No puedes aceptar una oferta que ya está en estado "${offer.status}". Solo puedes aceptar ofertas pendientes.`, 409);
     }
 
-    // --- Use MongoDB transaction to atomically:
-    // 1. Set this offer status to 'accepted'
-    // 2. Set all OTHER pending offers for this ride to 'rejected'
-    // 3. Update the ride with driverId, finalPrice, status = 'accepted', chatEnabled = true
-    const client = await db.client;
-    const session = client.startSession();
-
-    let result;
-    try {
-      await session.withTransaction(async () => {
-        // 1. Accept this offer
-        await db.collection('offers').updateOne(
-          { _id: new ObjectId(input.offerId) },
-          { $set: { status: 'accepted', updatedAt: new Date() } },
-          { session }
-        );
-
-        // 2. Reject all other pending offers for this ride
-        await db.collection('offers').updateMany(
-          {
-            rideId: input.rideId,
-            status: 'pending',
-            _id: { $ne: new ObjectId(input.offerId) }
-          },
-          { $set: { status: 'rejected', updatedAt: new Date() } },
-          { session }
-        );
-
-        // 3. Update the ride
-        result = await db.collection('rides').findOneAndUpdate(
-          {
-            _id: new ObjectId(input.rideId),
-            status: 'requested' // Double-check ride is still in requested status
-          },
-          {
-            $set: {
-              driverId: offer.driverId,
-              finalPrice: offer.amount,
-              status: 'accepted',
-              chatEnabled: true,
-              updatedAt: new Date()
-            }
-          },
-          { returnDocument: 'after', session }
-        );
-
-        if (!result) {
-          throw new McpError('CONFLICT', 'El acarreo ya no está disponible para aceptar ofertas. Puede que haya sido cancelado o aceptado por otro medio.', 409);
+    // --- Atomic ride update (acts as the lock):
+    // findOneAndUpdate con {status:'requested'} asegura que solo una
+    // aceptación pase — la condición evita race conditions sin transacción.
+    const result = await db.collection('rides').findOneAndUpdate(
+      {
+        _id: new ObjectId(input.rideId),
+        status: 'requested'
+      },
+      {
+        $set: {
+          driverId: offer.driverId,
+          finalPrice: offer.amount,
+          status: 'accepted',
+          chatEnabled: true,
+          updatedAt: new Date()
         }
-      });
-    } finally {
-      await session.endSession();
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      throw new McpError('CONFLICT', 'El acarreo ya no está disponible para aceptar ofertas. Puede que haya sido cancelado o aceptado por otro medio.', 409);
     }
+
+    // --- Ride locked — ahora aceptamos la oferta y rechazamos las demás:
+    await db.collection('offers').updateOne(
+      { _id: new ObjectId(input.offerId) },
+      { $set: { status: 'accepted', updatedAt: new Date() } }
+    );
+
+    await db.collection('offers').updateMany(
+      {
+        rideId: input.rideId,
+        status: 'pending',
+        _id: { $ne: new ObjectId(input.offerId) }
+      },
+      { $set: { status: 'rejected', updatedAt: new Date() } }
+    );
 
     // --- Build response ---
     const rideData = {

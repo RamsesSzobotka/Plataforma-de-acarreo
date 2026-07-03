@@ -64,7 +64,6 @@ function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'available' | 'mine'>('available')
   const [page, setPage] = useState(1)
-  const [_totalPages, setTotalPages] = useState(1)
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [mineFilter, setMineFilter] = useState<string>('all')
   const [driverLocation, setDriverLocation] = useState<{lat: number; lng: number} | null>(null)
@@ -76,14 +75,15 @@ function DriverDashboard() {
     })
   }, [myRides, mineFilter])
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [_photoError, setPhotoError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Tracking automático cuando hay un viaje activo ──
   const activeRide = myRides.find(r => r.status === 'in_progress')
+  const trackingRideId = activeRide?._id ?? ''
+  const trackingRideStatus = activeRide?.status ?? ''
   const { isSharing: isTrackingActive, error: trackingError } = useDriverLocation({
-    rideId: activeRide?._id ?? '',
-    rideStatus: activeRide?.status ?? '',
+    rideId: trackingRideId,
+    rideStatus: trackingRideStatus,
     getToken: async () => (await getToken()) ?? '',
     enabled: true,
   })
@@ -161,6 +161,7 @@ function DriverDashboard() {
     }
   }, [user, getToken])
 
+
   async function loadDriver() {
     try {
       const token = await getToken()
@@ -181,13 +182,9 @@ function DriverDashboard() {
 
         const data = await ridesAPI.listAvailable(params, token || undefined)
         setAvailableRides(data.data || [])
-        setTotalPages(data.pagination?.pages || 1)
       } else {
         const data = await ridesAPI.list({ driverId: user?.id, page, limit: 20 }, token || undefined)
         setMyRides(data.data || [])
-        if (data.pagination) {
-          setTotalPages(data.pagination.pages)
-        }
       }
     } catch {
     }
@@ -209,7 +206,6 @@ function DriverDashboard() {
   }
 
   async function uploadDeliveryPhoto(rideId: string, file: File) {
-    setPhotoError(null)
     setUploadingPhoto(true)
     try {
       const token = await getToken()
@@ -219,7 +215,7 @@ function DriverDashboard() {
       formData.append('file', file)
       formData.append('folder', 'rides')
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -230,15 +226,13 @@ function DriverDashboard() {
 
       await ridesAPI.deliveryPhoto(rideId, data.url, data.publicId || '', token)
       loadRides()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error desconhecido'
-      setPhotoError(message)
+    } catch {
     } finally {
       setUploadingPhoto(false)
     }
   }
 
-  function handleDeliveryPhotoClick(_rideId: string) {
+  function handleDeliveryPhotoClick() {
     fileInputRef.current?.click()
   }
 
@@ -1073,8 +1067,20 @@ function DriverDashboard() {
                           try {
                             const token = await getToken()
                             await ridesAPI.start(ride._id, token || undefined)
-                            loadRides()
-                          } catch {
+
+                            const ridesData = await ridesAPI.list({ 
+                              driverId: user?.id, 
+                              page: 1, 
+                              limit: 50,
+                            }, token || undefined)
+                            setMyRides(ridesData.data || [])
+                            
+                            // Switch to 'mine' tab so user can see the updated ride
+                            if (tab !== 'mine') {
+                              setTab('mine')
+                            }
+                          } catch (err) {
+                            console.error('Error starting trip:', err)
                           }
                         }}
                       >
@@ -1129,7 +1135,7 @@ function DriverDashboard() {
                         />
                         <button
                           className="btn btn-secondary btn-sm"
-                          onClick={() => handleDeliveryPhotoClick(ride._id)}
+                          onClick={() => handleDeliveryPhotoClick()}
                           disabled={uploadingPhoto}
                         >
                           {uploadingPhoto ? (

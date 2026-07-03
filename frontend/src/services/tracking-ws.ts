@@ -42,13 +42,6 @@ export function sendTrackingLocation(
 }
 
 /**
- * Estado de la conexión de tracking
- */
-export function getTrackingState() {
-  return trackingWsService.getState()
-}
-
-/**
  * Desconectar tracking
  */
 export function disconnectTracking() {

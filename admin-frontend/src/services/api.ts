@@ -1,20 +1,22 @@
 // Usar ruta relativa para el proxy de Vite
 const API_URL = '/api/admin'
 
-function getAuthHeader() {
-  const token = localStorage.getItem('adminToken')
-  return token ? { Authorization: `Bearer ${token}` } : {}
+function getAuthToken(): string | null {
+  return localStorage.getItem('adminToken')
 }
 
 async function request(endpoint: string, options?: RequestInit) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = getAuthToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (options?.headers) {
+    const optsHeaders = options.headers as Record<string, string>
+    Object.assign(headers, optsHeaders)
+  }
   const res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeader(),
-      ...options?.headers,
-    },
+    method: options?.method,
+    body: options?.body,
+    headers,
   })
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Error' }))
@@ -26,6 +28,13 @@ async function request(endpoint: string, options?: RequestInit) {
 export const api = {
   // Stats
   getStats: () => request('/stats'),
+  getSystemStats: () => request('/stats/system'),
+  getMonitoringMetrics: () => request('/stats/monitoring'),
+  getRevenueStats: () => request('/stats/revenue'),
+  getMonthlyReports: (months?: number) => {
+    const query = months ? `?months=${months}` : ''
+    return request(`/stats/reports/monthly${query}`)
+  },
 
   // Users
   getUsers: (params?: { role?: string; page?: number }) => {

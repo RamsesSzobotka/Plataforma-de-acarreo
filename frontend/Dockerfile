@@ -6,12 +6,15 @@ RUN bun install --frozen-lockfile
 
 # ── Dev target (hot-reload con volúmenes) ──
 FROM base AS dev
-# El source se monta como volumen en docker-compose
+# El source se monta como volumen externo
 EXPOSE 5173
 CMD ["bun", "run", "dev", "--host", "0.0.0.0"]
 
 # ── Production build ──
 FROM base AS build
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_STRIPE_PUBLISHABLE_KEY
+ARG VITE_API_URL
 COPY . .
 RUN bun run build
 

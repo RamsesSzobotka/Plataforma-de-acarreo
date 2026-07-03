@@ -8,6 +8,7 @@ import Drivers from './pages/Drivers'
 import DriverDetail from './pages/DriverDetail'
 import Rides from './pages/Rides'
 import RideDetail from './pages/RideDetail'
+import Reports from './pages/Reports'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -49,6 +50,7 @@ export default function App() {
         }>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />
           <Route path="drivers" element={<Drivers />} />
           <Route path="drivers/:userId" element={<DriverDetail />} />

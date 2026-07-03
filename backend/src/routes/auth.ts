@@ -20,42 +20,59 @@ auth.get('/me', authMiddleware, async (c) => {
   return c.json({ data: user })
 })
 
-// Generar token MCP
+// Generate token MCP
 // Token format: mcp_<tokenId>_<secret>
 // - tokenId: 16 hex chars for O(1) DB lookup
 // - secret: 32 base64url chars (random)
 // - Full token is hashed with bcrypt for comparison
+console.log(`🔑 [MCP] POST /mcp-token — CLERK_SECRET_KEY presente: ${!!process.env.CLERK_SECRET_KEY}`)
 auth.post('/mcp-token', authMiddleware, async (c) => {
   const user = c.get('user')
+  console.log(`🔑 [MCP] Generando token para clerkId=${user.clerkId}`)
 
-  // Generate token with new format: mcp_<tokenId>_<secret>
-  const tokenId = crypto.randomBytes(8).toString('hex');    // 16 hex chars
-  const secret = crypto.randomBytes(24).toString('base64url'); // ~32 chars
-  const rawToken = `mcp_${tokenId}_${secret}`;
+  try {
+    // Generate token with new format: mcp_<tokenId>_<secret>
+    const tokenId = crypto.randomBytes(8).toString('hex');    // 16 hex chars
+    const secret = crypto.randomBytes(24).toString('base64url'); // ~32 chars
+    const rawToken = `mcp_${tokenId}_${secret}`;
+    console.log(`🔑 [MCP] Token generado, tokenId=${tokenId}`)
 
-  // Hash the full token for secure comparison
-  const tokenHash = await hash(rawToken, 10);
+    // Hash the full token for secure comparison
+    console.log(`🔑 [MCP] Hasheando token...`)
+    const tokenHash = await hash(rawToken, 10);
+    console.log(`🔑 [MCP] Token hasheado`)
 
-  await createMcpTokenIndexes();
-  await saveMcpToken(user.clerkId, tokenId, tokenHash);
+    console.log(`🔑 [MCP] Creando índices...`)
+    await createMcpTokenIndexes();
+    console.log(`🔑 [MCP] Índices verificados`)
 
-  // Audit token creation
-  await writeAuditEvent({
-    clerkId: user.clerkId,
-    role: user.role,
-    action: 'mcp.token.created',
-    resourceType: 'token',
-    success: true,
-  });
+    console.log(`🔑 [MCP] Guardando en MongoDB...`)
+    await saveMcpToken(user.clerkId, tokenId, tokenHash);
+    console.log(`🔑 [MCP] Token guardado en MongoDB`)
 
-  return c.json({
-    data: {
-      token: rawToken,  // Return full token - user must save it
-      tokenId,          // Public lookup ID (informational)
-      createdAt: new Date().toISOString(),
-      message: 'Guarda este token en un lugar seguro. No podrás verlo de nuevo.',
-    },
-  })
+    // Audit token creation
+    console.log(`🔑 [MCP] Escribiendo audit...`)
+    await writeAuditEvent({
+      clerkId: user.clerkId,
+      role: user.role,
+      action: 'mcp.token.created',
+      resourceType: 'token',
+      success: true,
+    });
+    console.log(`🔑 [MCP] Audit escrito`)
+
+    return c.json({
+      data: {
+        token: rawToken,  // Return full token - user must save it
+        tokenId,          // Public lookup ID (informational)
+        createdAt: new Date().toISOString(),
+        message: 'Guarda este token en un lugar seguro. No podrás verlo de nuevo.',
+      },
+    })
+  } catch (err) {
+    console.error(`❌ [MCP] Error generando token MCP:`, err)
+    return c.json({ error: 'Error generando token MCP: ' + (err as Error).message }, 500)
+  }
 })
 
 // Status del token MCP

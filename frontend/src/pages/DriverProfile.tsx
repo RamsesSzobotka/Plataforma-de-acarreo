@@ -94,7 +94,7 @@ export default function DriverProfile() {
         (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
       }
 
-      const response = await fetch('/api/users/driver/me', { headers })
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/users/driver/me`, { headers })
       if (response.ok) {
         const data = await response.json()
         setDriver(data)

@@ -192,7 +192,7 @@ export default function RegisterDriver() {
     try {
       const token = await getToken()
 
-      const response = await fetch('/api/users/register-driver', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/users/register-driver`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

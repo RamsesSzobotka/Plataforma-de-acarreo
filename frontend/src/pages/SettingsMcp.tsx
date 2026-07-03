@@ -67,7 +67,7 @@ function SettingsMcp() {
 
   // Active environment for snippet
   const [env, setEnv] = useState<'localhost' | 'production'>('localhost')
-  const baseUrl = env === 'localhost' ? 'http://localhost:3000' : 'https://api.carglyn.com'
+  const baseUrl = env === 'localhost' ? 'http://localhost:3000' : 'https://carglyn-backend.onrender.com'
 
   // ── Fetch token status ────────────────────────────────────────────────────
 
