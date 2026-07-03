@@ -25,17 +25,21 @@ export default function Dashboard() {
       navigate('/login')
       return
     }
-    Promise.all([
-      api.getStats(),
-      api.getSystemStats().catch(() => null),
-      api.getMonitoringMetrics().catch(() => null),
-      api.getRevenueStats().catch(() => null),
-    ]).then(([stats, system, monitoring, revenue]) => {
-      setStats(stats)
-      setSystemStats(system)
-      setMonitoring(monitoring)
-      setRevenue(revenue)
-    }).catch(console.error)
+
+    const fetch = () => {
+      Promise.all([
+        api.getStats(),
+        api.getSystemStats().catch(() => null),
+        api.getMonitoringMetrics().catch(() => null),
+        api.getRevenueStats().catch(() => null),
+      ]).then(([s, sys, mon, rev]) => {
+        setStats(s); setSystemStats(sys); setMonitoring(mon); setRevenue(rev)
+      }).catch(console.error)
+    }
+
+    fetch()
+    const id = setInterval(fetch, 10000)
+    return () => clearInterval(id)
   }, [navigate])
 
   if (!stats) {
@@ -137,7 +141,7 @@ export default function Dashboard() {
       {metricEntries.length > 0 && (
         <>
           <h3 className="section-title">Rendimiento por Endpoint</h3>
-          <div className="data-table-wrap">
+          <div className="data-table-wrap endpoint-table-wrap">
             <table className="data-table">
               <thead>
                 <tr>

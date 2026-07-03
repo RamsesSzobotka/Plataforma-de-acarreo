@@ -712,3 +712,8 @@ input, select, textarea {
 .latency-bar-fill.critical {
   background: var(--error);
 }
+
+.endpoint-table-wrap {
+  max-height: 400px;
+  overflow-y: auto;
+}
