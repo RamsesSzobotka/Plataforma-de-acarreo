@@ -56,7 +56,7 @@ function Layout() {
               fontSize: 'var(--text-xl)',
               color: 'var(--text-primary)',
             }}>
-              Cargly
+              Carglyn
             </span>
           </Link>
 
