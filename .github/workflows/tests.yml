@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+    branches: [Main, render_dev_v2, render_testing]
+  pull_request:
+    branches: [Main, render_dev_v2, render_testing]
+
+jobs:
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Set up env
+        run: |
+          cp .env.example .env
+
+      - name: Run tests
+        run: bun test
+        env:
+          TEST_DATABASE_URL: mongodb://localhost:27017/plataforma_acarreo_test
+          DATABASE_URL: mongodb://localhost:27017/plataforma_acarreo_test
+          CLERK_SECRET_KEY: sk_test_ci
+          STRIPE_SECRET_KEY: sk_test_ci
