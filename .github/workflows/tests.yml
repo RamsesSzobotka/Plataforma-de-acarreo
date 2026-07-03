@@ -1,6 +1,7 @@
 name: Tests
 
 on:
+  workflow_dispatch:
   push:
     branches: [Main, render_dev_v2, render_testing]
   pull_request:
