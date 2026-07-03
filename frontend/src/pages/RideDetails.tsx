@@ -496,7 +496,7 @@ function RideDetails() {
               }}
             >
               <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>chat</span>
-              {unreadCount > 99 ? '99+' : unreadCount} mensajes
+              {t('ride.detail.messages', { count: unreadCount > 99 ? '99+' : unreadCount })}
             </div>
           )}
 
@@ -598,7 +598,7 @@ function RideDetails() {
                     {t('ride.detail.images')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {ride.images.length} imagen{ride.images.length !== 1 ? 'es' : ''}
+                    {t('ride.detail.imageCount', { count: ride.images.length })}
                   </span>
                 </div>
               </div>
@@ -626,7 +626,7 @@ function RideDetails() {
                   >
                     <img
                       src={img.url}
-                      alt={`Imagen ${idx + 1}`}
+                      alt={t('ride.detail.imageAlt', { index: idx + 1 })}
                       style={{
                         width: '100%',
                         height: '100%',
@@ -866,7 +866,7 @@ function RideDetails() {
                     {t('ride.detail.deliveryPhoto')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    Confirmacion visual del servicio
+                    {t('ride.detail.deliveryPhotoDesc')}
                   </span>
                 </div>
               </div>
@@ -878,7 +878,7 @@ function RideDetails() {
               }}>
                 <img
                   src={ride.deliveryPhoto.url}
-                  alt="Entrega"
+                  alt={t('ride.detail.deliveryPhotoAlt')}
                   style={{
                     width: '100%',
                     aspectRatio: '16/9',
@@ -1005,7 +1005,7 @@ function RideDetails() {
                         star
                       </span>
                       <strong style={{ color: 'var(--text-primary)' }}>{driver.rating}</strong>
-                      ({driver.totalRides} viajes)
+                      ({driver.totalRides} {t('profile.public.rides')})
                     </span>
                   </div>
                   <div style={{
@@ -1086,10 +1086,10 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Conductores Interesados
+                    {t('ride.detail.interestedDrivers')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {contacts.length} conductor{contacts.length !== 1 ? 'es' : ''} te ha escrito
+                    {t('ride.detail.interestedDriversSubtitle', { count: contacts.length })}
                   </span>
                 </div>
               </div>
@@ -1183,7 +1183,7 @@ function RideDetails() {
                 color: 'var(--text-muted)',
                 textAlign: 'center',
               }}>
-                Haz click en un conductor para iniciar conversacion
+                {t('ride.detail.interestedDriversHint')}
               </p>
             </div>
           )}
@@ -1369,7 +1369,7 @@ function RideDetails() {
                   className="btn btn-ghost"
                   style={{ width: '100%', marginTop: 'var(--space-3)' }}
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </div>
             )}
@@ -1389,9 +1389,9 @@ function RideDetails() {
                   info
                 </span>
                 <div style={{ fontSize: 'var(--text-sm)' }}>
-                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Pago Automatico</strong>
+                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>{t('ride.detail.autoPaymentTitle')}</strong>
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    Se cobrara automaticamente ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()} a tu forma de pago guardada.
+                    {t('ride.detail.autoPaymentDescription', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
                   </span>
                 </div>
               </div>
@@ -1411,7 +1411,7 @@ function RideDetails() {
                   warning
                 </span>
                 <div style={{ fontSize: 'var(--text-sm)' }}>
-                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Metodo de Pago Requerido</strong>
+                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>{t('ride.detail.paymentRequiredTitle')}</strong>
                   <span style={{ color: 'var(--text-secondary)' }}>
                     {t('ride.detail.paymentRequired')}
                   </span>

@@ -527,7 +527,7 @@ function DriverDashboard() {
             <span className="material-symbols-rounded" style={{ color: 'var(--primary)', fontSize: '1.5rem' }}>
               star
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.dashboard.rating')}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.profile.rating')}</span>
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -555,7 +555,7 @@ function DriverDashboard() {
             <span className="material-symbols-rounded" style={{ color: 'var(--success)', fontSize: '1.5rem' }}>
               task_alt
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.dashboard.completedRides')}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.profile.totalRides')}</span>
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -591,14 +591,14 @@ function DriverDashboard() {
             fontWeight: 'var(--font-semibold)',
             color: 'var(--text-primary)',
           }}>
-            {driver?.vehicleType || 'No especificado'}
+            {driver?.vehicleType || t('driver.dashboard.vehicleNotSpecified')}
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 'var(--text-sm)',
             color: 'var(--text-secondary)',
           }}>
-            {driver?.plate || '---'}
+            {driver?.plate || t('driver.dashboard.plateNotSpecified')}
           </div>
         </div>
 
@@ -625,7 +625,7 @@ function DriverDashboard() {
             color: driverLocation ? 'var(--success)' : 'var(--text-muted)',
             fontWeight: 'var(--font-medium)',
           }}>
-            {driverLocation ? 'Detectada' : 'No disponible'}
+            {driverLocation ? t('driver.dashboard.detected') : t('driver.dashboard.notAvailable')}
           </div>
           <Link
             to="/driver/profile"
@@ -639,7 +639,7 @@ function DriverDashboard() {
             }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>edit</span>
-            {t('driver.dashboard.editProfile')}
+            {t('driver.profile.editProfile')}
           </Link>
         </div>
       </div>
@@ -673,7 +673,7 @@ function DriverDashboard() {
           }}
         >
           <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>search</span>
-          Pedidos Disponibles
+          {t('driver.dashboard.available')}
           {availableRides.length > 0 && (
             <span style={{
               background: tab === 'available' ? 'rgba(255,255,255,0.2)' : 'var(--primary-subtle)',
@@ -706,7 +706,7 @@ function DriverDashboard() {
           }}
         >
           <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>work_history</span>
-          Mis Acarreos
+          {t('driver.dashboard.myRides')}
           {myRides.length > 0 && (
             <span style={{
               background: tab === 'mine' ? 'rgba(255,255,255,0.2)' : 'var(--primary-subtle)',
@@ -735,19 +735,19 @@ function DriverDashboard() {
             <label style={{
               fontSize: 'var(--text-sm)',
               color: 'var(--text-muted)',
-            }}>Tipo:</label>
+            }}>{t('driver.dashboard.typeFilter')}</label>
             <select
               value={typeFilter}
               onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }}
               className="select"
               style={{ width: '150px' }}
             >
-              <option value="">Todos</option>
-              <option value="mudanza">Mudanza</option>
-              <option value="electrodomesticos">Electrodomesticos</option>
-              <option value="muebles">Muebles</option>
-              <option value="productos">Productos</option>
-              <option value="otros">Otros</option>
+              <option value="">{t('driver.dashboard.filterAll')}</option>
+              <option value="mudanza">{t('ride.type.mudanza')}</option>
+              <option value="electrodomesticos">{t('ride.type.electrodomesticos')}</option>
+              <option value="muebles">{t('ride.type.muebles')}</option>
+              <option value="productos">{t('ride.type.productos')}</option>
+              <option value="otros">{t('ride.type.otros')}</option>
             </select>
           </div>
 
@@ -814,8 +814,8 @@ function DriverDashboard() {
         availableRides.length === 0 ? (
           <EmptyState
             icon="search_off"
-            title={t('driver.dashboard.emptyTitle')}
-            description={t('driver.dashboard.emptyDescription')}
+            title={t('driver.dashboard.noOrdersAvailable')}
+            description={t('driver.dashboard.noOrdersInArea')}
           />
         ) : (
           <div style={{
