@@ -13,6 +13,7 @@ import { showConfirm, showError, showSuccess } from '../services/alerts'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
 import DriverProfilePopup from '../components/DriverProfilePopup'
+import { useTranslation } from 'react-i18next'
 
 interface Driver {
   _id: string
@@ -31,19 +32,12 @@ interface User {
   imageUrl?: string
 }
 
-const timelineSteps = [
-  { status: 'requested', label: 'Solicitado' },
-  { status: 'accepted', label: 'Aceptado' },
-  { status: 'in_progress', label: 'En Viaje' },
-  { status: 'completed', label: 'Completado' },
-  { status: 'paid', label: 'Pagado' },
-]
-
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
   const { getToken } = useAuth()
   const { unreadCounts } = useNotifications()
+  const { t, i18n } = useTranslation()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
@@ -259,10 +253,10 @@ function RideDetails() {
   async function handleCancel() {
     if (!id) return
     const confirmed = await showConfirm({
-      title: 'Cancelar pedido',
-      text: 'Estas seguro de cancelar este pedido?',
+      title: t('ride.detail.cancelConfirmTitle'),
+      text: t('ride.detail.cancelConfirmText'),
       icon: 'warning',
-      confirmText: 'Si, cancelar'
+      confirmText: t('ride.detail.cancelConfirmBtn')
     })
 
     if (!confirmed) return
@@ -279,11 +273,11 @@ function RideDetails() {
     if (!user || !ride || !id) return
 
     const confirmMessage = userHasPaymentMethod
-      ? '¿Confirmas que la entrega está completa?\n\nSe cobrará automáticamente a tu forma de pago guardada.'
-      : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
+      ? t('ride.detail.confirmDeliveryWithPayment')
+      : t('ride.detail.confirmDeliveryWithoutPayment')
 
     const confirmed = await showConfirm({
-      title: 'Confirmar entrega',
+      title: t('ride.detail.confirmDelivery'),
       text: confirmMessage
     })
 
@@ -291,7 +285,7 @@ function RideDetails() {
 
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      if (!token) throw new Error(t('auth.sessionInvalid'))
 
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/confirm-delivery`, {
         method: 'POST',
@@ -303,20 +297,20 @@ function RideDetails() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Error al confirmar entrega')
+        throw new Error(error.error || t('ride.detail.confirmDeliveryError'))
       }
 
       const result = await response.json()
 
       if (result.message?.includes('pagado')) {
-        await showSuccess('Entrega confirmada y pago procesado exitosamente')
+        await showSuccess(t('ride.detail.confirmDeliverySuccessPaid'))
       } else {
-        await showSuccess('Entrega confirmada. Pago realizado con exito')
+        await showSuccess(t('ride.detail.confirmDeliverySuccess'))
       }
 
       loadRide()
     } catch (error) {
-      await showError(error instanceof Error ? error.message : 'Error al confirmar entrega')
+      await showError(error instanceof Error ? error.message : t('ride.detail.confirmDeliveryError'))
     }
   }
 
@@ -334,7 +328,7 @@ function RideDetails() {
     if (!ride || rating === 0 || !user || !id) return
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      if (!token) throw new Error(t('auth.sessionInvalid'))
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/rate`, {
         method: 'POST',
         headers: {
@@ -348,19 +342,19 @@ function RideDetails() {
         }),
       })
       if (response.ok) {
-        await showSuccess('Calificacion enviada')
+        await showSuccess(t('ride.detail.ratingSent'))
         setRating(0)
         setComment('')
         loadRide()
       } else if (response.status === 409) {
         // Intento de duplicar calificación — el backend rechaza correctamente
         const data = await response.json()
-        await showError(data.error || 'Ya has calificado este acarreo')
+        await showError(data.error || t('ride.detail.ratingAlreadyRated'))
       } else {
-        await showError('Error al enviar la calificacion')
+        await showError(t('ride.detail.ratingError'))
       }
     } catch (err) {
-      await showError((err as Error).message || 'Error al enviar la calificacion')
+      await showError((err as Error).message || t('ride.detail.ratingError'))
     }
   }
 
@@ -368,7 +362,7 @@ function RideDetails() {
     if (!ride || driverRating === 0 || !user || !id) return
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      if (!token) throw new Error(t('auth.sessionInvalid'))
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/rate`, {
         method: 'POST',
         headers: {
@@ -382,18 +376,18 @@ function RideDetails() {
         }),
       })
       if (response.ok) {
-        await showSuccess('Calificacion enviada')
+        await showSuccess(t('ride.detail.ratingSent'))
         setDriverRating(0)
         setDriverComment('')
         loadRide()
       } else if (response.status === 409) {
         const data = await response.json()
-        await showError(data.error || 'Ya has calificado este acarreo')
+        await showError(data.error || t('ride.detail.ratingAlreadyRated'))
       } else {
-        await showError('Error al enviar la calificacion')
+        await showError(t('ride.detail.ratingError'))
       }
     } catch (err) {
-      await showError((err as Error).message || 'Error al enviar la calificacion')
+      await showError((err as Error).message || t('ride.detail.ratingError'))
     }
   }
 
@@ -421,7 +415,7 @@ function RideDetails() {
     )
   }
 
-  if (!ride) return <div>Pedido no encontrado</div>
+  if (!ride) return <div>{t('ride.detail.noRideFound')}</div>
 
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
@@ -431,12 +425,20 @@ function RideDetails() {
 
   const unreadCount = unreadCounts[ride._id] || 0
 
+  const timelineSteps = [
+    { status: 'requested', label: t('ride.status.requested') },
+    { status: 'accepted', label: t('ride.status.accepted') },
+    { status: 'in_progress', label: t('ride.status.in_progress') },
+    { status: 'completed', label: t('ride.status.completed') },
+    { status: 'paid', label: t('ride.status.paid') },
+  ]
+
   const typeLabels: Record<string, string> = {
-    mudanza: 'Mudanza',
-    electrodomesticos: 'Electrodomesticos',
-    muebles: 'Muebles',
-    productos: 'Productos',
-    otros: 'Otros',
+    mudanza: t('ride.type.mudanza'),
+    electrodomesticos: t('ride.type.electrodomesticos'),
+    muebles: t('ride.type.muebles'),
+    productos: t('ride.type.productos'),
+    otros: t('ride.type.otros'),
   }
 
   return (
@@ -454,7 +456,7 @@ function RideDetails() {
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver a Mis Pedidos
+        {t('ride.detail.backToMyRides')}
       </Link>
 
       {/* Hero Section with Status */}
@@ -593,7 +595,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Imagenes del Pedido
+                    {t('ride.detail.images')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     {ride.images.length} imagen{ride.images.length !== 1 ? 'es' : ''}
@@ -670,7 +672,7 @@ function RideDetails() {
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
               }}>
-                Ubicaciones
+                {t('ride.detail.locations')}
               </h3>
             </div>
 
@@ -706,7 +708,7 @@ function RideDetails() {
                     letterSpacing: '0.05em',
                     marginBottom: 'var(--space-1)',
                   }}>
-                    Recogida
+                    {t('ride.detail.pickup')}
                   </div>
                   <div style={{
                     fontSize: 'var(--text-sm)',
@@ -767,7 +769,7 @@ function RideDetails() {
                     letterSpacing: '0.05em',
                     marginBottom: 'var(--space-1)',
                   }}>
-                    Entrega
+                    {t('ride.detail.dropoff')}
                   </div>
                   <div style={{
                     fontSize: 'var(--text-sm)',
@@ -819,7 +821,7 @@ function RideDetails() {
                     <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
                       my_location
                     </span>
-                    Conductor en vivo — ubicacion actualizada en tiempo real
+                    {t('ride.detail.liveDriverLocation')}
                   </div>
                 )}
               </div>
@@ -861,7 +863,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Foto de Entrega
+                    {t('ride.detail.deliveryPhoto')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                     Confirmacion visual del servicio
@@ -927,7 +929,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Conductor Asignado
+                    {t('ride.detail.assignedDriver')}
                   </h3>
                 </div>
               </div>
@@ -1030,7 +1032,7 @@ function RideDetails() {
                   }}
                 >
                   <span className="material-symbols-rounded">chat</span>
-                  Chatear con Conductor
+                  {t('ride.detail.chatWithDriver')}
                 </Link>
               )}
 
@@ -1044,7 +1046,7 @@ function RideDetails() {
                   }}
                 >
                   <span className="material-symbols-rounded">chat</span>
-                  Chatear con Cliente
+                  {t('ride.detail.chatWithClient')}
                 </Link>
               )}
             </div>
@@ -1222,7 +1224,7 @@ function RideDetails() {
                   fontWeight: 'var(--font-semibold)',
                   margin: 0,
                 }}>
-                  Resumen del Pago
+                  {t('ride.detail.paymentSummary')}
                 </h3>
               </div>
             </div>
@@ -1243,7 +1245,7 @@ function RideDetails() {
                   letterSpacing: '0.05em',
                   marginBottom: 'var(--space-1)',
                 }}>
-                  Precio {ride.finalPrice ? 'final' : 'sugerido'}
+                  {ride.finalPrice ? t('ride.detail.finalPrice') : t('ride.detail.estimatedPrice')}
                 </div>
                 <div style={{
                   fontFamily: 'var(--font-mono)',
@@ -1266,7 +1268,7 @@ function RideDetails() {
                   color: 'var(--success)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>done</span>
-                  Precio negociado
+                  {t('ride.detail.negotiatedPrice')}
                 </div>
               )}
             </div>
@@ -1284,7 +1286,7 @@ function RideDetails() {
                   }}
                 >
                   <span className="material-symbols-rounded">cancel</span>
-                  Cancelar Pedido
+                  {t('ride.detail.cancel')}
                 </button>
               )}
 
@@ -1295,7 +1297,7 @@ function RideDetails() {
                   style={{ width: '100%' }}
                 >
                   <span className="material-symbols-rounded">check_circle</span>
-                  Confirmar Entrega
+                  {t('ride.detail.confirmDelivery')}
                 </button>
               )}
 
@@ -1306,7 +1308,7 @@ function RideDetails() {
                   style={{ width: '100%', textAlign: 'center' }}
                 >
                   <span className="material-symbols-rounded">credit_card</span>
-                  Agregar Metodo de Pago
+                  {t('ride.detail.addPaymentMethod')}
                 </Link>
               )}
 
@@ -1317,7 +1319,7 @@ function RideDetails() {
                   style={{ width: '100%' }}
                 >
                   <span className="material-symbols-rounded">payment</span>
-                  Pagar ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()}
+                  {t('ride.detail.payNow', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
                 </button>
               )}
 
@@ -1334,7 +1336,7 @@ function RideDetails() {
                   fontWeight: 'var(--font-semibold)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
-                  Pago Confirmado
+                  {t('ride.detail.paymentConfirmed')}
                 </div>
               )}
             </div>
@@ -1411,7 +1413,7 @@ function RideDetails() {
                 <div style={{ fontSize: 'var(--text-sm)' }}>
                   <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Metodo de Pago Requerido</strong>
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    Debes agregar un metodo de pago para completar el pedido.
+                    {t('ride.detail.paymentRequired')}
                   </span>
                 </div>
               </div>
@@ -1455,7 +1457,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    {hasRated ? 'Tu Calificacion' : 'Calificar Servicio'}
+                    {hasRated ? t('ride.detail.yourRating') : t('ride.detail.rateService')}
                   </h3>
                   {hasRated && (
                     <span style={{
@@ -1463,7 +1465,7 @@ function RideDetails() {
                       color: 'var(--success)',
                       fontWeight: 'var(--font-medium)',
                     }}>
-                      Ya calificaste este acarreo
+                      {t('ride.detail.alreadyRated')}
                     </span>
                   )}
                 </div>
@@ -1508,7 +1510,7 @@ function RideDetails() {
                     fontSize: 'var(--text-xs)',
                     color: 'var(--text-muted)',
                   }}>
-                    Calificado el {new Date(existingRating.createdAt).toLocaleDateString('es-ES', {
+                    {t('ride.detail.ratedOn')} {new Date(existingRating.createdAt).toLocaleDateString(i18n.language || 'en', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
@@ -1550,7 +1552,7 @@ function RideDetails() {
 
                   <textarea
                     className="input"
-                    placeholder="Comentario (opcional)"
+                    placeholder={t('ride.detail.commentPlaceholder')}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     style={{ marginBottom: 'var(--space-4)' }}
@@ -1563,7 +1565,7 @@ function RideDetails() {
                     style={{ width: '100%' }}
                   >
                     <span className="material-symbols-rounded">send</span>
-                    Enviar Calificacion
+                    {t('ride.detail.submitRating')}
                   </button>
                 </>
               )}
@@ -1607,7 +1609,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    {driverHasRated ? 'Tu Calificacion' : 'Calificar Cliente'}
+                    {driverHasRated ? t('ride.detail.yourRating') : t('ride.detail.rateClient')}
                   </h3>
                   {driverHasRated && (
                     <span style={{
@@ -1615,7 +1617,7 @@ function RideDetails() {
                       color: 'var(--success)',
                       fontWeight: 'var(--font-medium)',
                     }}>
-                      Ya calificaste este acarreo
+                      {t('ride.detail.alreadyRated')}
                     </span>
                   )}
                 </div>
@@ -1660,7 +1662,7 @@ function RideDetails() {
                     fontSize: 'var(--text-xs)',
                     color: 'var(--text-muted)',
                   }}>
-                    Calificado el {new Date(driverExistingRating.createdAt).toLocaleDateString('es-ES', {
+                    {t('ride.detail.ratedOn')} {new Date(driverExistingRating.createdAt).toLocaleDateString(i18n.language || 'en', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
@@ -1702,7 +1704,7 @@ function RideDetails() {
 
                   <textarea
                     className="input"
-                    placeholder="Comentario (opcional)"
+                    placeholder={t('ride.detail.commentPlaceholder')}
                     value={driverComment}
                     onChange={(e) => setDriverComment(e.target.value)}
                     style={{ marginBottom: 'var(--space-4)' }}
@@ -1715,7 +1717,7 @@ function RideDetails() {
                     style={{ width: '100%' }}
                   >
                     <span className="material-symbols-rounded">send</span>
-                    Enviar Calificacion
+                    {t('ride.detail.submitRating')}
                   </button>
                 </>
               )}

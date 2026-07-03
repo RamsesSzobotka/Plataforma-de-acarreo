@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
+import { useTranslation } from 'react-i18next'
 import { usersAPI, ratingsAPI } from '../services/api'
 import type { RatingWithRater } from '../types'
 
@@ -8,6 +9,7 @@ function DriverPublicProfile() {
   const { clerkId } = useParams<{ clerkId: string }>()
   const navigate = useNavigate()
   const { getToken } = useAuth()
+  const { t, i18n } = useTranslation()
   const [driverUser, setDriverUser] = useState<any>(null)
   const [driver, setDriver] = useState<any>(null)
   const [driverRatings, setDriverRatings] = useState<RatingWithRater[]>([])
@@ -38,13 +40,13 @@ function DriverPublicProfile() {
         setClientRatingsTotal(clientRatingsData.pagination?.total || 0)
       } catch (err) {
         console.error('Error loading profile:', err)
-        setError('No se pudo cargar el perfil')
+        setError(t('profile.public.loadError'))
       } finally {
         setLoading(false)
       }
     }
     loadProfile()
-  }, [clerkId, getToken])
+  }, [clerkId, getToken, t])
 
   const hasDriverProfile = driver !== null
 
@@ -62,10 +64,10 @@ function DriverPublicProfile() {
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: 'var(--space-8) 0', textAlign: 'center' }}>
         <div className="card">
           <span className="material-symbols-rounded" style={{ fontSize: '4rem', color: 'var(--error)', marginBottom: 'var(--space-4)' }}>error</span>
-          <p style={{ color: 'var(--error)', marginBottom: 'var(--space-5)' }}>{error || 'Usuario no encontrado'}</p>
+          <p style={{ color: 'var(--error)', marginBottom: 'var(--space-5)' }}>{error || t('profile.public.notFound')}</p>
           <button className="btn btn-outline" onClick={() => navigate(-1)}>
             <span className="material-symbols-rounded">arrow_back</span>
-            Volver
+            {t('common.back')}
           </button>
         </div>
       </div>
@@ -142,7 +144,7 @@ function DriverPublicProfile() {
             fontWeight: 'var(--font-semibold)',
             fontSize: 'var(--text-sm)',
           }}>
-            {r.rater?.firstName} {r.rater?.lastName || 'Usuario'}
+            {r.rater?.firstName} {r.rater?.lastName || t('profile.public.user')}
           </div>
           <div style={{ display: 'flex', gap: '1px', marginTop: '2px' }}>
             {Array.from({ length: 5 }, (_, i) => (
@@ -164,7 +166,7 @@ function DriverPublicProfile() {
           fontSize: 'var(--text-xs)',
           color: 'var(--text-muted)',
         }}>
-          {new Date(r.createdAt).toLocaleDateString('es-PA', {
+          {new Date(r.createdAt).toLocaleDateString(i18n.language || 'en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -191,7 +193,7 @@ function DriverPublicProfile() {
       color: 'var(--text-muted)',
     }}>
       <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)', opacity: 0.5 }}>rate_review</span>
-      <p>Aún no tiene reseñas como {role}.</p>
+      <p>{t('profile.public.noReviews', { role: t(`profile.public.role.${role}`) })}</p>
     </div>
   )
 
@@ -204,7 +206,7 @@ function DriverPublicProfile() {
         style={{ color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver
+        {t('common.back')}
       </button>
 
       {/* Profile Card */}
@@ -271,7 +273,7 @@ function DriverPublicProfile() {
                   </div>
                   <strong style={{ fontSize: 'var(--text-lg)' }}>{driver.rating}</strong>
                   <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                    ({driver.totalRides} viajes)
+                    ({driver.totalRides} {t('profile.public.rides')})
                   </span>
                 </div>
 
@@ -299,13 +301,13 @@ function DriverPublicProfile() {
                     fontWeight: 'var(--font-medium)',
                   }}>
                     <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>verified</span>
-                    Conductor Verificado
+                    {t('profile.public.verifiedDriver')}
                   </div>
                 )}
               </>
             ) : (
               <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                Cliente
+                {t('profile.public.client')}
               </span>
             )}
           </div>
@@ -344,7 +346,7 @@ function DriverPublicProfile() {
                 }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>local_shipping</span>
-                Reseñas como conductor ({driverRatingsTotal})
+                {t('profile.public.driverReviewsTitle', { total: driverRatingsTotal })}
               </button>
               <button
                 onClick={() => setActiveTab('client')}
@@ -368,7 +370,7 @@ function DriverPublicProfile() {
                 }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>person</span>
-                Reseñas como cliente ({clientRatingsTotal})
+                {t('profile.public.clientReviewsTitle', { total: clientRatingsTotal })}
               </button>
             </div>
 
@@ -403,7 +405,7 @@ function DriverPublicProfile() {
               gap: 'var(--space-2)',
             }}>
               <span className="material-symbols-rounded" style={{ color: 'var(--warning)' }}>reviews</span>
-              Reseñas como cliente ({clientRatingsTotal})
+              {t('profile.public.clientReviewsTitle', { total: clientRatingsTotal })}
             </h2>
             {clientRatings.length === 0
               ? renderEmptyReviews('cliente')

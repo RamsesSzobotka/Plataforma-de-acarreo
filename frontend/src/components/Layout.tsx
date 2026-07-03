@@ -1,10 +1,13 @@
 import { Outlet, Link } from 'react-router-dom'
 import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import LanguageSwitcher from './LanguageSwitcher'
 
 function Layout() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
+  const { t } = useTranslation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -91,7 +94,7 @@ function Layout() {
                   }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>dashboard</span>
-                  Panel Conductor
+                  {t('nav.driverPanel')}
                 </Link>
 
                 <Link
@@ -119,7 +122,7 @@ function Layout() {
                   }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>local_shipping</span>
-                  Mis Pedidos
+                  {t('nav.myRides')}
                 </Link>
 
                 {/* CTA - Nuevo Pedido */}
@@ -132,8 +135,10 @@ function Layout() {
                   }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
-                  Nuevo Pedido
+                  {t('nav.createRide')}
                 </Link>
+
+                <LanguageSwitcher />
 
                 {/* User Button */}
                 <div style={{
@@ -159,17 +164,17 @@ function Layout() {
                   >
                     <UserButton.MenuItems>
                       <UserButton.Link
-                        label="Ver Perfil Público"
+                        label={t('nav.viewPublicProfile')}
                         labelIcon={<span className="material-symbols-rounded">person</span>}
                         href={`/profile/${user?.id}`}
                       />
                       <UserButton.Link
-                        label="Método de Pago"
+                        label={t('nav.paymentMethod')}
                         labelIcon={<span className="material-symbols-rounded">credit_card</span>}
                         href="/add-payment-method"
                       />
                       <UserButton.Link
-                        label="Conexión MCP"
+                        label={t('nav.mcpSettings')}
                         labelIcon={<span className="material-symbols-rounded">api</span>}
                         href="/settings/mcp"
                       />
@@ -183,7 +188,7 @@ function Layout() {
                 className="btn btn-primary"
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>login</span>
-                Iniciar Sesion
+                {t('nav.signIn')}
               </Link>
             )}
           </nav>
@@ -201,7 +206,7 @@ function Layout() {
                 color: 'var(--text-primary)',
                 cursor: 'pointer',
               }}
-              aria-label="Abrir menú"
+              aria-label={t('nav.openMenu')}
             >
               <span className="material-symbols-rounded">menu</span>
             </button>
@@ -246,7 +251,7 @@ function Layout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <img src="/logos/Carglylogo.png" alt="Carglyn" style={{ height: '24px', width: 'auto' }} />
           </div>
-          <p>2026 Plataforma de Acarreos. Todos los derechos reservados.</p>
+          <p>{t('layout.footer.copyright')}</p>
         </div>
       </footer>
 
@@ -288,7 +293,7 @@ function Layout() {
                 cursor: 'pointer',
                 padding: 'var(--space-2)',
               }}
-              aria-label="Cerrar menu"
+              aria-label={t('nav.closeMenu')}
             >
               <span className="material-symbols-rounded">close</span>
             </button>
@@ -373,6 +378,9 @@ function Layout() {
 
             {/* Divider */}
             <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)' }}>
+              <div style={{ marginBottom: 'var(--space-3)' }}>
+                <LanguageSwitcher />
+              </div>
               <UserButton
                 afterSignOutUrl="/"
                 appearance={{

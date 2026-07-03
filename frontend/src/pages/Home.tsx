@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SignInButton, SignUpButton, useUser } from '@clerk/clerk-react'
+import { useTranslation } from 'react-i18next'
 
 function Home() {
   const { isSignedIn } = useUser()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [userType, setUserType] = useState<'client' | 'driver'>('client')
 
   // Handler inteligente para "ser conductor"
@@ -49,10 +51,10 @@ function Home() {
             lineHeight: 1.1,
             maxWidth: '700px',
           }}>
-            El marketplace que conecta{' '}
-            <span style={{ color: '#F97316' }}>emisores</span> y{' '}
-            <span style={{ color: '#0D9488' }}>conductores</span>{' '}
-            para acarreos
+            {t('home.title')}{' '}
+            <span style={{ color: '#F97316' }}>{t('home.hero.emitters')}</span> y{' '}
+            <span style={{ color: '#0D9488' }}>{t('home.hero.drivers')}</span>{' '}
+            {t('home.hero.rides')}
           </h1>
           
           <p style={{
@@ -63,7 +65,7 @@ function Home() {
             marginBottom: '2.5rem',
             lineHeight: 1.6,
           }}>
-            Publica tu pedido en segundos, negocia directamente y recibe tu carga con tracking en tiempo real.
+            {t('home.hero.subtitle')}
           </p>
 
           {!isSignedIn && (
@@ -103,7 +105,7 @@ function Home() {
                   <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>
                     shopping_bag
                   </span>
-                  Soy Cliente
+                  {t('home.clientCta')}
                 </button>
                 <button
                   onClick={() => setUserType('driver')}
@@ -126,7 +128,7 @@ function Home() {
                   <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>
                     directions_car
                   </span>
-                  Soy Conductor
+                  {t('home.driverCta')}
                 </button>
               </div>
 
@@ -156,7 +158,7 @@ function Home() {
                     }}
                   >
                     <span className="material-symbols-rounded">rocket_launch</span>
-                    {userType === 'client' ? 'Publicar un Pedido' : 'Comenzar a Ganar'}
+                    {userType === 'client' ? t('home.hero.publishRide') : t('home.hero.startEarning')}
                   </button>
                 </SignUpButton>
                 
@@ -179,7 +181,7 @@ function Home() {
                     }}
                   >
                     <span className="material-symbols-rounded">login</span>
-                    Iniciar Sesion
+                    {t('home.hero.signIn')}
                   </button>
                 </SignInButton>
               </div>
@@ -202,7 +204,7 @@ function Home() {
               color: '#FFFFFF',
               marginBottom: '1rem',
             }}>
-              Asi de facil es
+              {t('home.howItWorks')}
             </h2>
             <p style={{
               fontFamily: '"Inter", sans-serif',
@@ -211,7 +213,7 @@ function Home() {
               maxWidth: '500px',
               margin: '0 auto',
             }}>
-              Tu acarreo en solo 4 pasos simples
+              {t('home.howItWorks.subtitle')}
             </p>
           </div>
 
@@ -224,26 +226,26 @@ function Home() {
               { 
                 step: '01',
                 icon: 'edit_note',
-                title: 'Publica tu pedido', 
-                description: 'Describe lo que necesitas transportar, sube fotos y establece tu precio sugerido.' 
+                title: t('home.step1.title'),
+                description: t('home.step1.desc')
               },
               { 
                 step: '02',
                 icon: 'chat',
-                title: 'Negocia directo', 
-                description: 'Conductores te contactan y pueden negociar el precio en el chat.' 
+                title: t('home.step2.title'),
+                description: t('home.step2.desc')
               },
               { 
                 step: '03',
                 icon: 'local_shipping',
-                title: 'Sigue el viaje', 
-                description: 'Trackea la ubicacion en tiempo real desde que cargan hasta la entrega.' 
+                title: t('home.step3.title'),
+                description: t('home.step3.desc')
               },
               { 
                 step: '04',
                 icon: 'verified',
-                title: 'Confirma y paga', 
-                description: 'Verifica la foto de entrega y paga de forma segura con Stripe.' 
+                title: t('home.step4.title'),
+                description: t('home.step4.desc')
               },
             ].map((item, index) => (
               <div key={index} style={{
@@ -322,38 +324,38 @@ function Home() {
             {[
               { 
                 icon: 'inventory_2', 
-                title: 'Multiples Imagenes', 
-                description: 'Sube hasta 8 fotos de tu carga para mejores cotizaciones.',
+                title: t('home.features.multipleImages'),
+                description: t('home.features.multipleImages.desc'),
                 color: '#0D9488',
               },
               { 
                 icon: 'location_on', 
-                title: 'Tracking en Tiempo Real', 
-                description: 'Sabes exactamente donde esta tu carga en cada momento.',
+                title: t('home.features.realtimeTracking'),
+                description: t('home.features.realtimeTracking.desc'),
                 color: '#F97316',
               },
               { 
                 icon: 'chat', 
-                title: 'Chat Directo', 
-                description: 'Comunicate con el conductor sin intermediarios.',
+                title: t('home.features.directChat'),
+                description: t('home.features.directChat.desc'),
                 color: '#8B5CF6',
               },
               { 
                 icon: 'star', 
-                title: 'Calificaciones', 
-                description: 'Cada usuario tiene rating verificado para mayor confianza.',
+                title: t('home.features.ratings'),
+                description: t('home.features.ratings.desc'),
                 color: '#F59E0B',
               },
               { 
                 icon: 'shield', 
-                title: 'Pago Seguro', 
-                description: 'Stripe para transacciones 100% protegidas.',
+                title: t('home.features.securePayment'),
+                description: t('home.features.securePayment.desc'),
                 color: '#22C55E',
               },
               { 
                 icon: 'photo_camera', 
-                title: 'Foto de Entrega', 
-                description: 'Evidencia fotografica obligatoria al completar.',
+                title: t('home.features.deliveryPhoto'),
+                description: t('home.features.deliveryPhoto.desc'),
                 color: '#3B82F6',
               },
             ].map((feature, index) => (
@@ -445,7 +447,7 @@ function Home() {
                   color: '#0D9488',
                   fontWeight: '600',
                 }}>
-                  Para Clientes
+                  {t('home.forClients.title')}
                 </span>
               </div>
               
@@ -457,7 +459,7 @@ function Home() {
                 marginBottom: '1rem',
                 lineHeight: 1.2,
               }}>
-                Tu carga en buenas manos
+                {t('home.forClients.heading')}
               </h2>
               
               <p style={{
@@ -467,7 +469,7 @@ function Home() {
                 marginBottom: '2rem',
                 lineHeight: 1.6,
               }}>
-                Encuentra conductores confiables para cualquier tipo de acarreo. Desde mudanzas completas hasta entregas de productos.
+                {t('home.forClients.desc')}
               </p>
               
               <ul style={{ 
@@ -519,7 +521,7 @@ function Home() {
                   }}
                 >
                   <span className="material-symbols-rounded">add_circle</span>
-                  Publicar mi Primer Pedido
+                  {t('home.forClients.cta')}
                 </button>
               </SignUpButton>
             </div>
@@ -663,7 +665,7 @@ function Home() {
                   color: '#F97316',
                   fontWeight: '600',
                 }}>
-                  Para Conductores
+                  {t('home.forDrivers.title')}
                 </span>
               </div>
               
@@ -675,7 +677,7 @@ function Home() {
                 marginBottom: '1rem',
                 lineHeight: 1.2,
               }}>
-                Genera ingresos con tu vehiculo
+                {t('home.forDrivers.heading')}
               </h2>
               
               <p style={{
@@ -685,7 +687,7 @@ function Home() {
                 marginBottom: '2rem',
                 lineHeight: 1.6,
               }}>
-                Acepta pedidos cerca de tu ubicacion, negocia precios y genera ingresos extras. Tu horario, tu vehiculo, tus reglas.
+                {t('home.forDrivers.desc')}
               </p>
               
               <ul style={{ 
@@ -697,10 +699,10 @@ function Home() {
                 gap: '1rem',
               }}>
                 {[
-                  'Sin comisiones ocultas - recibe el 90%',
-                  'Filtros por distancia y tipo de carga',
-                  'Chat integrado con clientes',
-                  'Pagos automaticos por Stripe',
+                  t('home.forDrivers.benefit1'),
+                  t('home.forDrivers.benefit2'),
+                  t('home.forDrivers.benefit3'),
+                  t('home.forDrivers.benefit4'),
                 ].map((item, index) => (
                   <li key={index} style={{
                     display: 'flex',
@@ -738,7 +740,7 @@ function Home() {
                 }}
               >
                 <span className="material-symbols-rounded">directions_car</span>
-                Registrarme como Conductor
+                {t('home.forDrivers.cta')}
               </button>
             </div>
           </div>
@@ -759,7 +761,7 @@ function Home() {
             color: '#FFFFFF',
             marginBottom: '1rem',
           }}>
-            Listo para tu primer acarreo?
+            {t('home.cta.title')}
           </h2>
           <p style={{
             fontFamily: '"Inter", sans-serif',
@@ -769,7 +771,7 @@ function Home() {
             maxWidth: '500px',
             margin: '0 auto 2rem',
           }}>
-            Empieza hoy mismo. Es rapido, seguro y sin compromisos.
+            {t('home.cta.desc')}
           </p>
           <SignUpButton mode="modal">
             <button 
@@ -790,7 +792,7 @@ function Home() {
               }}
             >
               <span className="material-symbols-rounded">rocket_launch</span>
-              Comenzar Ahora
+              {t('home.cta.button')}
             </button>
           </SignUpButton>
         </div>
@@ -840,7 +842,7 @@ function Home() {
                     color: '#FFFFFF',
                     margin: 0,
                   }}>
-                    Tambien puedes ser conductor
+                    {t('home.loggedIn.driverSection.title')}
                   </h3>
                   <p style={{
                     fontFamily: '"Inter", sans-serif',
@@ -848,7 +850,7 @@ function Home() {
                     color: 'rgba(255,255,255,0.7)',
                     margin: '0.25rem 0 0',
                   }}>
-                    Registra tu vehiculo y acepta pedidos de acarreo para generar ingresos extra.
+                    {t('home.loggedIn.driverSection.desc')}
                   </p>
                 </div>
               </div>
@@ -872,7 +874,7 @@ function Home() {
                 }}
               >
                 <span className="material-symbols-rounded">how_to_reg</span>
-                Registrarme como Conductor
+                {t('home.forDrivers.cta')}
               </button>
             </div>
           </div>
