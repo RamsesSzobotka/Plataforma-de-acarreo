@@ -34,6 +34,9 @@ messages.post('/', authMiddleware, async (c) => {
   const currentUser = c.get('user')
 
   // Obtener el ride
+  if (!/^[0-9a-fA-F]{24}$/.test(rideId)) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
   const ride = await Ride.findById(rideId)
   if (!ride) {
     return c.json({ error: 'Ride not found' }, 404)
@@ -171,6 +174,9 @@ messages.post('/propose-price', authMiddleware, async (c) => {
   const driverId = currentUser.clerkId
 
   // Obtener el ride
+  if (!/^[0-9a-fA-F]{24}$/.test(rideId)) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
   const ride = await Ride.findById(rideId)
   if (!ride) {
     return c.json({ error: 'Ride not found' }, 404)
@@ -247,6 +253,9 @@ messages.post('/accept-price', authMiddleware, async (c) => {
   const clientId = currentUser.clerkId
 
   // Obtener el ride
+  if (!/^[0-9a-fA-F]{24}$/.test(rideId)) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
   const ride = await Ride.findById(rideId)
   if (!ride) {
     return c.json({ error: 'Ride not found' }, 404)
@@ -336,6 +345,9 @@ messages.post('/reject-price', authMiddleware, async (c) => {
   const clientId = currentUser.clerkId
 
   // Obtener el ride
+  if (!/^[0-9a-fA-F]{24}$/.test(rideId)) {
+    return c.json({ error: 'Ride not found' }, 404)
+  }
   const ride = await Ride.findById(rideId)
   if (!ride) {
     return c.json({ error: 'Ride not found' }, 404)
