@@ -5,6 +5,7 @@ import { usersAPI } from '../services/api'
 import FileUpload from '../components/FileUpload'
 import AddressInput from '../components/AddressInput'
 import { hideLoading, showLoading } from '../services/alerts'
+import { useTranslation } from 'react-i18next'
 
 interface DriverProfile {
   verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
@@ -66,6 +67,7 @@ export default function RegisterDriver() {
   const { user, isSignedIn } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -95,7 +97,7 @@ export default function RegisterDriver() {
         }
 
         if (data.verificationStatus === 'suspended') {
-          setError('Tu cuenta ha sido suspendida. Contacta al soporte.')
+          setError(t('driver.register.suspended'))
           return
         }
       } catch {
@@ -180,7 +182,7 @@ export default function RegisterDriver() {
     for (let i = 1; i <= 4; i++) {
       if (!isSectionValid(i)) {
         const sectionNames = ['', 'Vehiculo', 'Docs Personales', 'Docs Vehiculo', 'Contacto']
-        setError(`Completa la seccion "${sectionNames[i]}" antes de continuar`)
+        setError(t('driver.register.completeSection', { section: sectionNames[i] }))
         setActiveSection(i)
         return
       }
@@ -228,7 +230,7 @@ export default function RegisterDriver() {
         navigate('/driver')
       } else {
         if (data.missing && Array.isArray(data.missing) && data.missing.length > 0) {
-          setError(`Faltan: ${data.missing.join(', ')}`)
+          setError(t('driver.register.missingFields', { fields: data.missing.join(', ') }))
         } else {
           setError(data.error || 'Error al registrar conductor')
         }
@@ -252,22 +254,22 @@ export default function RegisterDriver() {
         color: 'var(--warning)',
         bgColor: 'var(--warning-subtle)',
         icon: 'schedule',
-        title: 'Verificacion Pendiente',
-        description: 'Tus documentos estan en revision. No podras aceptar pedidos hasta que un admin apruebe tu perfil.',
+        title: t('driver.dashboard.verificationPending'),
+        description: t('driver.dashboard.verificationPendingDesc'),
       },
       in_review: {
         color: 'var(--info)',
         bgColor: 'var(--info-subtle)',
         icon: 'fact_check',
-        title: 'En Revision',
-        description: 'Un admin esta revisando tus documentos actualmente.',
+        title: t('driver.dashboard.verificationInReview'),
+        description: t('driver.dashboard.verificationInReviewDesc'),
       },
       rejected: {
         color: 'var(--error)',
         bgColor: 'var(--error-subtle)',
         icon: 'cancel',
-        title: 'Verificacion Rechazada',
-        description: driverStatus.rejectionReason || 'Tu solicitud fue rechazada.',
+        title: t('driver.dashboard.verificationRejected'),
+        description: driverStatus.rejectionReason || t('driver.register.requestRejected'),
       },
     } as const
 
@@ -331,7 +333,7 @@ export default function RegisterDriver() {
 
           {driverStatus.verificationStatus === 'pending' && (
             <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-              Tiempo estimado: 24-48 horas
+              {t('driver.register.estimatedTime')}
             </p>
           )}
 
@@ -348,14 +350,14 @@ export default function RegisterDriver() {
                 className="btn btn-primary"
               >
                 <span className="material-symbols-rounded">edit</span>
-                Corregir documentos
+                {t('driver.dashboard.reSubmit')}
               </Link>
               <Link
                 to="/"
                 className="btn btn-outline"
               >
                 <span className="material-symbols-rounded">home</span>
-                Volver al inicio
+                {t('driver.dashboard.backToHome')}
               </Link>
             </div>
           )}
@@ -442,10 +444,10 @@ export default function RegisterDriver() {
           }}>
             <span className="material-symbols-rounded">directions_car</span>
           </span>
-          Registro como Conductor
+          {t('driver.register.title')}
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-          Completa todos los documentos requeridos para comenzar a aceptar acarreos.
+          {t('driver.register.description')}
         </p>
       </div>
 
@@ -470,7 +472,7 @@ export default function RegisterDriver() {
               fontWeight: 'var(--font-semibold)',
               color: 'var(--text-primary)',
             }}>
-              Progreso del registro
+              {t('driver.register.progress')}
             </span>
             <span style={{
               fontSize: 'var(--text-sm)',
@@ -1076,7 +1078,7 @@ export default function RegisterDriver() {
                 className="btn btn-primary"
                 disabled={!isSectionValid(activeSection)}
               >
-                Siguiente
+                {t('common.next')}
                 <span className="material-symbols-rounded">arrow_forward</span>
               </button>
             ) : (
@@ -1088,12 +1090,12 @@ export default function RegisterDriver() {
                 {loading ? (
                   <>
                     <div className="spinner" style={{ width: '18px', height: '18px' }} />
-                    Enviando...
+                    {t('driver.register.submitting')}...
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-rounded">send</span>
-                    Enviar para Verificacion
+                    {t('driver.register.submit')}
                   </>
                 )}
               </button>

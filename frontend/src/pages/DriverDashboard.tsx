@@ -8,6 +8,7 @@ import type { Ride } from '../types'
 import { ridesAPI, usersAPI, paymentsAPI, userWsService } from '../services/api'
 import { showConfirm } from '../services/alerts'
 import { useDriverLocation } from '../hooks/useDriverLocation'
+import { useTranslation } from 'react-i18next'
 
 interface Driver {
   _id: string
@@ -23,41 +24,11 @@ interface Driver {
   payoutsEnabled?: boolean
 }
 
-const verificationBanners = {
-  pending: {
-    icon: 'hourglass_empty',
-    color: 'var(--warning)',
-    bgColor: 'var(--warning-subtle)',
-    title: 'Verificacion Pendiente',
-    description: 'Tus documentos estan en revision. No podras aceptar encargos hasta que un admin apruebe tu perfil.',
-  },
-  in_review: {
-    icon: 'visibility',
-    color: 'var(--info)',
-    bgColor: 'var(--info-subtle)',
-    title: 'En Revision',
-    description: 'Un administrador esta revisando tus documentos. Te notificaremos cuando termine la revision.',
-  },
-  rejected: {
-    icon: 'error',
-    color: 'var(--error)',
-    bgColor: 'var(--error-subtle)',
-    title: 'Verificacion Rechazada',
-    description: 'Por favor, corrige los documentos y vuelve a enviar para revision.',
-  },
-  suspended: {
-    icon: 'block',
-    color: 'var(--error)',
-    bgColor: 'var(--error-subtle)',
-    title: 'Cuenta Suspendida',
-    description: 'Tu cuenta ha sido suspendida. Contacta al administrador para mas informacion.',
-  },
-}
-
 function DriverDashboard() {
   const { user } = useUser()
   const { getToken } = useAuth()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [driver, setDriver] = useState<Driver | null>(null)
   const [availableRides, setAvailableRides] = useState<Ride[]>([])
   const [myRides, setMyRides] = useState<Ride[]>([])
@@ -247,6 +218,36 @@ function DriverDashboard() {
   const hasStripeAccount = !!driver?.stripeAccountId
   const canReceivePayments = driver?.payoutsEnabled === true
   const verificationStatus = driver?.verificationStatus
+  const verificationBanners = {
+    pending: {
+      icon: 'hourglass_empty',
+      color: 'var(--warning)',
+      bgColor: 'var(--warning-subtle)',
+      title: t('driver.dashboard.verificationPending'),
+      description: t('driver.dashboard.verificationPendingDesc'),
+    },
+    in_review: {
+      icon: 'visibility',
+      color: 'var(--info)',
+      bgColor: 'var(--info-subtle)',
+      title: t('driver.dashboard.verificationInReview'),
+      description: t('driver.dashboard.verificationInReviewDesc'),
+    },
+    rejected: {
+      icon: 'error',
+      color: 'var(--error)',
+      bgColor: 'var(--error-subtle)',
+      title: t('driver.dashboard.verificationRejected'),
+      description: t('driver.dashboard.verificationRejectedDesc'),
+    },
+    suspended: {
+      icon: 'block',
+      color: 'var(--error)',
+      bgColor: 'var(--error-subtle)',
+      title: t('driver.dashboard.verificationSuspended'),
+      description: t('driver.dashboard.verificationSuspendedDesc'),
+    },
+  }
 
   // Not registered
   if (!driver && !loading) {
@@ -254,10 +255,10 @@ function DriverDashboard() {
       <div style={{ maxWidth: '600px', margin: '0 auto' }}>
         <EmptyState
           icon="how_to_reg"
-          title="Registrate como Conductor"
-          description="Para comenzar a aceptar acarreos, necesitas completar tu registro y verificacion de documentos."
+          title={t('driver.dashboard.registerTitle')}
+          description={t('driver.dashboard.registerDescription')}
           action={{
-            label: 'Registrarse como Conductor',
+            label: t('driver.dashboard.registerAction'),
             href: '/register-driver',
           }}
         />
@@ -296,7 +297,7 @@ function DriverDashboard() {
           }}
         >
           <span className="material-symbols-rounded">arrow_back</span>
-          Volver al inicio
+          {t('driver.dashboard.backToHome')}
         </Link>
 
         <div
@@ -362,7 +363,7 @@ function DriverDashboard() {
                     fontSize: 'var(--text-sm)',
                   }}>
                     <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>info</span>
-                    Motivo del rechazo
+                    {t('driver.dashboard.rejectionReason')}
                   </div>
                   <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
                     {driver.rejectionReason}
@@ -377,7 +378,7 @@ function DriverDashboard() {
                   style={{ marginTop: 'var(--space-5)' }}
                 >
                   <span className="material-symbols-rounded">edit</span>
-                  {verificationStatus === 'rejected' ? 'Corregir y Reenviar' : 'Ver mi perfil'}
+                  {verificationStatus === 'rejected' ? t('driver.dashboard.reSubmit') : t('driver.dashboard.viewProfile')}
                 </Link>
               )}
             </div>
@@ -453,13 +454,13 @@ function DriverDashboard() {
             }}>
               <span className="material-symbols-rounded">directions_car</span>
             </span>
-            Panel del Conductor
+            {t('driver.dashboard.title')}
           </h1>
           <p style={{
             color: 'var(--text-muted)',
             fontSize: 'var(--text-sm)',
           }}>
-            Gestiona tus pedidos y acarreos
+            {t('driver.dashboard.panelSubtitle')}
           </p>
         </div>
 
@@ -481,7 +482,7 @@ function DriverDashboard() {
               fontWeight: 'var(--font-medium)',
             }}>
               <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>check_circle</span>
-              Pagos habilitados
+              {t('driver.dashboard.paymentsEnabled')}
             </div>
           ) : hasStripeAccount ? (
             <button
@@ -489,7 +490,7 @@ function DriverDashboard() {
               onClick={handleStripeHistory}
             >
               <span className="material-symbols-rounded">history</span>
-              Historial de Pagos
+              {t('driver.dashboard.paymentHistory')}
             </button>
           ) : (
             <button
@@ -497,7 +498,7 @@ function DriverDashboard() {
               onClick={handleConnectStripe}
             >
               <span className="material-symbols-rounded">payments</span>
-              Activar Pagos
+              {t('driver.dashboard.connectPayments')}
             </button>
           )}
         </div>
@@ -526,7 +527,7 @@ function DriverDashboard() {
             <span className="material-symbols-rounded" style={{ color: 'var(--primary)', fontSize: '1.5rem' }}>
               star
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Calificacion</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.dashboard.rating')}</span>
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -554,7 +555,7 @@ function DriverDashboard() {
             <span className="material-symbols-rounded" style={{ color: 'var(--success)', fontSize: '1.5rem' }}>
               task_alt
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Viajes Completados</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.dashboard.completedRides')}</span>
           </div>
           <div style={{
             fontFamily: 'var(--font-mono)',
@@ -582,7 +583,7 @@ function DriverDashboard() {
             <span className="material-symbols-rounded" style={{ color: 'var(--warning)', fontSize: '1.5rem' }}>
               local_shipping
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Mi Vehiculo</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.dashboard.myVehicle')}</span>
           </div>
           <div style={{
             fontFamily: 'var(--font-display)',
@@ -616,7 +617,7 @@ function DriverDashboard() {
             <span className="material-symbols-rounded" style={{ color: driverLocation ? 'var(--success)' : 'var(--text-muted)', fontSize: '1.5rem' }}>
               location_on
             </span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Ubicacion</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>{t('driver.dashboard.location')}</span>
           </div>
           <div style={{
             fontFamily: 'var(--font-display)',
@@ -638,7 +639,7 @@ function DriverDashboard() {
             }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>edit</span>
-            Editar perfil
+            {t('driver.dashboard.editProfile')}
           </Link>
         </div>
       </div>
@@ -762,7 +763,7 @@ function DriverDashboard() {
               color: 'var(--success)',
             }}>
               <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>location_on</span>
-              Ubicacion detectada
+              {t('driver.dashboard.locationDetected')}
             </div>
           )}
         </div>
@@ -778,10 +779,10 @@ function DriverDashboard() {
           alignItems: 'center',
         }}>
           {[
-            { value: 'all', label: 'Todos', icon: 'list' },
-            { value: 'pending', label: 'Pendientes', icon: 'pending_actions' },
-            { value: 'in_progress', label: 'En viaje', icon: 'local_shipping' },
-            { value: 'paid', label: 'Pagados', icon: 'payments' },
+            { value: 'all', label: t('driver.dashboard.filterAll'), icon: 'list' },
+            { value: 'pending', label: t('driver.dashboard.filterPending'), icon: 'pending_actions' },
+            { value: 'in_progress', label: t('driver.dashboard.filterInProgress'), icon: 'local_shipping' },
+            { value: 'paid', label: t('driver.dashboard.filterPaid'), icon: 'payments' },
           ].map((opt) => (
             <button
               key={opt.value}
@@ -813,8 +814,8 @@ function DriverDashboard() {
         availableRides.length === 0 ? (
           <EmptyState
             icon="search_off"
-            title="No hay pedidos disponibles"
-            description="No hay pedidos disponibles en este momento. Revisa mas tarde."
+            title={t('driver.dashboard.emptyTitle')}
+            description={t('driver.dashboard.emptyDescription')}
           />
         ) : (
           <div style={{
@@ -968,9 +969,9 @@ function DriverDashboard() {
       ) : filteredMyRides.length === 0 ? (
           <EmptyState
             icon="work_off"
-            title={mineFilter === 'all' ? 'No tienes acarreos aceptados' : `No hay acarreos ${mineFilter === 'pending' ? 'pendientes' : mineFilter === 'in_progress' ? 'en viaje' : 'pagados'}`}
-            description={mineFilter === 'all' ? 'Cuando aceptes un pedido, aparecera aqui.' : 'Prueba cambiar el filtro.'}
-            action={mineFilter !== 'all' ? { label: 'Ver Todos', onClick: () => setMineFilter('all') } : { label: 'Ver Pedidos Disponibles', onClick: () => setTab('available') }}
+            title={mineFilter === 'all' ? t('driver.dashboard.mineEmptyTitle') : t(`driver.dashboard.mineEmpty${mineFilter === 'pending' ? 'Pending' : mineFilter === 'in_progress' ? 'InProgress' : 'Paid'}`)}
+            description={mineFilter === 'all' ? t('driver.dashboard.mineEmptyDesc') : t('driver.dashboard.changeFilter')}
+            action={mineFilter !== 'all' ? { label: t('driver.dashboard.viewAll'), onClick: () => setMineFilter('all') } : { label: t('driver.dashboard.viewAvailable'), onClick: () => setTab('available') }}
           />
         ) : (
           <div style={{
@@ -1047,7 +1048,7 @@ function DriverDashboard() {
                   }}>
                     <Link to={`/ride/${ride._id}`} className="btn btn-outline btn-sm">
                       <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>visibility</span>
-                      Ver
+                      {t('common.view')}
                     </Link>
                     <Link to={`/chat/${ride._id}`} className="btn btn-outline btn-sm">
                       <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>chat</span>
@@ -1106,7 +1107,7 @@ function DriverDashboard() {
                             marginBottom: 'var(--space-2)',
                           }}>
                             <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>my_location</span>
-                            Compartiendo ubicacion
+                            {t('driver.dashboard.sharingLocation')}
                           </div>
                         )}
                         {trackingError && (
@@ -1123,7 +1124,7 @@ function DriverDashboard() {
                             marginBottom: 'var(--space-2)',
                           }}>
                             <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>warning</span>
-                            Error de ubicacion
+                            {t('driver.dashboard.locationError')}
                           </div>
                         )}
                         <input
@@ -1141,12 +1142,12 @@ function DriverDashboard() {
                           {uploadingPhoto ? (
                             <>
                               <div className="spinner" style={{ width: '14px', height: '14px' }} />
-                              Subiendo...
+                              {t('driver.dashboard.uploading')}...
                             </>
                           ) : (
                             <>
                               <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>photo_camera</span>
-                              Foto Entrega
+                              {t('driver.dashboard.deliveryPhoto')}
                             </>
                           )}
                         </button>

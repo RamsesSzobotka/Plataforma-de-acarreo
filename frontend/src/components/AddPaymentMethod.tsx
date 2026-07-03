@@ -6,6 +6,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js'
 import { useAuth } from '@clerk/clerk-react'
+import { useTranslation } from 'react-i18next'
 import { paymentsAPI, usersAPI } from '../services/api'
 import Swal from 'sweetalert2'
 
@@ -21,6 +22,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
   const elements = useElements()
   const navigate = useNavigate()
   const { getToken } = useAuth()
+  const { t } = useTranslation()
 
   const [viewState, setViewState] = useState<ViewState>('loading')
   const [cardInfo, setCardInfo] = useState<{ brand: string; last4: string; expMonth: number; expYear: number } | null>(null)
@@ -54,14 +56,14 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
 
   async function handleDelete() {
     const result = await Swal.fire({
-      title: '¿Eliminar método de pago?',
-      text: 'Esta acción no se puede deshacer. Deberás agregar uno nuevo para hacer pedidos.',
+      title: t('payment.deleteTitle'),
+      text: t('payment.deleteText'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#EF4444',
       cancelButtonColor: '#64748B',
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: t('payment.deleteConfirm'),
+      cancelButtonText: t('common.cancel'),
     })
 
     if (result.isConfirmed) {
@@ -72,7 +74,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         setCardInfo(null)
         setViewState('no_card')
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error desconocido'
+        const message = err instanceof Error ? err.message : t('common.error')
         setError(message)
       } finally {
         setLoading(false)
@@ -84,7 +86,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
     e.preventDefault()
 
     if (!stripe || !elements) {
-      setError('Stripe no esta cargado correctamente')
+      setError(t('payment.stripeNotReady'))
       return
     }
 
@@ -94,7 +96,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
     try {
       const cardElement = elements.getElement(CardElement)
       if (!cardElement) {
-        throw new Error('Card element no encontrado')
+        throw new Error(t('payment.cardElementMissing'))
       }
 
       const token = await getToken()
@@ -110,11 +112,11 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
       )
 
       if (stripeError) {
-        throw new Error(stripeError.message || 'Error al procesar la tarjeta')
+        throw new Error(stripeError.message || t('payment.cardProcessingError'))
       }
 
       if (!setupIntent || typeof setupIntent.payment_method !== 'string') {
-        throw new Error('No se pudo confirmar el metodo de pago')
+        throw new Error(t('payment.methodConfirmationError'))
       }
 
       console.log('PaymentMethod confirmed:', setupIntent.payment_method)
@@ -128,7 +130,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         )
         console.log('PaymentMethod adjuntado:', attachResponse.brand, '****', attachResponse.last4)
       } catch (attachError) {
-        const attachMessage = attachError instanceof Error ? attachError.message : 'Error desconocido'
+        const attachMessage = attachError instanceof Error ? attachError.message : t('common.error')
         console.warn('Error adjuntando PaymentMethod (continuando):', attachMessage)
       }
 
@@ -161,7 +163,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error desconocido'
+      const message = err instanceof Error ? err.message : t('common.error')
       console.error('Error:', message)
       setError(message)
     } finally {
@@ -191,7 +193,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver a Mis Pedidos
+        {t('payment.backToRides')}
       </Link>
 
       {/* Header */}
@@ -217,14 +219,14 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
           }}>
             <span className="material-symbols-rounded">credit_card</span>
           </span>
-          Método de Pago
+          {t('payment.title')}
         </h1>
         <p style={{
           color: 'var(--text-muted)',
           fontSize: 'var(--text-sm)',
           lineHeight: 1.6,
         }}>
-          Guarda tu metodo de pago para usarlo en tus pedidos. Tu informacion se procesa de forma segura con Stripe.
+          {t('payment.instructions')}
         </p>
       </div>
 
@@ -246,7 +248,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
           fontSize: 'var(--text-sm)',
         }}>
           <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>lock</span>
-          <span>Encriptado</span>
+          <span>{t('payment.encrypted')}</span>
         </div>
         <div style={{
           display: 'flex',
@@ -256,7 +258,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
           fontSize: 'var(--text-sm)',
         }}>
           <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>verified</span>
-          <span>Stripe</span>
+          <span>{t('payment.stripeLabel')}</span>
         </div>
       </div>
 
@@ -273,16 +275,16 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
               <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: 'var(--primary)' }}>credit_card</span>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontWeight: 'var(--font-semibold)', fontSize: 'var(--text-lg)' }}>
-                  {cardInfo.brand} terminada en {cardInfo.last4}
+                  {t('payment.cardEndsWith', { brand: cardInfo.brand, last4: cardInfo.last4 })}
                 </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                  Expira {cardInfo.expMonth}/{String(cardInfo.expYear).slice(-2)}
+                  {t('payment.expires', { month: cardInfo.expMonth, year: String(cardInfo.expYear).slice(-2) })}
                 </div>
               </div>
               <div style={{ marginLeft: 'auto' }}>
                 <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>check_circle</span>
-                  Activo
+                  {t('payment.active')}
                 </span>
               </div>
             </div>
@@ -291,11 +293,11 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             <button onClick={() => setViewState('form')} className="btn btn-primary" style={{ flex: 1 }}>
               <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>edit</span>
-              Cambiar método
+              {t('payment.changeMethod')}
             </button>
             <button onClick={handleDelete} className="btn btn-danger" style={{ flex: 1 }}>
               <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>delete</span>
-              Eliminar
+              {t('common.delete')}
             </button>
           </div>
         </>
@@ -310,13 +312,13 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
           marginBottom: 'var(--space-6)',
         }}>
           <span className="material-symbols-rounded" style={{ fontSize: '3rem', color: 'var(--text-muted)', marginBottom: 'var(--space-4)' }}>credit_card_off</span>
-          <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 'var(--space-2)' }}>No hay método de pago</h3>
+          <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 'var(--space-2)' }}>{t('payment.noMethod')}</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)' }}>
-            Agrega una tarjeta para poder solicitar pedidos
+            {t('payment.noMethodDesc')}
           </p>
           <button onClick={() => setViewState('form')} className="btn btn-primary">
             <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
-            Agregar método de pago
+            {t('payment.addMethod')}
           </button>
         </div>
       )}
@@ -338,7 +340,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
               color: 'var(--text-secondary)',
               marginBottom: 'var(--space-3)',
             }}>
-              Informacion de la tarjeta
+              {t('payment.cardInfo')}
             </label>
             <div
               style={{
@@ -402,7 +404,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
               }}
             >
               <span className="material-symbols-rounded">check_circle</span>
-              Metodo de pago guardado exitosamente!
+              {t('payment.savedSuccess')}
             </div>
           )}
 
@@ -415,12 +417,12 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
             {loading ? (
               <>
                 <div className="spinner" style={{ width: '18px', height: '18px' }} />
-                Guardando...
+                {t('payment.saving')}
               </>
             ) : (
               <>
                 <span className="material-symbols-rounded">save</span>
-                Guardar Metodo de Pago
+                {t('payment.saveButton')}
               </>
             )}
           </button>
@@ -436,7 +438,7 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
             }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>info</span>
-            Tu informacion de pago es procesada de forma segura por Stripe
+            {t('payment.stripeSecureInfo')}
           </div>
         </form>
       )}

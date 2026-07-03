@@ -7,6 +7,7 @@ import { wsService } from '../services/api'
 import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import type { PaginatedResponse } from '../types'
+import { useTranslation } from 'react-i18next'
 
 interface Ride {
   _id: string
@@ -23,20 +24,9 @@ interface Ride {
 
 const PAGE_LIMIT = 10
 
-const filterOptions = [
-  { value: 'all', label: 'Todos', icon: 'list' },
-  { value: 'active_chat', label: 'Con Chat', icon: 'chat' },
-  { value: 'requested', label: 'Pendientes', icon: 'inbox' },
-  { value: 'accepted', label: 'Aceptados', icon: 'check_circle' },
-  { value: 'in_progress', label: 'En Viaje', icon: 'local_shipping' },
-  { value: 'completed', label: 'Completados', icon: 'task_alt' },
-  { value: 'paid', label: 'Pagados', icon: 'payments' },
-  { value: 'cancelled', label: 'Cancelados', icon: 'cancel' },
-  { value: 'failed', label: 'Fallidos', icon: 'error' },
-]
-
 function MyRides() {
   const { user } = useUser()
+  const { t, i18n } = useTranslation()
   const { getToken } = useAuth()
   const navigate = useNavigate()
   const { unreadCounts } = useNotifications()
@@ -46,6 +36,18 @@ function MyRides() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+
+  const filterOptions = [
+    { value: 'all', label: t('ride.list.all'), icon: 'list' },
+    { value: 'active_chat', label: t('ride.list.withChat'), icon: 'chat' },
+    { value: 'requested', label: t('ride.status.requested'), icon: 'inbox' },
+    { value: 'accepted', label: t('ride.status.accepted'), icon: 'check_circle' },
+    { value: 'in_progress', label: t('ride.status.in_progress'), icon: 'local_shipping' },
+    { value: 'completed', label: t('ride.status.completed'), icon: 'task_alt' },
+    { value: 'paid', label: t('ride.status.paid'), icon: 'payments' },
+    { value: 'cancelled', label: t('ride.status.cancelled'), icon: 'cancel' },
+    { value: 'failed', label: t('ride.status.failed'), icon: 'error' },
+  ]
 
   useEffect(() => {
     setPage(1)
@@ -160,7 +162,7 @@ function MyRides() {
     )
   }
 
-  const activeFilterLabel = filterOptions.find(f => f.value === filter)?.label || 'Todos'
+  const activeFilterLabel = filterOptions.find(f => f.value === filter)?.label || t('ride.list.all')
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -195,21 +197,21 @@ function MyRides() {
             }}>
               <span className="material-symbols-rounded">local_shipping</span>
             </span>
-            Mis Pedidos
+            {t('ride.list.title')}
           </h1>
           <p style={{
             color: 'var(--text-muted)',
             fontSize: 'var(--text-sm)',
           }}>
             {total > 0
-              ? `Tienes ${total} pedido${total !== 1 ? 's' : ''} en total`
-              : 'Gestiona tus pedidos de acarreo'
+              ? t(total === 1 ? 'ride.list.summarySingular' : 'ride.list.summaryPlural', { count: total })
+              : t('ride.list.summaryEmpty')
             }
           </p>
         </div>
         <Link to="/create-ride" className="btn btn-primary" style={{ flexShrink: 0 }}>
           <span className="material-symbols-rounded">add</span>
-          Nuevo Pedido
+          {t('ride.create.submit')}
         </Link>
       </div>
 
@@ -267,7 +269,7 @@ function MyRides() {
           color: 'var(--text-muted)',
         }}>
           <span>
-            Mostrando <strong style={{ color: 'var(--text-primary)' }}>{startRange}-{endRange}</strong> de <strong style={{ color: 'var(--text-primary)' }}>{total}</strong> pedidos
+            {t('ride.list.showing', { start: startRange, end: endRange, total })}
           </span>
           <span style={{
             display: 'flex',
@@ -275,7 +277,7 @@ function MyRides() {
             gap: 'var(--space-1)',
           }}>
             <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>filter_list</span>
-            Filtro: {activeFilterLabel}
+            {t('ride.list.filterBy')}: {activeFilterLabel}
           </span>
         </div>
       )}
@@ -284,14 +286,14 @@ function MyRides() {
       {rides.length === 0 ? (
         <EmptyState
           icon={filter === 'all' ? 'inventory_2' : 'search_off'}
-          title={filter === 'all' ? 'No tienes pedidos todavia' : `No hay pedidos ${activeFilterLabel.toLowerCase()}`}
+          title={filter === 'all' ? t('ride.list.empty') : t('ride.list.emptyFiltered', { filter: activeFilterLabel })}
           description={
             filter === 'all'
-              ? 'Crea tu primer pedido de acarreo y conecta con conductores cercanos.'
-              : `No tienes pedidos en estado "${activeFilterLabel}". Prueba cambiar el filtro.`
+              ? t('ride.list.emptyActionDesc')
+              : t('ride.list.emptyFilteredDesc', { filter: activeFilterLabel })
           }
           action={{
-            label: filter === 'all' ? 'Crear Nuevo Pedido' : 'Ver Todos',
+            label: filter === 'all' ? t('ride.create.newTitle') : t('ride.list.viewAll'),
             href: filter === 'all' ? '/create-ride' : undefined,
             onClick: filter !== 'all' ? () => setFilter('all') : undefined,
           }}
@@ -466,7 +468,7 @@ function MyRides() {
                         <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>
                           schedule
                         </span>
-                        {new Date(ride.createdAt).toLocaleDateString('es-ES', {
+                        {new Date(ride.createdAt).toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'es-ES', {
                           day: 'numeric',
                           month: 'short',
                         })}
@@ -505,7 +507,7 @@ function MyRides() {
             style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chevron_left</span>
-            Anterior
+            {t('common.previous')}
           </button>
 
           <div style={{
@@ -550,7 +552,7 @@ function MyRides() {
             disabled={page === totalPages}
             style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
           >
-            Siguiente
+            {t('common.next')}
             <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>chevron_right</span>
           </button>
         </div>

@@ -4,6 +4,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
+import { useTranslation } from 'react-i18next'
 
 interface SavePaymentMethodProps {
   onPaymentMethodSaved: (paymentMethodId: string, lastDigits: string) => void
@@ -18,6 +19,7 @@ export function SavePaymentMethod({
 }: SavePaymentMethodProps) {
   const stripe = useStripe()
   const elements = useElements()
+  const { t } = useTranslation()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,12 +29,12 @@ export function SavePaymentMethod({
     e.preventDefault()
 
     if (!stripe || !elements) {
-      setError('Stripe no está cargado correctamente')
+      setError(t('payment.stripeNotReady'))
       return
     }
 
     if (!cardholderName.trim()) {
-      setError('Por favor ingresa el nombre del titular')
+      setError(t('payment.cardholderRequired'))
       return
     }
 
@@ -42,7 +44,7 @@ export function SavePaymentMethod({
     try {
       const cardElement = elements.getElement(CardElement)
       if (!cardElement) {
-        throw new Error('Card element no encontrado')
+        throw new Error(t('payment.cardElementMissing'))
       }
 
       const { error: pmError, paymentMethod } =
@@ -55,11 +57,11 @@ export function SavePaymentMethod({
         })
 
       if (pmError) {
-        throw new Error(pmError.message || 'Error al crear el método de pago')
+        throw new Error(pmError.message || t('payment.createMethodError'))
       }
 
       if (!paymentMethod) {
-        throw new Error('No se pudo crear el método de pago')
+        throw new Error(t('payment.createMethodError'))
       }
 
       // Obtener últimos dígitos de la tarjeta
@@ -73,7 +75,7 @@ export function SavePaymentMethod({
 
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Error desconocido'
+        err instanceof Error ? err.message : t('common.error')
       setError(message)
       onError(message)
     } finally {
@@ -101,7 +103,7 @@ export function SavePaymentMethod({
         }}
       >
         <span className="material-symbols-rounded">credit_card</span>
-        Guardar Forma de Pago
+        {t('payment.saveTitle')}
       </h3>
 
       <p
@@ -112,8 +114,7 @@ export function SavePaymentMethod({
           lineHeight: '1.5',
         }}
       >
-        ⚠️ Es obligatorio guardar una forma de pago para crear el pedido. Se cobrará
-        automáticamente cuando el conductor confirme la entrega.
+        {t('payment.instructions')}
       </p>
 
       <form onSubmit={handleSavePaymentMethod}>
@@ -127,11 +128,11 @@ export function SavePaymentMethod({
               fontSize: '14px',
             }}
           >
-            Nombre del Titular *
+            {t('payment.cardholderName')}
           </label>
           <input
             type="text"
-            placeholder="Ej: Juan Pérez"
+            placeholder={t('payment.cardholderPlaceholder')}
             value={cardholderName}
             onChange={(e) => setCardholderName(e.target.value)}
             disabled={loading}
@@ -158,7 +159,7 @@ export function SavePaymentMethod({
               fontSize: '14px',
             }}
           >
-            Datos de la Tarjeta *
+            {t('payment.cardDetails')}
           </label>
           <div
             style={{
@@ -228,7 +229,7 @@ export function SavePaymentMethod({
               opacity: loading ? 0.5 : 1,
             }}
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
 
           <button
@@ -246,7 +247,7 @@ export function SavePaymentMethod({
               transition: 'background-color 0.2s',
             }}
           >
-            {loading ? '🔄 Guardando...' : '✓ Guardar Forma de Pago'}
+            {loading ? t('payment.saving') : t('payment.saveButton')}
           </button>
         </div>
 
