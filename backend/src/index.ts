@@ -12,6 +12,7 @@ import {
 } from './services/websocket'
 import { saveDriverLocation, connectRedis } from './services/redis'
 import { rateLimiter } from './middleware/rateLimiter'
+import { monitoringMiddleware } from './middleware/monitoring'
 import rides from './routes/rides'
 import auth from './routes/auth'
 import users from './routes/users'
@@ -84,6 +85,9 @@ app.use('*', async (c, next) => {
   }
   await next()
 })
+
+// Monitoring middleware (must be before logger to capture timing accurately)
+app.use('*', monitoringMiddleware())
 
 // Logger inline middleware (Hono v4 compatible)
 app.use('*', async (c, next) => {

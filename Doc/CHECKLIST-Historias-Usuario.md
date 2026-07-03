@@ -1,7 +1,7 @@
 # Checklist — Historias de Usuario Implementadas
 **Proyecto:** Plataforma de Acarreos (Carglyn)  
 **Última actualización:** 29 junio 2026  
-**Progreso:** 44/72 historias (61%)
+**Progreso:** 45/72 historias (63%)
 
 ---
 
@@ -142,7 +142,7 @@
 | # | Historia | Estado | Evidencia |
 |---|----------|--------|-----------|
 | **H-67** | Backups automáticos MongoDB | ⬜ | — |
-| **H-68** | Dashboard monitoreo | ⬜ | — |
+| **H-68** | Dashboard monitoreo | ✅ | `middleware/monitoring.ts`, admin.ts, Dashboard.tsx |
 | **H-69** | Feature flags | ⬜ | — |
 | **H-70** | Migraciones versionadas | ✅ | `db/migrate.ts` |
 
@@ -171,11 +171,11 @@
 | Notificaciones | 0 | 0 | 3 | 3 |
 | MCP Driver Tools | 10 | 0 | 0 | 10 |
 | UX | 0 | 0 | 3 | 3 |
-| Operaciones | 1 | 0 | 3 | 4 |
+| Operaciones | 2 | 0 | 2 | 4 |
 | Reportes | 1 | 0 | 1 | 2 |
-| **TOTAL** | **53** | **1** | **18** | **72** |
+| **TOTAL** | **54** | **1** | **17** | **72** |
 
-**Implementación: 74% completo** (53/72 historias completamente implementadas)
+**Implementación: 75% completo** (54/72 historias completamente implementadas)
 
 ---
 

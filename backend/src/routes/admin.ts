@@ -202,6 +202,211 @@ admin.get('/stats', async (c) => {
   })
 })
 
+// ── System resource info ────────────────────────────────────────
+admin.get('/stats/system', async (c) => {
+  const mem = process.memoryUsage()
+  const cpu = process.cpuUsage()
+
+  return c.json({
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
+      usagePercent: mem.heapTotal > 0
+        ? Math.round((mem.heapUsed / mem.heapTotal) * 10000) / 100
+        : 0,
+    },
+    cpu: {
+      user: cpu.user,
+      system: cpu.system,
+      total: cpu.user + cpu.system,
+    },
+    uptime: Math.round(process.uptime() * 100) / 100,
+  })
+})
+
+// ── Monitoring metrics ──────────────────────────────────────────
+admin.get('/stats/monitoring', async (c) => {
+  const { getMetrics } = await import('../middleware/monitoring')
+  return c.json(getMetrics())
+})
+
+// ── Revenue stats ───────────────────────────────────────────────
+admin.get('/stats/revenue', async (c) => {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [aggregation, ridesPaidToday, ridesPaidThisMonth] = await Promise.all([
+    Ride.aggregate([
+      { $match: { status: 'paid' } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$finalPrice' },
+          totalFees: { $sum: '$platformFee' },
+          totalDriverPayouts: { $sum: '$driverAmount' },
+          totalRides: { $sum: 1 },
+        },
+      },
+    ]),
+    Ride.countDocuments({ status: 'paid', paidAt: { $gte: startOfToday } }),
+    Ride.countDocuments({ status: 'paid', paidAt: { $gte: startOfMonth } }),
+  ])
+
+  const totals = aggregation[0] || { totalRevenue: 0, totalFees: 0, totalDriverPayouts: 0, totalRides: 0 }
+
+  return c.json({
+    totalRevenue: totals.totalRevenue,
+    totalFees: totals.totalFees,
+    totalDriverPayouts: totals.totalDriverPayouts,
+    totalRidesPaid: totals.totalRides,
+    ridesPaidToday,
+    ridesPaidThisMonth,
+  })
+})
+
+// ── Monthly reports ─────────────────────────────────────────────
+admin.get('/stats/reports/monthly', async (c) => {
+  const monthsParam = Math.min(parseInt(c.req.query('months') || '12'), 60)
+  const startDate = new Date()
+  startDate.setMonth(startDate.getMonth() - monthsParam)
+  startDate.setDate(1)
+  startDate.setHours(0, 0, 0, 0)
+
+  // 1. Monthly revenue aggregation from paid rides
+  const revenueAgg = await Ride.aggregate([
+    { $match: { status: 'paid', paidAt: { $gte: startDate } } },
+    {
+      $group: {
+        _id: { year: { $year: '$paidAt' }, month: { $month: '$paidAt' } },
+        revenue: { $sum: '$finalPrice' },
+        fees: { $sum: '$platformFee' },
+        driverPayouts: { $sum: '$driverAmount' },
+        ridesPaid: { $sum: 1 },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1 } },
+  ])
+
+  // 2. Monthly rides by status
+  const ridesAgg = await Ride.aggregate([
+    { $match: { createdAt: { $gte: startDate } } },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' },
+          status: '$status',
+        },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1 } },
+  ])
+
+  // 3. Monthly new users
+  const usersAgg = await User.aggregate([
+    { $match: { createdAt: { $gte: startDate } } },
+    {
+      $group: {
+        _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' }, role: '$role' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1 } },
+  ])
+
+  // Merge all aggregations into a month-by-month array
+  type MonthKey = string
+  function mk(y: number, m: number): MonthKey {
+    return `${y}-${m}`
+  }
+
+  const revenueByMonth = new Map<MonthKey, any>()
+  for (const r of revenueAgg) {
+    const key = mk(r._id.year, r._id.month)
+    revenueByMonth.set(key, {
+      revenue: r.revenue,
+      fees: r.fees,
+      driverPayouts: r.driverPayouts,
+      ridesPaid: r.ridesPaid,
+    })
+  }
+
+  const ridesByMonth = new Map<MonthKey, any>()
+  for (const r of ridesAgg) {
+    const key = mk(r._id.year, r._id.month)
+    if (!ridesByMonth.has(key))
+      ridesByMonth.set(key, { ridesCompleted: 0, ridesCancelled: 0, ridesRequested: 0, ridesInProgress: 0 })
+    const entry = ridesByMonth.get(key)!
+    if (r._id.status === 'completed') entry.ridesCompleted += r.count
+    else if (r._id.status === 'cancelled') entry.ridesCancelled += r.count
+    else if (r._id.status === 'requested') entry.ridesRequested += r.count
+    else if (r._id.status === 'in_progress') entry.ridesInProgress += r.count
+    else entry.ridesRequested += r.count
+  }
+
+  const usersByMonth = new Map<MonthKey, any>()
+  for (const r of usersAgg) {
+    const key = mk(r._id.year, r._id.month)
+    if (!usersByMonth.has(key)) usersByMonth.set(key, { newClients: 0, newDrivers: 0 })
+    const entry = usersByMonth.get(key)!
+    if (r._id.role === 'client') entry.newClients += r.count
+    else if (r._id.role === 'driver') entry.newDrivers += r.count
+  }
+
+  // Build monthly array going back N months
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ]
+  const months: any[] = []
+  const now = new Date()
+  const totals = {
+    totalRevenue: 0,
+    totalFees: 0,
+    totalDriverPayouts: 0,
+    totalRidesCompleted: 0,
+    totalRidesPaid: 0,
+    totalRidesCancelled: 0,
+    totalNewClients: 0,
+    totalNewDrivers: 0,
+  }
+
+  for (let i = monthsParam - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const y = d.getFullYear()
+    const m = d.getMonth() + 1
+    const key = mk(y, m)
+
+    const rev = revenueByMonth.get(key) || { revenue: 0, fees: 0, driverPayouts: 0, ridesPaid: 0 }
+    const rid = ridesByMonth.get(key) || { ridesCompleted: 0, ridesCancelled: 0, ridesRequested: 0, ridesInProgress: 0 }
+    const usr = usersByMonth.get(key) || { newClients: 0, newDrivers: 0 }
+
+    const entry = {
+      year: y,
+      month: m,
+      label: `${monthNames[m - 1]} ${y}`,
+      ...rev,
+      ...rid,
+      ...usr,
+    }
+    months.push(entry)
+
+    totals.totalRevenue += rev.revenue
+    totals.totalFees += rev.fees
+    totals.totalDriverPayouts += rev.driverPayouts
+    totals.totalRidesCompleted += rid.ridesCompleted
+    totals.totalRidesPaid += rev.ridesPaid
+    totals.totalRidesCancelled += rid.ridesCancelled
+    totals.totalNewClients += usr.newClients
+    totals.totalNewDrivers += usr.newDrivers
+  }
+
+  return c.json({ months, totals })
+})
+
 // === GESTIÓN DE USUARIOS ===
 
 // Listar todos los usuarios
