@@ -31,6 +31,10 @@ export const api = {
   getSystemStats: () => request('/stats/system'),
   getMonitoringMetrics: () => request('/stats/monitoring'),
   getRevenueStats: () => request('/stats/revenue'),
+  getMonthlyReports: (months?: number) => {
+    const query = months ? `?months=${months}` : ''
+    return request(`/stats/reports/monthly${query}`)
+  },
 
   // Users
   getUsers: (params?: { role?: string; page?: number }) => {

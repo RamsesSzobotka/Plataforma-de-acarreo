@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/reports', label: 'Informes', icon: 'bar_chart' },
   { to: '/users', label: 'Usuarios', icon: 'group' },
   { to: '/drivers', label: 'Conductores', icon: 'local_shipping' },
   { to: '/rides', label: 'Pedidos', icon: 'inventory_2' },

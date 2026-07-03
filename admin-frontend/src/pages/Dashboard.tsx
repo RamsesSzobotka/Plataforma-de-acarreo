@@ -38,7 +38,7 @@ export default function Dashboard() {
     }
 
     fetch()
-    const id = setInterval(fetch, 10000)
+    const id = setInterval(fetch, 5000)
     return () => clearInterval(id)
   }, [navigate])
 
