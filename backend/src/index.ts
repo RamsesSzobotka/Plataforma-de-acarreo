@@ -21,6 +21,7 @@ import payments from './routes/payments'
 import webhooks from './routes/webhooks'
 import upload from './routes/upload'
 import admin from './routes/admin'
+import health from './routes/health'
 import mcp from './routes/mcp'
 import ratings from './routes/ratings'
 
@@ -130,7 +131,7 @@ app.get('/ws/tracking/:rideId', (c) => {
   return c.text('WebSocket upgrade failed', 400)
 })
 
-app.get('/health', (c) => c.json({ ok: true }))
+app.route('/health', health)
 app.get('/', (c) => c.json({ message: 'Carglyn API', version: '1.0.0' }))
 app.route('/api/auth', auth)
 app.route('/api/rides', rides)
