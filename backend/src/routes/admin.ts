@@ -202,6 +202,70 @@ admin.get('/stats', async (c) => {
   })
 })
 
+// ── System resource info ────────────────────────────────────────
+admin.get('/stats/system', async (c) => {
+  const mem = process.memoryUsage()
+  const cpu = process.cpuUsage()
+
+  return c.json({
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
+      usagePercent: mem.heapTotal > 0
+        ? Math.round((mem.heapUsed / mem.heapTotal) * 10000) / 100
+        : 0,
+    },
+    cpu: {
+      user: cpu.user,
+      system: cpu.system,
+      total: cpu.user + cpu.system,
+    },
+    uptime: Math.round(process.uptime() * 100) / 100,
+  })
+})
+
+// ── Monitoring metrics ──────────────────────────────────────────
+admin.get('/stats/monitoring', async (c) => {
+  const { getMetrics } = await import('../middleware/monitoring')
+  return c.json(getMetrics())
+})
+
+// ── Revenue stats ───────────────────────────────────────────────
+admin.get('/stats/revenue', async (c) => {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [aggregation, ridesPaidToday, ridesPaidThisMonth] = await Promise.all([
+    Ride.aggregate([
+      { $match: { status: 'paid' } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$finalPrice' },
+          totalFees: { $sum: '$platformFee' },
+          totalDriverPayouts: { $sum: '$driverAmount' },
+          totalRides: { $sum: 1 },
+        },
+      },
+    ]),
+    Ride.countDocuments({ status: 'paid', paidAt: { $gte: startOfToday } }),
+    Ride.countDocuments({ status: 'paid', paidAt: { $gte: startOfMonth } }),
+  ])
+
+  const totals = aggregation[0] || { totalRevenue: 0, totalFees: 0, totalDriverPayouts: 0, totalRides: 0 }
+
+  return c.json({
+    totalRevenue: totals.totalRevenue,
+    totalFees: totals.totalFees,
+    totalDriverPayouts: totals.totalDriverPayouts,
+    totalRidesPaid: totals.totalRides,
+    ridesPaidToday,
+    ridesPaidThisMonth,
+  })
+})
+
 // === GESTIÓN DE USUARIOS ===
 
 // Listar todos los usuarios
