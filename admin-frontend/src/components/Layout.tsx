@@ -12,12 +12,24 @@ const navItems = [
 export default function Layout() {
   const navigate = useNavigate()
   const [user, setUser] = useState<any>(null)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
 
   useEffect(() => {
     const userData = localStorage.getItem('adminUser')
     if (userData) {
       setUser(JSON.parse(userData))
     }
+  }, [])
+
+  useEffect(() => {
+    const check = () => {
+      fetch('/health')
+        .then(r => setBackendStatus(r.ok ? 'connected' : 'disconnected'))
+        .catch(() => setBackendStatus('disconnected'))
+    }
+    check()
+    const id = setInterval(check, 30000)
+    return () => clearInterval(id)
   }, [])
 
   function handleLogout() {
@@ -60,6 +72,20 @@ export default function Layout() {
           borderBottom: '1px solid #E2E8F0',
           marginBottom: '1.5rem'
         }}>
+          {/* Health indicator */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Servidor:
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
+              background: backendStatus === 'connected' ? '#22C55E'
+                : backendStatus === 'disconnected' ? '#EF4444'
+                : '#F59E0B',
+            }} />
+            {backendStatus === 'connected' ? 'Conectado'
+              : backendStatus === 'disconnected' ? 'Desconectado'
+              : 'Verificando...'}
+          </span>
+
           {user && (
             <span style={{ color: '#64748B', fontSize: '0.875rem' }}>
               {user.email}
