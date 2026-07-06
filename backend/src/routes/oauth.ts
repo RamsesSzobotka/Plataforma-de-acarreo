@@ -4,7 +4,7 @@ import { getOAuthClientByClientId } from '../models/oauthClient'
 import { getOAuthCodeByCode, getOAuthTokenByTokenId, revokeOAuthToken, saveOAuthCode } from '../models/oauthToken'
 import { exchangeAuthorizationCode, refreshAccessToken, registerOAuthClient, OAuthError, generateAuthCode, type DcrResponse } from '../services/oauth'
 import { getMcpServerUrl } from '../services/jwt'
-import { listTools } from '../mcp/tools'
+import { listTools, registerAllTools } from '../mcp/tools/index'
 
 const oauthApp = new Hono()
 
@@ -660,6 +660,9 @@ oauthApp.get('/oauth/authorize', async (c) => {
     } catch {
       // Fallback: use clerkId as email display
     }
+
+    // Ensure all tools are registered before listing
+    registerAllTools()
 
     const tools = listTools().sort((a, b) => a.name.localeCompare(b.name))
     const toolSections = [
