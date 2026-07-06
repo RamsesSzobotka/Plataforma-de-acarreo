@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useCallback } from 'react'
+import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import Layout from './components/Layout'
 import Home from './pages/Home'
@@ -49,14 +49,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Public auth route: si ya hay sesion, evitar renderizar pantalla de login
 function PublicAuthRoute({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth()
+  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const [searchParams] = useSearchParams()
+
+  // Si es flujo OAuth (redirect_url presente), redirigir al backend con session_token
+  const redirectUrl = searchParams.get('redirect_url')
+  const handleOAuthRedirect = useCallback(async () => {
+    if (isLoaded && isSignedIn && redirectUrl) {
+      const token = await getToken()
+      const separator = redirectUrl.includes('?') ? '&' : '?'
+      window.location.href = `${redirectUrl}${separator}session_token=${encodeURIComponent(token || '')}`
+    }
+  }, [isLoaded, isSignedIn, redirectUrl, getToken])
+
+  useEffect(() => {
+    handleOAuthRedirect()
+  }, [handleOAuthRedirect])
 
   if (!isLoaded) {
     return <SessionLoading message="Cargando sesion..." />
   }
 
-  if (isSignedIn) {
+  if (isSignedIn && !redirectUrl) {
     return <Navigate to="/my-rides" replace />
+  }
+
+  // Si hay redirect_url, mostrar loading mientras handleOAuthRedirect redirige
+  if (isSignedIn && redirectUrl) {
+    return <SessionLoading message="Redirigiendo..." />
   }
 
   return <>{children}</>

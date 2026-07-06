@@ -232,18 +232,16 @@ oauthApp.get('/oauth/authorize', async (c) => {
       return c.redirect(`${redirectUri}?error=invalid_redirect_uri&state=${encodeURIComponent(state)}`)
     }
 
+    // Intentar obtener session token: 1) cookie __session, 2) query param session_token
     const authHeader = c.req.header('cookie')
-    const sessionToken = parseSessionCookie(authHeader)
+    let sessionToken = parseSessionCookie(authHeader) || query.session_token || null
 
+    // Si no hay token, redirigir al frontend para que el usuario se autentique con Clerk
     if (!sessionToken) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
       const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
-      const signInUrl = process.env.CLERK_SIGN_IN_URL
-      if (signInUrl) {
-        const redirectParam = `${signInUrl}?redirect_url=${encodeURIComponent(currentUrl)}`
-        return c.redirect(redirectParam)
-      }
-      const loginUrl = `/oauth/authorize?${new URLSearchParams(query).toString()}`
-      return c.html(LOGIN_PAGE.replace('{{LOGIN_URL}}', loginUrl), 401)
+      const redirectParam = `${frontendUrl}/sign-in?redirect_url=${encodeURIComponent(currentUrl)}`
+      return c.redirect(redirectParam)
     }
 
     let clerkId: string
@@ -251,12 +249,11 @@ oauthApp.get('/oauth/authorize', async (c) => {
       const session = await verifyToken(sessionToken, { secretKey: process.env.CLERK_SECRET_KEY })
       clerkId = session.sub
     } catch {
-      const signInUrl = process.env.CLERK_SIGN_IN_URL
-      if (signInUrl) {
-        const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
-        return c.redirect(`${signInUrl}?redirect_url=${encodeURIComponent(currentUrl)}`)
-      }
-      return c.html(LOGIN_PAGE.replace('{{LOGIN_URL}}', `/oauth/authorize?${new URLSearchParams(query).toString()}`), 401)
+      // Token inválido — redirigir al frontend para re-autenticar
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+      const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
+      const redirectParam = `${frontendUrl}/sign-in?redirect_url=${encodeURIComponent(currentUrl)}`
+      return c.redirect(redirectParam)
     }
 
     let userEmail = clerkId

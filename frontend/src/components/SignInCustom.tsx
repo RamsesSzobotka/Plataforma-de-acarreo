@@ -9,6 +9,11 @@ interface SignInCustomProps {
 function SignInCustom({ userType = 'client', defaultRedirectUrl }: SignInCustomProps) {
   const [searchParams] = useSearchParams()
   const redirectUrl = searchParams.get('redirect') || defaultRedirectUrl || (userType === 'driver' ? '/register-driver' : '/my-rides')
+
+  // Si hay redirect_url (OAuth flow), quedarse en /sign-in para que PublicAuthRoute maneje la redirección
+  const hasOAuthRedirect = searchParams.has('redirect_url')
+  const afterSignInUrl = hasOAuthRedirect ? window.location.href : redirectUrl
+
   const primaryColor = userType === 'driver' ? '#F97316' : '#0D9488'
 
   return (
@@ -21,7 +26,7 @@ function SignInCustom({ userType = 'client', defaultRedirectUrl }: SignInCustomP
       <SignIn
         routing="path"
         path="/sign-in"
-        afterSignInUrl={redirectUrl}
+        afterSignInUrl={afterSignInUrl}
         signUpUrl="/sign-up"
         appearance={{
           variables: {
