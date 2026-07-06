@@ -345,12 +345,12 @@ oauthApp.post('/oauth/authorize', async (c) => {
     }
 
     const cookieHeader = c.req.header('cookie')
-    const sessionToken = parseSessionCookie(cookieHeader)
+    const sessionToken = parseSessionCookie(cookieHeader) || body.session_token || null
     if (!sessionToken) {
-      console.log(`[OAuth:${reqId}] ❌ Consent rejected: no session cookie found`)
+      console.log(`[OAuth:${reqId}] ❌ Consent rejected: no session token found (cookie or body)`)
       return c.redirect(`${redirectUri}?error=access_denied&state=${encodeURIComponent(state)}`)
     }
-    console.log(`[OAuth:${reqId}] 🔍 Session cookie found, verifying with Clerk...`)
+    console.log(`[OAuth:${reqId}] 🔍 Session token found (cookie=${!!parseSessionCookie(cookieHeader)}, body=${!!body.session_token}), verifying with Clerk...`)
 
     let clerkId: string
     try {
