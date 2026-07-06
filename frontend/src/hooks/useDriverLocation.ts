@@ -65,12 +65,10 @@ export function useDriverLocation({
       setIsSharing(true)
     }
 
-    console.log('[TRACKING] Sending location update, rideId:', rideId, 'coords:', { latitude, longitude })
     sendTrackingLocation(rideId, { latitude, longitude, heading, speed })
   }, [rideId])
 
   async function startSharing() {
-    console.log('[TRACKING] startSharing called, rideId:', rideId)
     if (!supported || !rideId) return
 
     setError(null)

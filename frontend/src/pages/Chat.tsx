@@ -193,7 +193,6 @@ function Chat() {
     }
 
     if (data.type === 'auth_success') {
-      console.log('WebSocket authenticated successfully')
       setIsConnected(true)
     }
   }, [])
