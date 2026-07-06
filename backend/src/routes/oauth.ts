@@ -23,6 +23,10 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000)
 
+export function getOAuthReqId(): string {
+  return crypto.randomUUID().slice(0, 8)
+}
+
 function checkRateLimit(ip: string, maxRequests = 300, windowMs = 60000): { allowed: boolean; remaining: number; retryAfter?: number } {
   const now = Date.now()
   let entry = rateLimitStore.get(ip)
@@ -38,6 +42,10 @@ function checkRateLimit(ip: string, maxRequests = 300, windowMs = 60000): { allo
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function getClientIp(c: any): string {
+  return c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
+}
 
 function parseSessionCookie(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) return null
@@ -61,7 +69,7 @@ function parseBasicAuth(header: string | undefined): { clientId: string; clientS
 }
 
 function rateLimited(c: any, maxRequests = 300): boolean {
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
+  const ip = getClientIp(c)
   const result = checkRateLimit(ip, maxRequests)
   c.header('X-RateLimit-Limit', String(maxRequests))
   c.header('X-RateLimit-Remaining', String(result.remaining))
@@ -79,6 +87,7 @@ const baseUrl = () => getMcpServerUrl()
 
 oauthApp.get('/.well-known/oauth-protected-resource', (c) => {
   const base = baseUrl()
+  console.log(`[OAuth] 📋 .well-known/oauth-protected-resource → resource=${base}/mcp`)
   return c.json({
     resource: `${base}/mcp`,
     authorization_servers: [base],
@@ -88,6 +97,7 @@ oauthApp.get('/.well-known/oauth-protected-resource', (c) => {
 
 oauthApp.get('/.well-known/oauth-authorization-server', (c) => {
   const base = baseUrl()
+  console.log(`[OAuth] 📋 .well-known/oauth-authorization-server → issuer=${base}`)
   return c.json({
     issuer: base,
     authorization_endpoint: `${base}/oauth/authorize`,
@@ -106,6 +116,8 @@ oauthApp.get('/.well-known/oauth-authorization-server', (c) => {
 // ── Dynamic Client Registration ────────────────────────────────────────────
 
 oauthApp.post('/oauth/register', async (c) => {
+  const reqId = getOAuthReqId()
+  const ip = getClientIp(c)
   if (!rateLimited(c)) return c.res
 
   try {
@@ -115,7 +127,10 @@ oauthApp.post('/oauth/register', async (c) => {
       grant_types?: string[]
     }>()
 
+    console.log(`[OAuth:${reqId}] 📝 DCR request from ${ip}: client_name=${body.client_name || '(unnamed)'}, redirect_uris=${JSON.stringify(body.redirect_uris)}, grant_types=${JSON.stringify(body.grant_types)}`)
+
     if (!body.redirect_uris?.length) {
+      console.log(`[OAuth:${reqId}] ❌ DCR rejected: missing redirect_uris`)
       return c.json({ error: 'invalid_redirect_uri', error_description: 'redirect_uris is required' }, 400)
     }
 
@@ -125,13 +140,15 @@ oauthApp.post('/oauth/register', async (c) => {
       grantTypes: body.grant_types,
     })
 
-    console.log(`[OAuth] DCR: registered client ${result.clientId} with ${body.redirect_uris.length} redirect URIs`)
+    console.log(`[OAuth:${reqId}] ✅ DCR success: clientId=${result.clientId}, clientSecret=${result.clientSecret.slice(0, 8)}..., ${body.redirect_uris.length} redirect URIs`)
 
     return c.json(result, 201)
   } catch (err) {
     if (err instanceof OAuthError) {
+      console.log(`[OAuth:${reqId}] ❌ DCR error: ${err.error} — ${err.description}`)
       return c.json({ error: err.error, error_description: err.description }, err.statusCode)
     }
+    console.error(`[OAuth:${reqId}] ❌ DCR unexpected error:`, err)
     throw err
   }
 })
@@ -236,6 +253,8 @@ function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
 </html>`}
 
 oauthApp.get('/oauth/authorize', async (c) => {
+  const reqId = getOAuthReqId()
+  const ip = getClientIp(c)
   try {
     const query = c.req.query()
     const responseType = query.response_type
@@ -246,22 +265,30 @@ oauthApp.get('/oauth/authorize', async (c) => {
     const state = query.state || ''
     const scope = query.scope || 'mcp:tools'
 
+    console.log(`[OAuth:${reqId}] 📩 Authorize GET from ${ip}: clientId=${clientId}, redirectUri=${redirectUri}, responseType=${responseType}, scope=${scope}, state=${state}, codeChallengeMethod=${codeChallengeMethod}, hasCodeChallenge=${!!codeChallenge}`)
+
     if (responseType !== 'code') {
+      console.log(`[OAuth:${reqId}] ❌ Authorize rejected: unsupported response_type=${responseType}`)
       return c.redirect(`${redirectUri}?error=unsupported_response_type&state=${encodeURIComponent(state)}`)
     }
 
     const client = await getOAuthClientByClientId(clientId)
     if (!client) {
+      console.log(`[OAuth:${reqId}] ❌ Authorize rejected: client not found — clientId=${clientId}`)
       return c.redirect(`${redirectUri}?error=invalid_client&state=${encodeURIComponent(state)}`)
     }
+    console.log(`[OAuth:${reqId}] ✅ Client found: name=${client.clientName}, validUris=${JSON.stringify(client.redirectUris)}`)
 
     if (!client.redirectUris.includes(redirectUri)) {
+      console.log(`[OAuth:${reqId}] ❌ Authorize rejected: redirectUri ${redirectUri} not in client's allowed URIs`)
       return c.redirect(`${redirectUri}?error=invalid_redirect_uri&state=${encodeURIComponent(state)}`)
     }
 
     // Obtener session token: 1) cookie __session (seteada por Clerk JS SDK), 2) query param
-    const authHeader = c.req.header('cookie')
-    const sessionToken = parseSessionCookie(authHeader) || query.session_token || null
+    const cookieHeader = c.req.header('cookie')
+    const cookiePreview = cookieHeader ? cookieHeader.slice(0, 80) + '...' : '(none)'
+    const sessionToken = parseSessionCookie(cookieHeader) || query.session_token || null
+    console.log(`[OAuth:${reqId}] 🔍 Session check: cookie=${cookiePreview}, hasSessionToken=${!!sessionToken}, hasQueryToken=${!!query.session_token}`)
 
     // Verificar el session token con Clerk
     let clerkId: string | null = null
@@ -269,18 +296,24 @@ oauthApp.get('/oauth/authorize', async (c) => {
       try {
         const session = await verifyToken(sessionToken, { secretKey: process.env.CLERK_SECRET_KEY })
         clerkId = session.sub
-      } catch {
+        console.log(`[OAuth:${reqId}] ✅ Token verified with Clerk — sub=${clerkId}`)
+      } catch (err) {
+        console.log(`[OAuth:${reqId}] ❌ Token verification failed: ${(err as Error).message}`)
         clerkId = null
       }
+    } else {
+      console.log(`[OAuth:${reqId}] ⚠️ No session token found — showing Clerk login page`)
     }
 
     // Si no hay sesión válida, servir página de login con Clerk JS SDK
     if (!clerkId) {
       const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
       if (!publishableKey) {
+        console.error(`[OAuth:${reqId}] ❌ CLERK_PUBLISHABLE_KEY not configured`)
         return c.json({ error: 'server_error', error_description: 'CLERK_PUBLISHABLE_KEY not configured' }, 500)
       }
       const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
+      console.log(`[OAuth:${reqId}] 🔐 Rendering Clerk login page → redirectUrl=${currentUrl}`)
       return c.html(clerkLoginPage(publishableKey, currentUrl))
     }
 
@@ -294,9 +327,12 @@ oauthApp.get('/oauth/authorize', async (c) => {
         if (userData.email_addresses?.[0]?.email_address) {
           userEmail = userData.email_addresses[0].email_address
         }
+        console.log(`[OAuth:${reqId}] 👤 Clerk user fetched: email=${userEmail}`)
+      } else {
+        console.log(`[OAuth:${reqId}] ⚠️ Clerk user fetch failed: ${res.status}`)
       }
-    } catch {
-      // fallback: use clerkId as display
+    } catch (err) {
+      console.log(`[OAuth:${reqId}] ⚠️ Clerk user fetch error (using clerkId fallback): ${(err as Error).message}`)
     }
 
     const hiddenFields = Object.entries(query)
@@ -311,14 +347,17 @@ oauthApp.get('/oauth/authorize', async (c) => {
       .replace('{{ACTION_URL}}', actionUrl)
       .replace('{{HIDDEN_FIELDS}}', hiddenFields)
 
+    console.log(`[OAuth:${reqId}] ✅ Rendering consent page for client=${client.clientName}, user=${userEmail}, scope=${scope}`)
     return c.html(html)
   } catch (err) {
-    console.error('[OAuth] Authorize error:', err)
+    console.error(`[OAuth:${reqId}] ❌ Authorize GET error:`, err)
     return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
 
 oauthApp.post('/oauth/authorize', async (c) => {
+  const reqId = getOAuthReqId()
+  const ip = getClientIp(c)
   try {
     const body = await c.req.parseBody<Record<string, string>>()
     const confirm = body.confirm
@@ -329,31 +368,40 @@ oauthApp.post('/oauth/authorize', async (c) => {
     const codeChallengeMethod = body.code_challenge_method
     const scope = body.scope || 'mcp:tools'
 
+    console.log(`[OAuth:${reqId}] 📩 Authorize POST from ${ip}: clientId=${clientId}, confirm=${confirm}, redirectUri=${redirectUri}, scope=${scope}, state=${state}, codeChallengeMethod=${codeChallengeMethod}`)
+
     if (confirm !== 'yes') {
-      console.log(`[OAuth] Consent denied: client=${clientId}`)
+      console.log(`[OAuth:${reqId}] ❌ Consent denied by user: client=${clientId}`)
       return c.redirect(`${redirectUri}?error=access_denied&state=${encodeURIComponent(state)}`)
     }
 
     const client = await getOAuthClientByClientId(clientId)
     if (!client) {
+      console.log(`[OAuth:${reqId}] ❌ Consent rejected: client not found — clientId=${clientId}`)
       return c.redirect(`${redirectUri}?error=invalid_client&state=${encodeURIComponent(state)}`)
     }
+    console.log(`[OAuth:${reqId}] ✅ Client validated: name=${client.clientName}`)
 
     if (!client.redirectUris.includes(redirectUri)) {
+      console.log(`[OAuth:${reqId}] ❌ Consent rejected: redirectUri mismatch — got=${redirectUri}, expected one of=${JSON.stringify(client.redirectUris)}`)
       return c.redirect(`${redirectUri}?error=invalid_redirect_uri&state=${encodeURIComponent(state)}`)
     }
 
-    const authHeader = c.req.header('cookie')
-    const sessionToken = parseSessionCookie(authHeader)
+    const cookieHeader = c.req.header('cookie')
+    const sessionToken = parseSessionCookie(cookieHeader)
     if (!sessionToken) {
+      console.log(`[OAuth:${reqId}] ❌ Consent rejected: no session cookie found`)
       return c.redirect(`${redirectUri}?error=access_denied&state=${encodeURIComponent(state)}`)
     }
+    console.log(`[OAuth:${reqId}] 🔍 Session cookie found, verifying with Clerk...`)
 
     let clerkId: string
     try {
       const session = await verifyToken(sessionToken, { secretKey: process.env.CLERK_SECRET_KEY })
       clerkId = session.sub
-    } catch {
+      console.log(`[OAuth:${reqId}] ✅ Clerk verified: sub=${clerkId}`)
+    } catch (err) {
+      console.log(`[OAuth:${reqId}] ❌ Clerk verification failed: ${(err as Error).message}`)
       return c.redirect(`${redirectUri}?error=access_denied&state=${encodeURIComponent(state)}`)
     }
 
@@ -369,13 +417,15 @@ oauthApp.post('/oauth/authorize', async (c) => {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     })
 
-    console.log(`[OAuth] Consent granted: client=${clientId}, clerk=${clerkId}, scope=${scope}`)
+    console.log(`[OAuth:${reqId}] ✅ Consent granted: client=${clientId}, clerk=${clerkId}, scope=${scope}, code=${code}`)
 
     const params = new URLSearchParams({ code })
     if (state) params.set('state', state)
-    return c.redirect(`${redirectUri}?${params.toString()}`)
+    const redirectTarget = `${redirectUri}?${params.toString()}`
+    console.log(`[OAuth:${reqId}] 🔀 Redirecting to: ${redirectTarget.slice(0, 120)}...`)
+    return c.redirect(redirectTarget)
   } catch (err) {
-    console.error('[OAuth] Authorize POST error:', err)
+    console.error(`[OAuth:${reqId}] ❌ Authorize POST error:`, err)
     return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
@@ -383,18 +433,25 @@ oauthApp.post('/oauth/authorize', async (c) => {
 // ── Token Endpoint ─────────────────────────────────────────────────────────
 
 oauthApp.post('/oauth/token', async (c) => {
+  const reqId = getOAuthReqId()
+  const ip = getClientIp(c)
   if (!rateLimited(c)) return c.res
 
   try {
-    const auth = parseBasicAuth(c.req.header('authorization'))
+    const authHeader = c.req.header('authorization')
+    const authHeaderPreview = authHeader ? authHeader.slice(0, 30) + '...' : '(none)'
+    const auth = parseBasicAuth(authHeader)
     if (!auth) {
+      console.log(`[OAuth:${reqId}] ❌ Token request from ${ip}: missing/invalid Basic auth — authHeader=${authHeaderPreview}`)
       return c.json({ error: 'invalid_client', error_description: 'Missing or invalid Authorization header' }, 401)
     }
 
     const body = await c.req.parseBody<Record<string, string>>()
     const grantType = body.grant_type
+    console.log(`[OAuth:${reqId}] 📩 Token request from ${ip}: clientId=${auth.clientId.slice(0, 12)}..., grantType=${grantType}, hasCode=${!!body.code}, hasRefresh=${!!body.refresh_token}, hasVerifier=${!!body.code_verifier}`)
 
     if (grantType === 'authorization_code') {
+      console.log(`[OAuth:${reqId}] 🔄 Exchanging authorization_code for tokens...`)
       const result = await exchangeAuthorizationCode({
         code: body.code,
         codeVerifier: body.code_verifier,
@@ -403,7 +460,7 @@ oauthApp.post('/oauth/token', async (c) => {
         redirectUri: body.redirect_uri,
       })
 
-      console.log(`[OAuth] Token exchange: client=${auth.clientId}`)
+      console.log(`[OAuth:${reqId}] ✅ Token exchange success: client=${auth.clientId.slice(0, 12)}..., accessToken=${result.accessToken.slice(0, 20)}..., expiresIn=${result.expiresIn}s, hasRefresh=${!!result.refreshToken}`)
 
       return c.json({
         access_token: result.accessToken,
@@ -415,13 +472,14 @@ oauthApp.post('/oauth/token', async (c) => {
     }
 
     if (grantType === 'refresh_token') {
+      console.log(`[OAuth:${reqId}] 🔄 Refreshing access token...`)
       const result = await refreshAccessToken({
         refreshToken: body.refresh_token,
         clientId: auth.clientId,
         clientSecret: auth.clientSecret,
       })
 
-      console.log(`[OAuth] Token refresh: client=${auth.clientId}`)
+      console.log(`[OAuth:${reqId}] ✅ Token refresh success: client=${auth.clientId.slice(0, 12)}..., accessToken=${result.accessToken.slice(0, 20)}..., expiresIn=${result.expiresIn}s`)
 
       return c.json({
         access_token: result.accessToken,
@@ -432,12 +490,14 @@ oauthApp.post('/oauth/token', async (c) => {
       })
     }
 
+    console.log(`[OAuth:${reqId}] ❌ Unsupported grant_type: ${grantType}`)
     return c.json({ error: 'unsupported_grant_type', error_description: `Grant type '${grantType}' is not supported` }, 400)
   } catch (err) {
     if (err instanceof OAuthError) {
+      console.log(`[OAuth:${reqId}] ❌ Token error: ${err.error} — ${err.description}`)
       return c.json({ error: err.error, error_description: err.description }, err.statusCode)
     }
-    console.error('[OAuth] Token error:', err)
+    console.error(`[OAuth:${reqId}] ❌ Token unexpected error:`, err)
     return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
@@ -445,21 +505,27 @@ oauthApp.post('/oauth/token', async (c) => {
 // ── Token Revocation ───────────────────────────────────────────────────────
 
 oauthApp.post('/oauth/revoke', async (c) => {
+  const reqId = getOAuthReqId()
+  const ip = getClientIp(c)
   try {
     const body = await c.req.parseBody<Record<string, string>>()
-    const token = body.token
+    const token = body.token?.slice(0, 30) || '(none)'
 
-    if (token) {
-      const existing = await getOAuthTokenByTokenId(token)
+    console.log(`[OAuth:${reqId}] 📩 Revoke request from ${ip}: token=${token}...`)
+
+    if (body.token) {
+      const existing = await getOAuthTokenByTokenId(body.token)
       if (existing) {
-        await revokeOAuthToken(token)
-        console.log(`[OAuth] Token revoked: ${token.slice(0, 20)}...`)
+        await revokeOAuthToken(body.token)
+        console.log(`[OAuth:${reqId}] ✅ Token revoked: clerkId=${existing.clerkId}, clientId=${existing.clientId.slice(0, 12)}...`)
+      } else {
+        console.log(`[OAuth:${reqId}] ⚠️ Token not found or already revoked — returning 200 per RFC`)
       }
     }
 
     return c.json({}, 200)
   } catch (err) {
-    console.error('[OAuth] Revoke error:', err)
+    console.error(`[OAuth:${reqId}] ❌ Revoke error:`, err)
     return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })

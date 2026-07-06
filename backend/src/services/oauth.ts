@@ -42,32 +42,59 @@ export async function exchangeAuthorizationCode(
     redirectUri: string
   }
 ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+  const reqId = crypto.randomUUID().slice(0, 8)
+
+  console.log(`[OAuthSvc:${reqId}] 🔄 exchangeAuthorizationCode started: code=${params.code?.slice(0, 8)}..., clientId=${params.clientId?.slice(0, 12)}..., hasVerifier=${!!params.codeVerifier}`)
+
   const client = await getOAuthClientByClientId(params.clientId)
-  if (!client) throw new OAuthError('invalid_client', 'Client not found')
+  if (!client) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Client not found: ${params.clientId?.slice(0, 12)}...`)
+    throw new OAuthError('invalid_client', 'Client not found')
+  }
+  console.log(`[OAuthSvc:${reqId}] ✅ Client found: name=${client.clientName}`)
 
   const secretValid = await compare(params.clientSecret, client.clientSecretHash)
-  if (!secretValid) throw new OAuthError('invalid_client', 'Invalid client secret')
+  if (!secretValid) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Client secret mismatch`)
+    throw new OAuthError('invalid_client', 'Invalid client secret')
+  }
+  console.log(`[OAuthSvc:${reqId}] ✅ Client secret verified`)
 
   const authCode = await getOAuthCodeByCode(params.code)
-  if (!authCode) throw new OAuthError('invalid_grant', 'Authorization code not found or expired')
+  if (!authCode) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Auth code not found or expired: ${params.code?.slice(0, 8)}...`)
+    throw new OAuthError('invalid_grant', 'Authorization code not found or expired')
+  }
+  console.log(`[OAuthSvc:${reqId}] ✅ Auth code found: clerkId=${authCode.clerkId}, scope=${authCode.scope}, expiresAt=${authCode.expiresAt.toISOString()}`)
 
   if (authCode.clientId !== params.clientId) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Client ID mismatch: code belongs to ${authCode.clientId?.slice(0, 12)}..., request uses ${params.clientId?.slice(0, 12)}...`)
     throw new OAuthError('invalid_grant', 'Authorization code does not belong to this client')
   }
+  console.log(`[OAuthSvc:${reqId}] ✅ Client ID matches`)
 
   if (authCode.codeChallengeMethod === 'S256' && params.codeVerifier) {
-    if (!verifyPkce(params.codeVerifier, authCode.codeChallenge)) {
+    const pkceValid = verifyPkce(params.codeVerifier, authCode.codeChallenge)
+    if (!pkceValid) {
+      console.log(`[OAuthSvc:${reqId}] ❌ PKCE verification failed`)
       throw new OAuthError('invalid_grant', 'PKCE verification failed')
     }
+    console.log(`[OAuthSvc:${reqId}] ✅ PKCE verified (S256)`)
+  } else {
+    console.log(`[OAuthSvc:${reqId}] ⚠️ PKCE skipped: method=${authCode.codeChallengeMethod}, hasVerifier=${!!params.codeVerifier}`)
   }
 
   if (authCode.redirectUri !== params.redirectUri) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Redirect URI mismatch: stored=${authCode.redirectUri}, request=${params.redirectUri}`)
     throw new OAuthError('invalid_grant', 'Redirect URI mismatch')
   }
+  console.log(`[OAuthSvc:${reqId}] ✅ Redirect URI matches`)
 
   await deleteOAuthCode(params.code)
+  console.log(`[OAuthSvc:${reqId}] 🗑️ Auth code deleted`)
 
   const iss = getMcpServerUrl()
+  console.log(`[OAuthSvc:${reqId}] 🔑 Signing MCP token: iss=${iss}, sub=${authCode.clerkId}, aud=${iss}/mcp`)
   const accessToken = signMcpToken({
     sub: authCode.clerkId,
     aud: `${iss}/mcp`,
@@ -75,8 +102,10 @@ export async function exchangeAuthorizationCode(
     scope: authCode.scope,
     client_id: params.clientId,
   })
+  console.log(`[OAuthSvc:${reqId}] ✅ MCP token signed: ${accessToken.slice(0, 30)}...`)
 
   const refreshToken = 'oauth_ref_' + randomBytes(24).toString('hex')
+  console.log(`[OAuthSvc:${reqId}] 💾 Saving refresh token: ${refreshToken.slice(0, 20)}...`)
   await saveOAuthToken({
     tokenId: refreshToken,
     clientId: params.clientId,
@@ -84,7 +113,9 @@ export async function exchangeAuthorizationCode(
     scope: authCode.scope,
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   })
+  console.log(`[OAuthSvc:${reqId}] ✅ Refresh token saved (expires in 30 days)`)
 
+  console.log(`[OAuthSvc:${reqId}] ✅ Exchange complete — returning tokens`)
   return { accessToken, refreshToken, expiresIn: 3600 }
 }
 
@@ -95,22 +126,42 @@ export async function refreshAccessToken(
     clientSecret: string
   }
 ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+  const reqId = crypto.randomUUID().slice(0, 8)
+
+  console.log(`[OAuthSvc:${reqId}] 🔄 refreshAccessToken started: refreshToken=${params.refreshToken?.slice(0, 20)}..., clientId=${params.clientId?.slice(0, 12)}...`)
+
   const client = await getOAuthClientByClientId(params.clientId)
-  if (!client) throw new OAuthError('invalid_client', 'Client not found')
+  if (!client) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Client not found: ${params.clientId?.slice(0, 12)}...`)
+    throw new OAuthError('invalid_client', 'Client not found')
+  }
+  console.log(`[OAuthSvc:${reqId}] ✅ Client found: name=${client.clientName}`)
 
   const secretValid = await compare(params.clientSecret, client.clientSecretHash)
-  if (!secretValid) throw new OAuthError('invalid_client', 'Invalid client secret')
+  if (!secretValid) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Client secret mismatch`)
+    throw new OAuthError('invalid_client', 'Invalid client secret')
+  }
+  console.log(`[OAuthSvc:${reqId}] ✅ Client secret verified`)
 
   const existingToken = await getOAuthTokenByTokenId(params.refreshToken)
-  if (!existingToken) throw new OAuthError('invalid_grant', 'Refresh token not found or expired')
+  if (!existingToken) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Refresh token not found or expired`)
+    throw new OAuthError('invalid_grant', 'Refresh token not found or expired')
+  }
+  console.log(`[OAuthSvc:${reqId}] ✅ Refresh token found: clerkId=${existingToken.clerkId}, scope=${existingToken.scope}`)
 
   if (existingToken.clientId !== params.clientId) {
+    console.log(`[OAuthSvc:${reqId}] ❌ Client ID mismatch: token belongs to ${existingToken.clientId?.slice(0, 12)}..., request uses ${params.clientId?.slice(0, 12)}...`)
     throw new OAuthError('invalid_grant', 'Refresh token does not belong to this client')
   }
+  console.log(`[OAuthSvc:${reqId}] ✅ Client ID matches — revoking old token`)
 
   await revokeOAuthToken(params.refreshToken)
+  console.log(`[OAuthSvc:${reqId}] 🗑️ Old refresh token revoked`)
 
   const iss = getMcpServerUrl()
+  console.log(`[OAuthSvc:${reqId}] 🔑 Signing new MCP token: iss=${iss}, sub=${existingToken.clerkId}`)
   const accessToken = signMcpToken({
     sub: existingToken.clerkId,
     aud: `${iss}/mcp`,
@@ -118,8 +169,10 @@ export async function refreshAccessToken(
     scope: existingToken.scope,
     client_id: params.clientId,
   })
+  console.log(`[OAuthSvc:${reqId}] ✅ New MCP token signed: ${accessToken.slice(0, 30)}...`)
 
   const newRefreshToken = 'oauth_ref_' + randomBytes(24).toString('hex')
+  console.log(`[OAuthSvc:${reqId}] 💾 Saving new refresh token: ${newRefreshToken.slice(0, 20)}...`)
   await saveOAuthToken({
     tokenId: newRefreshToken,
     clientId: params.clientId,
@@ -127,7 +180,9 @@ export async function refreshAccessToken(
     scope: existingToken.scope,
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   })
+  console.log(`[OAuthSvc:${reqId}] ✅ New refresh token saved (expires in 30 days)`)
 
+  console.log(`[OAuthSvc:${reqId}] ✅ Refresh complete — returning new tokens`)
   return { accessToken, refreshToken: newRefreshToken, expiresIn: 3600 }
 }
 
