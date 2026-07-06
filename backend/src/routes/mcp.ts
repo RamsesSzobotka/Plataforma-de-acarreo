@@ -1,6 +1,7 @@
 import { Hono } from 'hono/tiny'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createMcpServer, validateMcpToken } from '../mcp/server'
+import { dualAuthMiddleware } from '../middleware/dualAuth'
 
 const mcpApp = new Hono()
 
@@ -52,12 +53,6 @@ interface McpSession {
 }
 
 const sessions = new Map<string, McpSession>()
-
-async function mcpAuth(c: any): Promise<string | null> {
-  const apiKey = c.req.header('MCP_API_KEY') || c.req.query('token')
-  if (!apiKey) return null
-  return validateMcpToken(apiKey)
-}
 
 /**
  * Asegura que el Request tenga el Accept header requerido por el SDK MCP.
@@ -117,7 +112,7 @@ mcpApp.get('/status', async (c) => {
   })
 })
 
-mcpApp.all('/', async (c) => {
+mcpApp.all('/', dualAuthMiddleware, async (c) => {
   // Rate limit check
   const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
   const rateLimit = checkMcpRateLimit(ip)
@@ -128,42 +123,9 @@ mcpApp.all('/', async (c) => {
     return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Demasiadas peticiones.' } }, 429)
   }
 
-  const clerkId = await mcpAuth(c)
+  const clerkId = c.get('clerkId') as string | undefined
   if (!clerkId) {
-    // Intentar parsear el body para dar un error JSON-RPC que el agente pueda interpretar
-    try {
-      const rawReq = c.req.raw.clone()
-      const body = await rawReq.json()
-      const rpcId = body.id ?? null
-      const method = body.method || 'unknown'
-      return c.json({
-        jsonrpc: '2.0',
-        id: rpcId,
-        error: {
-          code: -32001,
-          message: 'Se requiere autenticación MCP.',
-          data: {
-            method,
-            help: 'Agrega el header "MCP_API_KEY" con tu token en opencode.json > mcp > carglyn > headers.',
-            tokenInstructions: 'Para generar un token, haz una petición POST a /api/auth/mcp-token con sesión web activa.',
-            checkStatus: 'GET /api/mcp/status - endpoint de diagnóstico sin auth',
-          },
-        },
-      }, 401)
-    } catch {
-      // Si no se puede parsear el body, devolver error genérico
-      return c.json({
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32001,
-          message: 'Se requiere autenticación MCP. Usa el header "MCP_API_KEY".',
-          data: {
-            help: 'Configura el token en opencode.json o visita GET /api/mcp/status para diagnóstico.',
-          },
-        },
-      }, 401)
-    }
+    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Authentication required.' } }, 401)
   }
 
   try {
