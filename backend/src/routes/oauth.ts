@@ -4,6 +4,7 @@ import { getOAuthClientByClientId } from '../models/oauthClient'
 import { getOAuthCodeByCode, getOAuthTokenByTokenId, revokeOAuthToken, saveOAuthCode } from '../models/oauthToken'
 import { exchangeAuthorizationCode, refreshAccessToken, registerOAuthClient, OAuthError, generateAuthCode, type DcrResponse } from '../services/oauth'
 import { getMcpServerUrl } from '../services/jwt'
+import { listTools } from '../mcp/tools'
 
 const oauthApp = new Hono()
 
@@ -62,6 +63,38 @@ function parseBasicAuth(header: string | undefined): { clientId: string; clientS
   } catch {
     return null
   }
+}
+
+// Map tool names to Material Symbols icons
+function toolIcon(name: string): string {
+  const iconMap: Record<string, string> = {
+    list_my_rides: 'format_list_bulleted',
+    create_ride: 'add_circle',
+    get_ride_details: 'info',
+    view_offers: 'request_quote',
+    accept_offer: 'handshake',
+    confirm_delivery: 'check_circle',
+    cancel_ride: 'cancel',
+    rate_service: 'star',
+    get_public_driver_profile: 'person_search',
+    list_available_rides: 'explore',
+    propose_price: 'payments',
+    send_message: 'chat',
+    start_trip: 'play_circle',
+    upload_delivery_photo: 'add_a_photo',
+    get_payment_history: 'receipt_long',
+    get_driver_profile: 'badge',
+  }
+  return iconMap[name] || 'build'
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 function rateLimited(c: any, maxRequests = 300): boolean {
@@ -146,48 +179,110 @@ oauthApp.post('/oauth/register', async (c) => {
 
 // ── Authorization Endpoint ─────────────────────────────────────────────────
 
-const CONSENT_HTML = `<!DOCTYPE html>
+function buildConsentHtml(params: {
+  clientName: string
+  userEmail: string
+  scope: string
+  actionUrl: string
+  hiddenFields: string
+  toolsHtml: string
+  logoUrl: string
+}): string {
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Autorizar conexi\u00f3n \u2014 Plataforma de Acarreos</title>
+  <title>Autorizar conexión — Carglyn</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary: #0D9488;
+      --primary-hover: #0F766E;
+      --secondary: #F97316;
+      --secondary-hover: #EA580C;
+      --success: #22C55E;
+      --warning: #F59E0B;
+      --error: #EF4444;
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F8FAFC;
+      --bg-tertiary: #F1F5F9;
+      --text-primary: #0F172A;
+      --text-secondary: #334155;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+      --font-heading: 'Plus Jakarta Sans', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; background: #F8FAFC; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
-    .card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 2rem; max-width: 420px; width: 100%; }
-    .logo { display: flex; align-items: center; gap: 0.5rem; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.25rem; color: #0D9488; margin-bottom: 1.5rem; }
-    h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; color: #0F172A; margin-bottom: 0.5rem; }
-    p { color: #334155; margin-bottom: 1rem; font-size: 0.95rem; line-height: 1.5; }
-    .user-email { background: #F1F5F9; padding: 0.75rem; border-radius: 8px; font-weight: 600; color: #0F172A; margin-bottom: 1.5rem; }
-    .scope-badge { display: inline-block; background: #F1F5F9; color: #0D9488; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; padding: 0.25rem 0.75rem; border-radius: 4px; margin-bottom: 1.5rem; }
+    body { font-family: var(--font-body); background: var(--bg-secondary); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
+    .card { background: var(--bg-primary); border-radius: var(--radius); box-shadow: var(--shadow); padding: 2rem; max-width: 520px; width: 100%; }
+    .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .card-header img.logo { height: 36px; width: auto; }
+    .card-header .logo-text { font-family: var(--font-heading); font-weight: 700; font-size: 1.25rem; color: var(--primary); }
+    h1 { font-family: var(--font-heading); font-size: 1.375rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 700; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.5; }
+    .user-info { display: flex; align-items: center; gap: 0.625rem; background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; }
+    .user-info .icon { color: var(--text-muted); font-size: 1.25rem; }
+    .user-info .email { font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }
+    .tools-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .tools-header h2 { font-family: var(--font-heading); font-size: 0.925rem; color: var(--text-primary); font-weight: 600; }
+    .tools-count { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--primary); background: rgba(13,148,136,0.1); padding: 0.2rem 0.6rem; border-radius: 999px; font-family: var(--font-mono); }
+    .tools-list { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 1.5rem; }
+    .tools-list::-webkit-scrollbar { width: 6px; }
+    .tools-list::-webkit-scrollbar-track { background: transparent; }
+    .tools-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .tool-item { display: flex; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    .tool-item:last-child { border-bottom: none; }
+    .tool-item .accent { width: 3px; flex-shrink: 0; background: var(--primary); border-radius: 2px; }
+    .tool-item .icon { font-size: 1.125rem; color: var(--primary); margin-top: 1px; }
+    .tool-item .body { flex: 1; min-width: 0; }
+    .tool-item .name { font-family: var(--font-heading); font-weight: 600; font-size: 0.8rem; color: var(--text-primary); margin-bottom: 0.15rem; }
+    .tool-item .desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4; }
+    .scope-badge { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); background: var(--bg-tertiary); padding: 0.2rem 0.6rem; border-radius: 4px; display: inline-block; margin-bottom: 1.25rem; }
     .buttons { display: flex; gap: 0.75rem; }
-    .btn-primary { flex: 1; background: #0D9488; color: white; border: none; padding: 0.75rem; border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
-    .btn-primary:hover { background: #0F766E; }
-    .btn-secondary { flex: 1; background: #F1F5F9; color: #334155; border: none; padding: 0.75rem; border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
-    .btn-secondary:hover { background: #E2E8F0; }
-    .login-btn { display: block; width: 100%; background: #0D9488; color: white; border: none; padding: 0.75rem; border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 0.9rem; text-align: center; text-decoration: none; margin-top: 1rem; }
-    .login-btn:hover { background: #0F766E; }
+    .btn-primary { flex: 1; background: var(--primary); color: white; border: none; padding: 0.75rem; border-radius: var(--radius-sm); font-family: var(--font-heading); font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { flex: 1; background: var(--bg-tertiary); color: var(--text-secondary); border: none; padding: 0.75rem; border-radius: var(--radius-sm); font-family: var(--font-heading); font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .btn-secondary:hover { background: var(--border); }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="logo">Plataforma de Acarreos</div>
-    <h1>Autorizar conexi\u00f3n</h1>
-    <p><strong>{{CLIENT_NAME}}</strong> solicita acceso a tu cuenta de <strong>Plataforma de Acarreos</strong>.</p>
-    <div class="user-email">{{USER_EMAIL}}</div>
-    <p>Permisos solicitados:</p>
-    <div class="scope-badge">{{SCOPE}}</div>
-    <form method="POST" action="{{ACTION_URL}}">
-      {{HIDDEN_FIELDS}}
+    <div class="card-header">
+      ${params.logoUrl ? `<img src="${params.logoUrl}" alt="Carglyn" class="logo">` : `<span class="material-symbols-rounded" style="font-size:1.75rem;color:var(--primary)">local_shipping</span><span class="logo-text">Carglyn</span>`}
+    </div>
+    <h1>Autorizar conexión</h1>
+    <p class="subtitle"><strong>${params.clientName}</strong> solicita acceso a tu cuenta de <strong>Carglyn</strong>.</p>
+    <div class="user-info">
+      <span class="material-symbols-rounded icon">person</span>
+      <span class="email">${params.userEmail}</span>
+    </div>
+    <div class="tools-header">
+      <h2>Herramientas disponibles</h2>
+      <span class="tools-count">${params.toolsHtml.match(/tool-item/g)?.length || 0} herramientas</span>
+    </div>
+    <div class="tools-list">
+      ${params.toolsHtml}
+    </div>
+    <div class="scope-badge">${params.scope}</div>
+    <form method="POST" action="${params.actionUrl}">
+      ${params.hiddenFields}
       <div class="buttons">
-        <button type="submit" name="confirm" value="no" class="btn-secondary">Denegar</button>
-        <button type="submit" name="confirm" value="yes" class="btn-primary">Permitir</button>
+        <button type="submit" name="confirm" value="no" class="btn-secondary"><span class="material-symbols-rounded" style="font-size:1.125rem">close</span> Denegar</button>
+        <button type="submit" name="confirm" value="yes" class="btn-primary"><span class="material-symbols-rounded" style="font-size:1.125rem">check</span> Permitir</button>
       </div>
     </form>
   </div>
 </body>
 </html>`
+}
 
 oauthApp.get('/oauth/authorize', async (c) => {
   try {
@@ -258,17 +353,40 @@ oauthApp.get('/oauth/authorize', async (c) => {
       // Fallback: use clerkId as email display
     }
 
+    // Build tools list
+    const tools = listTools()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(t => {
+        const icon = toolIcon(t.name)
+        return `
+    <div class="tool-item">
+      <div class="accent"></div>
+      <span class="material-symbols-rounded icon">${icon}</span>
+      <div class="body">
+        <div class="name">${t.name.replace(/_/g, ' ')}</div>
+        <div class="desc">${escapeHtml(t.description)}</div>
+      </div>
+    </div>`
+      })
+      .join('\n      ')
+
     const hiddenFields = Object.entries(query)
       .map(([k, v]) => `<input type="hidden" name="${k.replace(/"/g, '&quot;')}" value="${(v || '').replace(/"/g, '&quot;')}">`)
       .join('\n      ')
 
     const actionUrl = `${baseUrl()}/oauth/authorize`
-    const html = CONSENT_HTML
-      .replace('{{CLIENT_NAME}}', client.clientName || client.clientId)
-      .replace('{{USER_EMAIL}}', userEmail)
-      .replace('{{SCOPE}}', scope)
-      .replace('{{ACTION_URL}}', actionUrl)
-      .replace('{{HIDDEN_FIELDS}}', hiddenFields)
+    const frontendUrl = process.env.FRONTEND_URL || ''
+    const logoUrl = frontendUrl ? `${frontendUrl}/logos/Carglylogo.png` : ''
+
+    const html = buildConsentHtml({
+      clientName: client.clientName || client.clientId,
+      userEmail,
+      scope,
+      actionUrl,
+      hiddenFields,
+      toolsHtml: tools,
+      logoUrl,
+    })
 
     return c.html(html)
   } catch {
