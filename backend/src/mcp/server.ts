@@ -175,13 +175,19 @@ export async function validateMcpToken(token: string): Promise<string | null> {
       return null;
     }
 
-    const parts = token.split('_');
-    if (parts.length !== 3 || parts[0] !== 'mcp' || parts[1].length === 0 || parts[2].length === 0) {
+    // Token format: mcp_<tokenId>_<secret>
+    // tokenId es siempre hex (sin _), pero secret es base64url (PUEDE contener _)
+    // Por eso NO podemos usar split('_') directo — extraemos solo el primer segmento
+    const withoutPrefix = token.slice(4); // Remove 'mcp_'
+    const firstUnderscore = withoutPrefix.indexOf('_');
+    if (firstUnderscore <= 0) {
       return null;
     }
-
-    const tokenId = parts[1];
-    const secret = parts[2];
+    const tokenId = withoutPrefix.slice(0, firstUnderscore);
+    const secret = withoutPrefix.slice(firstUnderscore + 1);
+    if (!tokenId || !secret) {
+      return null;
+    }
 
     // O(1) lookup by tokenId - much faster than iterating all tokens
     const { db } = await import('../db/mongo');

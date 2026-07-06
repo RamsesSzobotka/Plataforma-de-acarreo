@@ -41,7 +41,7 @@ export async function exchangeAuthorizationCode(
     clientSecret: string
     redirectUri: string
   }
-): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
   const reqId = crypto.randomUUID().slice(0, 8)
 
   console.log(`[OAuthSvc:${reqId}] 🔄 exchangeAuthorizationCode started: code=${params.code?.slice(0, 8)}..., clientId=${params.clientId?.slice(0, 12)}..., hasVerifier=${!!params.codeVerifier}`)
@@ -116,7 +116,7 @@ export async function exchangeAuthorizationCode(
   console.log(`[OAuthSvc:${reqId}] ✅ Refresh token saved (expires in 30 days)`)
 
   console.log(`[OAuthSvc:${reqId}] ✅ Exchange complete — returning tokens`)
-  return { accessToken, refreshToken, expiresIn: 3600 }
+  return { access_token: accessToken, refresh_token: refreshToken, expires_in: 3600 }
 }
 
 export async function refreshAccessToken(
@@ -125,7 +125,7 @@ export async function refreshAccessToken(
     clientId: string
     clientSecret: string
   }
-): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
   const reqId = crypto.randomUUID().slice(0, 8)
 
   console.log(`[OAuthSvc:${reqId}] 🔄 refreshAccessToken started: refreshToken=${params.refreshToken?.slice(0, 20)}..., clientId=${params.clientId?.slice(0, 12)}...`)
@@ -183,7 +183,7 @@ export async function refreshAccessToken(
   console.log(`[OAuthSvc:${reqId}] ✅ New refresh token saved (expires in 30 days)`)
 
   console.log(`[OAuthSvc:${reqId}] ✅ Refresh complete — returning new tokens`)
-  return { accessToken, refreshToken: newRefreshToken, expiresIn: 3600 }
+  return { access_token: accessToken, refresh_token: newRefreshToken, expires_in: 3600 }
 }
 
 export async function registerOAuthClient(
@@ -206,5 +206,5 @@ export async function registerOAuthClient(
     createdAt: new Date(),
   })
 
-  return { clientId, clientSecret, clientSecretExpiresAt: 0 }
+  return { client_id: clientId, client_secret: clientSecret, client_secret_expires_at: 0 }
 }

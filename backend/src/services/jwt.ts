@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 interface McpTokenPayload {
   sub: string
@@ -63,24 +63,24 @@ export function verifyMcpToken(token: string): McpTokenPayload | null {
     if (parts.length !== 3) return null
 
     const [headerB64, claimsB64, signatureB64] = parts
+
+    // Validar algoritmo del header
+    let header: { alg?: string }
+    try {
+      header = decodeJson<{ alg?: string }>(headerB64)
+    } catch {
+      return null
+    }
+    if (header.alg !== 'HS256') return null
+
+    // Recalcular firma esperada
     const expectedSig = sign(`${headerB64}.${claimsB64}`, secret)
 
-    if (signatureB64.length !== expectedSig.length) return null
-
+    // Comparación en tiempo constante — segura contra timing attacks
     const sigBuf = Buffer.from(signatureB64)
     const expectedBuf = Buffer.from(expectedSig)
     if (sigBuf.length !== expectedBuf.length) return null
-    if (
-      !createHmac('sha256', 'constant-time')
-        .update(Buffer.concat([sigBuf, expectedBuf]))
-        .digest()
-        .equals(
-          createHmac('sha256', 'constant-time')
-            .update(Buffer.concat([expectedBuf, sigBuf]))
-            .digest()
-        )
-    )
-      return null
+    if (!timingSafeEqual(sigBuf, expectedBuf)) return null
 
     const claims = decodeJson<McpTokenPayload>(claimsB64)
 

@@ -92,6 +92,7 @@ oauthApp.get('/.well-known/oauth-protected-resource', (c) => {
     resource: `${base}/mcp`,
     authorization_servers: [base],
     scopes_supported: ['mcp:tools'],
+    bearer_token_formats_supported: ['opaque', 'jwt'],
   })
 })
 
@@ -106,10 +107,13 @@ oauthApp.get('/.well-known/oauth-authorization-server', (c) => {
     revocation_endpoint: `${base}/oauth/revoke`,
     scopes_supported: ['mcp:tools'],
     response_types_supported: ['code'],
+    response_modes_supported: ['query', 'fragment'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['client_secret_basic'],
+    token_endpoint_auth_signing_alg_values_supported: ['HS256'],
     client_registration_types_supported: ['automatic'],
+    client_registration_metadata_supported: ['redirect_uris', 'client_name', 'grant_types'],
   })
 })
 
@@ -140,7 +144,7 @@ oauthApp.post('/oauth/register', async (c) => {
       grantTypes: body.grant_types,
     })
 
-    console.log(`[OAuth:${reqId}] ✅ DCR success: clientId=${result.clientId}, clientSecret=${result.clientSecret.slice(0, 8)}..., ${body.redirect_uris.length} redirect URIs`)
+    console.log(`[OAuth:${reqId}] ✅ DCR success: clientId=${result.client_id}, clientSecret=${result.client_secret.slice(0, 8)}..., ${body.redirect_uris.length} redirect URIs`)
 
     return c.json(result, 201)
   } catch (err) {
@@ -232,7 +236,21 @@ function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
         await clerk.load();
 
         if (clerk.user) {
-          // Ya autenticado — el __session cookie está seteada en este dominio
+          // Ya autenticado — pasar session token al backend via query param
+          // en vez de hacer redirect para evitar ciclos con la cookie __session
+          try {
+            const session = await clerk.session;
+            if (session && session.id) {
+              const token = await session.getToken();
+              if (token) {
+                window.location.href = "${authorizeUrl}" + "&session_token=" + encodeURIComponent(token);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Error getting session token:', e);
+          }
+          // Fallback: redirect normal si no se pudo obtener el token
           window.location.href = "${authorizeUrl}";
           return;
         }
@@ -460,13 +478,13 @@ oauthApp.post('/oauth/token', async (c) => {
         redirectUri: body.redirect_uri,
       })
 
-      console.log(`[OAuth:${reqId}] ✅ Token exchange success: client=${auth.clientId.slice(0, 12)}..., accessToken=${result.accessToken.slice(0, 20)}..., expiresIn=${result.expiresIn}s, hasRefresh=${!!result.refreshToken}`)
+      console.log(`[OAuth:${reqId}] ✅ Token exchange success: client=${auth.clientId.slice(0, 12)}..., accessToken=${result.access_token.slice(0, 20)}..., expiresIn=${result.expires_in}s, hasRefresh=${!!result.refresh_token}`)
 
       return c.json({
-        access_token: result.accessToken,
+        access_token: result.access_token,
         token_type: 'Bearer',
-        expires_in: result.expiresIn,
-        refresh_token: result.refreshToken,
+        expires_in: result.expires_in,
+        refresh_token: result.refresh_token,
         scope: 'mcp:tools',
       })
     }
@@ -479,13 +497,13 @@ oauthApp.post('/oauth/token', async (c) => {
         clientSecret: auth.clientSecret,
       })
 
-      console.log(`[OAuth:${reqId}] ✅ Token refresh success: client=${auth.clientId.slice(0, 12)}..., accessToken=${result.accessToken.slice(0, 20)}..., expiresIn=${result.expiresIn}s`)
+      console.log(`[OAuth:${reqId}] ✅ Token refresh success: client=${auth.clientId.slice(0, 12)}..., accessToken=${result.access_token.slice(0, 20)}..., expiresIn=${result.expires_in}s`)
 
       return c.json({
-        access_token: result.accessToken,
+        access_token: result.access_token,
         token_type: 'Bearer',
-        expires_in: result.expiresIn,
-        refresh_token: result.refreshToken,
+        expires_in: result.expires_in,
+        refresh_token: result.refresh_token,
         scope: 'mcp:tools',
       })
     }
