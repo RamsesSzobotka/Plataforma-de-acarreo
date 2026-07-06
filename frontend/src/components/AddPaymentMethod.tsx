@@ -119,23 +119,20 @@ export function AddPaymentMethod({ rideId, onSuccess }: AddPaymentMethodProps) {
         throw new Error(t('payment.methodConfirmationError'))
       }
 
-      console.log('PaymentMethod confirmed:', setupIntent.payment_method)
       setSavedMethodId(setupIntent.payment_method)
 
       try {
-        const attachResponse = await paymentsAPI.attachPaymentMethod(
+        await paymentsAPI.attachPaymentMethod(
           setupIntent.payment_method,
           setupIntentResponse.setupIntentId,
           token || undefined
         )
-        console.log('PaymentMethod adjuntado:', attachResponse.brand, '****', attachResponse.last4)
       } catch (attachError) {
         const attachMessage = attachError instanceof Error ? attachError.message : t('common.error')
         console.warn('Error adjuntando PaymentMethod (continuando):', attachMessage)
       }
 
       await usersAPI.savePaymentMethod(setupIntent.payment_method, token || undefined)
-      console.log('Payment method saved to user profile')
 
       setSuccess(true)
 

@@ -24,6 +24,7 @@ import admin from './routes/admin'
 import health from './routes/health'
 import mcp from './routes/mcp'
 import ratings from './routes/ratings'
+import oauth from './routes/oauth'
 
 // Session cache (5 min TTL)
 interface CachedSession { clerkId: string; expiresAt: number }
@@ -141,7 +142,8 @@ app.route('/api/payments', payments)
 app.route('/api/webhooks', webhooks)
 app.route('/api/upload', upload)
 app.route('/api/admin', admin)
-app.route('/api/mcp', mcp)
+app.route('/mcp', mcp)
+app.route('/', oauth)
 app.route('/api/ratings', ratings)
 
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
