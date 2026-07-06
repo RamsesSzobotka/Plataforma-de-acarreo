@@ -186,25 +186,47 @@ export async function refreshAccessToken(
   return { access_token: accessToken, refresh_token: newRefreshToken, expires_in: 3600 }
 }
 
+export interface DcrResponse {
+  client_id: string
+  client_secret: string
+  client_id_issued_at: number
+  client_secret_expires_at: number
+  redirect_uris: string[]
+  grant_types: string[]
+  token_endpoint_auth_method: string
+  client_name: string
+}
+
 export async function registerOAuthClient(
   params: {
     clientName?: string
     redirectUris: string[]
     grantTypes?: string[]
   }
-): Promise<{ clientId: string; clientSecret: string; clientSecretExpiresAt: number }> {
+): Promise<DcrResponse> {
   const clientId = 'dcr_' + randomBytes(18).toString('base64url')
   const clientSecret = randomBytes(36).toString('base64url')
   const clientSecretHash = await hash(clientSecret, 10)
+  const now = Math.floor(Date.now() / 1000)
+  const grantTypes = params.grantTypes || ['authorization_code', 'refresh_token']
 
   await saveOAuthClient({
     clientId,
     clientSecretHash,
     clientName: params.clientName || clientId,
     redirectUris: params.redirectUris,
-    grantTypes: params.grantTypes || ['authorization_code', 'refresh_token'],
+    grantTypes,
     createdAt: new Date(),
   })
 
-  return { client_id: clientId, client_secret: clientSecret, client_secret_expires_at: 0 }
+  return {
+    client_id: clientId,
+    client_secret: clientSecret,
+    client_id_issued_at: now,
+    client_secret_expires_at: 0,
+    redirect_uris: params.redirectUris,
+    grant_types: grantTypes,
+    token_endpoint_auth_method: 'client_secret_basic',
+    client_name: params.clientName || clientId,
+  }
 }

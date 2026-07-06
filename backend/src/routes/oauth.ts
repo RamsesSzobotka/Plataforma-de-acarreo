@@ -2,7 +2,7 @@ import { Hono } from 'hono/tiny'
 import { verifyToken } from '@clerk/clerk-sdk-node'
 import { getOAuthClientByClientId } from '../models/oauthClient'
 import { getOAuthCodeByCode, getOAuthTokenByTokenId, revokeOAuthToken, saveOAuthCode } from '../models/oauthToken'
-import { exchangeAuthorizationCode, refreshAccessToken, registerOAuthClient, OAuthError, generateAuthCode } from '../services/oauth'
+import { exchangeAuthorizationCode, refreshAccessToken, registerOAuthClient, OAuthError, generateAuthCode, type DcrResponse } from '../services/oauth'
 import { getMcpServerUrl } from '../services/jwt'
 
 const oauthApp = new Hono()
@@ -146,6 +146,8 @@ oauthApp.post('/oauth/register', async (c) => {
 
     console.log(`[OAuth:${reqId}] ✅ DCR success: clientId=${result.client_id}, clientSecret=${result.client_secret.slice(0, 8)}..., ${body.redirect_uris.length} redirect URIs`)
 
+    c.header('Cache-Control', 'no-store')
+    c.header('Pragma', 'no-cache')
     return c.json(result, 201)
   } catch (err) {
     if (err instanceof OAuthError) {
