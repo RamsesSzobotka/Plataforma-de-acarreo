@@ -88,6 +88,37 @@ function toolIcon(name: string): string {
   return iconMap[name] || 'build'
 }
 
+type ToolGroupKey = 'client' | 'driver' | 'shared'
+
+function toolGroup(name: string): { key: ToolGroupKey; label: string; icon: string; note: string } {
+  const groupMap: Record<string, { key: ToolGroupKey; label: string; icon: string; note: string }> = {
+    list_my_rides: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'orders', note: 'Flujo principal del cliente.' },
+    create_ride: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'add_circle', note: 'Flujo principal del cliente.' },
+    get_ride_details: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'info', note: 'Flujo principal del cliente.' },
+    view_offers: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'request_quote', note: 'Flujo principal del cliente.' },
+    accept_offer: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'handshake', note: 'Flujo principal del cliente.' },
+    confirm_delivery: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'check_circle', note: 'Flujo principal del cliente.' },
+    cancel_ride: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'cancel', note: 'Flujo principal del cliente.' },
+    rate_service: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'star', note: 'Flujo principal del cliente.' },
+    get_public_driver_profile: { key: 'shared', label: 'Comunicación y consulta', icon: 'person_search', note: 'Información pública y validación.' },
+    send_message: { key: 'shared', label: 'Comunicación y consulta', icon: 'chat', note: 'Negociación en tiempo real.' },
+    list_available_rides: { key: 'driver', label: 'Operación del conductor', icon: 'explore', note: 'Búsqueda y oferta.' },
+    propose_price: { key: 'driver', label: 'Operación del conductor', icon: 'payments', note: 'Búsqueda y oferta.' },
+    start_trip: { key: 'driver', label: 'Operación del conductor', icon: 'play_circle', note: 'Búsqueda y oferta.' },
+    upload_delivery_photo: { key: 'driver', label: 'Operación del conductor', icon: 'add_a_photo', note: 'Búsqueda y oferta.' },
+    get_payment_history: { key: 'driver', label: 'Operación del conductor', icon: 'receipt_long', note: 'Búsqueda y oferta.' },
+    get_driver_profile: { key: 'driver', label: 'Operación del conductor', icon: 'badge', note: 'Búsqueda y oferta.' },
+  }
+
+  return groupMap[name] || { key: 'shared', label: 'Comunicación y consulta', icon: 'apps', note: 'Acceso general de la integración.' }
+}
+
+function toolAudience(name: string): string {
+  if (name === 'get_public_driver_profile' || name === 'send_message' || name === 'list_my_rides') return 'Compartida'
+  if (name.startsWith('list_available') || name.startsWith('propose_') || name.startsWith('start_') || name.startsWith('upload_') || name.startsWith('get_payment') || name === 'get_driver_profile') return 'Conductor'
+  return 'Cliente'
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -97,6 +128,13 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;')
 }
 
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 function rateLimited(c: any, maxRequests = 300): boolean {
   const ip = getClientIp(c)
   const result = checkRateLimit(ip, maxRequests)
@@ -104,7 +142,7 @@ function rateLimited(c: any, maxRequests = 300): boolean {
   c.header('X-RateLimit-Remaining', String(result.remaining))
   if (result.retryAfter) c.header('Retry-After', String(result.retryAfter))
   if (!result.allowed) {
-    c.res = c.json({ error: 'too_many_requests', error_description: 'Rate limit exceeded. Try again later.', retryAfter: result.retryAfter }, 429)
+    c.res = jsonResponse({ error: 'too_many_requests', error_description: 'Rate limit exceeded. Try again later.', retryAfter: result.retryAfter }, 429)
     return false
   }
   return true
@@ -157,7 +195,7 @@ oauthApp.post('/oauth/register', async (c) => {
     }>()
 
     if (!body.redirect_uris?.length) {
-      return c.json({ error: 'invalid_redirect_uri', error_description: 'redirect_uris is required' }, 400)
+      return jsonResponse({ error: 'invalid_redirect_uri', error_description: 'redirect_uris is required' }, 400)
     }
 
     const result = await registerOAuthClient({
@@ -171,7 +209,10 @@ oauthApp.post('/oauth/register', async (c) => {
     return c.json(result, 201)
   } catch (err) {
     if (err instanceof OAuthError) {
-      return c.json({ error: err.error, error_description: err.description }, err.statusCode)
+      return new Response(JSON.stringify({ error: err.error, error_description: err.description }), {
+        status: err.statusCode,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
     throw err
   }
@@ -185,8 +226,10 @@ function buildConsentHtml(params: {
   scope: string
   actionUrl: string
   hiddenFields: string
-  toolsHtml: string
+  toolSectionsHtml: string
   logoUrl: string
+  toolCount: number
+  groupCount: number
 }): string {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -213,72 +256,337 @@ function buildConsentHtml(params: {
       --text-secondary: #334155;
       --text-muted: #64748B;
       --border: #E2E8F0;
+      --border-strong: #CBD5E1;
       --radius: 12px;
       --radius-sm: 8px;
-      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+      --radius-lg: 20px;
+      --shadow: 0 18px 40px -22px rgba(15,23,42,0.45);
+      --shadow-soft: 0 10px 24px -18px rgba(15,23,42,0.35);
       --font-heading: 'Plus Jakarta Sans', sans-serif;
       --font-body: 'Inter', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--font-body); background: var(--bg-secondary); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
-    .card { background: var(--bg-primary); border-radius: var(--radius); box-shadow: var(--shadow); padding: 2rem; max-width: 520px; width: 100%; }
-    .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
-    .card-header img.logo { height: 36px; width: auto; }
-    .card-header .logo-text { font-family: var(--font-heading); font-weight: 700; font-size: 1.25rem; color: var(--primary); }
-    h1 { font-family: var(--font-heading); font-size: 1.375rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 700; }
-    .subtitle { color: var(--text-secondary); margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.5; }
-    .user-info { display: flex; align-items: center; gap: 0.625rem; background: var(--bg-tertiary); padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.5rem; }
-    .user-info .icon { color: var(--text-muted); font-size: 1.25rem; }
-    .user-info .email { font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }
-    .tools-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
-    .tools-header h2 { font-family: var(--font-heading); font-size: 0.925rem; color: var(--text-primary); font-weight: 600; }
-    .tools-count { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--primary); background: rgba(13,148,136,0.1); padding: 0.2rem 0.6rem; border-radius: 999px; font-family: var(--font-mono); }
-    .tools-list { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 1.5rem; }
-    .tools-list::-webkit-scrollbar { width: 6px; }
-    .tools-list::-webkit-scrollbar-track { background: transparent; }
-    .tools-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    .tool-item { display: flex; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
-    .tool-item:last-child { border-bottom: none; }
-    .tool-item .accent { width: 3px; flex-shrink: 0; background: var(--primary); border-radius: 2px; }
-    .tool-item .icon { font-size: 1.125rem; color: var(--primary); margin-top: 1px; }
-    .tool-item .body { flex: 1; min-width: 0; }
-    .tool-item .name { font-family: var(--font-heading); font-weight: 600; font-size: 0.8rem; color: var(--text-primary); margin-bottom: 0.15rem; }
-    .tool-item .desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4; }
-    .scope-badge { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); background: var(--bg-tertiary); padding: 0.2rem 0.6rem; border-radius: 4px; display: inline-block; margin-bottom: 1.25rem; }
-    .buttons { display: flex; gap: 0.75rem; }
-    .btn-primary { flex: 1; background: var(--primary); color: white; border: none; padding: 0.75rem; border-radius: var(--radius-sm); font-family: var(--font-heading); font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-secondary { flex: 1; background: var(--bg-tertiary); color: var(--text-secondary); border: none; padding: 0.75rem; border-radius: var(--radius-sm); font-family: var(--font-heading); font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-    .btn-secondary:hover { background: var(--border); }
+    body {
+      font-family: var(--font-body);
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top left, rgba(13,148,136,0.16), transparent 32%),
+        radial-gradient(circle at right 20%, rgba(249,115,22,0.12), transparent 28%),
+        linear-gradient(180deg, #F8FAFC 0%, #EEF2F7 100%);
+      color: var(--text-primary);
+    }
+    .card {
+      position: relative;
+      width: 100%;
+      max-width: 980px;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid rgba(226,232,240,0.8);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 8px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+    .card-inner { padding: 28px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .brand { display: flex; align-items: center; gap: 0.9rem; }
+    .card-header img.logo { height: 42px; width: auto; }
+    .card-header .logo-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(13,148,136,0.12);
+      color: var(--primary);
+    }
+    .card-header .logo-text { font-family: var(--font-heading); font-weight: 700; font-size: 1.2rem; color: var(--primary); }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(13,148,136,0.12);
+      color: var(--primary);
+      font: 600 0.78rem var(--font-mono);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 1rem; align-items: start; }
+    .title { font-family: var(--font-heading); font-size: clamp(1.55rem, 2vw, 2.15rem); color: var(--text-primary); margin-bottom: 0.6rem; line-height: 1.1; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.98rem; line-height: 1.6; max-width: 58ch; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.9rem;
+      background: linear-gradient(180deg, #fff, #F8FAFC);
+      box-shadow: var(--shadow-soft);
+      min-height: 88px;
+    }
+    .summary-card .label { color: var(--text-muted); font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.45rem; }
+    .summary-card .value { font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.2rem; }
+    .summary-card .note { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.45; }
+    .user-info, .scope-panel {
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-primary);
+      box-shadow: var(--shadow-soft);
+    }
+    .user-info { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 0.75rem; }
+    .user-info .icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      background: rgba(13,148,136,0.12);
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .user-copy { min-width: 0; }
+    .user-info .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.15rem; }
+    .user-info .email { font-weight: 600; color: var(--text-primary); font-size: 0.95rem; overflow-wrap: anywhere; }
+    .scope-panel { padding: 0.95rem 1rem; margin-bottom: 1rem; }
+    .scope-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+    .scope-copy { min-width: 0; }
+    .scope-copy .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.18rem; }
+    .scope-copy .value { font-family: var(--font-heading); font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
+    .scope-badge { font-family: var(--font-mono); font-size: 0.75rem; color: var(--primary); background: rgba(13,148,136,0.1); padding: 0.35rem 0.7rem; border-radius: 999px; border: 1px solid rgba(13,148,136,0.18); white-space: nowrap; }
+    .tools-panel { margin-top: 0.25rem; }
+    .tools-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+    .tools-header h2 { font-family: var(--font-heading); font-size: 1.02rem; color: var(--text-primary); font-weight: 700; margin-bottom: 0.25rem; }
+    .tools-header p { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; }
+    .tools-count {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--primary);
+      background: rgba(13,148,136,0.1);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+    .tool-sections { display: grid; gap: 0.95rem; }
+    .tool-section {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #fff, #FAFCFE);
+      overflow: hidden;
+    }
+    .tool-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.9rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(248,250,252,0.9);
+    }
+    .tool-section-title { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+    .tool-section-title .section-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(249,115,22,0.12);
+      color: var(--secondary);
+      flex-shrink: 0;
+    }
+    .tool-section-title .copy { min-width: 0; }
+    .tool-section-title h3 { font-family: var(--font-heading); font-size: 0.96rem; color: var(--text-primary); font-weight: 700; margin-bottom: 0.15rem; }
+    .tool-section-title p { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4; }
+    .tool-section-count { font: 700 0.72rem var(--font-mono); color: var(--text-muted); background: #fff; border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: 999px; white-space: nowrap; }
+    .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; padding: 0.9rem 1rem 1rem; }
+    .tool-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 0.9rem;
+      background: #fff;
+      box-shadow: 0 10px 18px -16px rgba(15,23,42,0.35);
+    }
+    .tool-card-top { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.65rem; }
+    .tool-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      background: rgba(13,148,136,0.12);
+      flex-shrink: 0;
+    }
+    .tool-copy { flex: 1; min-width: 0; }
+    .tool-name { font-family: var(--font-heading); font-weight: 700; font-size: 0.93rem; color: var(--text-primary); margin-bottom: 0.18rem; text-transform: capitalize; }
+    .tool-group { font-size: 0.75rem; color: var(--text-muted); }
+    .tool-index {
+      font: 700 0.7rem var(--font-mono);
+      color: var(--secondary);
+      background: rgba(249,115,22,0.12);
+      border-radius: 999px;
+      padding: 0.28rem 0.5rem;
+      white-space: nowrap;
+    }
+    .tool-desc { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.7rem; }
+    .tool-tags { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .tool-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      font: 600 0.7rem var(--font-mono);
+    }
+    .footer-actions { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    .btn-primary, .btn-secondary {
+      flex: 1;
+      border: none;
+      padding: 0.9rem 1rem;
+      border-radius: 14px;
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 0.92rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      min-height: 48px;
+    }
+    .btn-primary { background: var(--primary); color: white; box-shadow: 0 12px 20px -14px rgba(13,148,136,0.8); }
+    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); }
+    .btn-secondary:hover { background: var(--border); transform: translateY(-1px); }
+    .security-note {
+      margin-top: 0.9rem;
+      padding: 0.8rem 0.95rem;
+      border-radius: 14px;
+      border: 1px dashed var(--border-strong);
+      background: rgba(248,250,252,0.8);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      line-height: 1.55;
+    }
+    .security-note strong { color: var(--text-primary); }
+    @media (max-width: 900px) {
+      body { padding: 16px; }
+      .card-inner { padding: 20px; }
+      .hero { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .tool-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .card-header { flex-direction: column; align-items: flex-start; }
+      .tools-header { flex-direction: column; align-items: flex-start; }
+      .footer-actions { flex-direction: column; }
+      .scope-row { flex-direction: column; align-items: flex-start; }
+      .scope-badge { width: 100%; text-align: center; }
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="card-header">
-      ${params.logoUrl ? `<img src="${params.logoUrl}" alt="Carglyn" class="logo">` : `<span class="material-symbols-rounded" style="font-size:1.75rem;color:var(--primary)">local_shipping</span><span class="logo-text">Carglyn</span>`}
-    </div>
-    <h1>Autorizar conexión</h1>
-    <p class="subtitle"><strong>${params.clientName}</strong> solicita acceso a tu cuenta de <strong>Carglyn</strong>.</p>
-    <div class="user-info">
-      <span class="material-symbols-rounded icon">person</span>
-      <span class="email">${params.userEmail}</span>
-    </div>
-    <div class="tools-header">
-      <h2>Herramientas disponibles</h2>
-      <span class="tools-count">${params.toolsHtml.match(/tool-item/g)?.length || 0} herramientas</span>
-    </div>
-    <div class="tools-list">
-      ${params.toolsHtml}
-    </div>
-    <div class="scope-badge">${params.scope}</div>
-    <form method="POST" action="${params.actionUrl}">
-      ${params.hiddenFields}
-      <div class="buttons">
-        <button type="submit" name="confirm" value="no" class="btn-secondary"><span class="material-symbols-rounded" style="font-size:1.125rem">close</span> Denegar</button>
-        <button type="submit" name="confirm" value="yes" class="btn-primary"><span class="material-symbols-rounded" style="font-size:1.125rem">check</span> Permitir</button>
+    <div class="card-inner">
+      <div class="card-header">
+        <div class="brand">
+          ${params.logoUrl ? `<img src="${params.logoUrl}" alt="Carglyn" class="logo">` : `<span class="logo-mark"><span class="material-symbols-rounded" style="font-size:1.65rem">local_shipping</span></span><span class="logo-text">Carglyn</span>`}
+        </div>
+        <span class="header-badge"><span class="material-symbols-rounded" style="font-size:1rem">shield</span> Confirmación segura</span>
       </div>
-    </form>
+
+      <div class="hero">
+        <div>
+          <h1 class="title">Autorizar conexión</h1>
+          <p class="subtitle"><strong>${escapeHtml(params.clientName)}</strong> solicita acceso a tu cuenta de <strong>Carglyn</strong> para usar herramientas MCP desde una app externa.</p>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="label">Herramientas</div>
+              <div class="value">${params.toolCount}</div>
+              <div class="note">Acciones que esta integración podrá ejecutar.</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Categorías</div>
+              <div class="value">${params.groupCount}</div>
+              <div class="note">Agrupadas por tipo de operación.</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">Ámbito</div>
+              <div class="value" style="font-size:0.98rem">mcp:tools</div>
+              <div class="note">Permisos limitados a herramientas del servidor.</div>
+            </div>
+          </div>
+
+          <div class="user-info">
+            <span class="material-symbols-rounded icon">person</span>
+            <div class="user-copy">
+              <div class="label">Cuenta activa</div>
+              <div class="email">${escapeHtml(params.userEmail)}</div>
+            </div>
+          </div>
+
+          <div class="scope-panel">
+            <div class="scope-row">
+              <div class="scope-copy">
+                <div class="label">Permiso solicitado</div>
+                <div class="value">Acceso MCP para automatizar acarreos</div>
+              </div>
+              <div class="scope-badge">${escapeHtml(params.scope)}</div>
+            </div>
+          </div>
+
+          <div class="security-note">
+            <strong>Revisa antes de permitir:</strong> esta app solo recibirá acceso a las herramientas listadas abajo. Puedes denegar si no reconoces el cliente o la operación solicitada.
+          </div>
+        </div>
+
+        <div class="tools-panel">
+          <div class="tools-header">
+            <div>
+              <h2>Herramientas disponibles</h2>
+              <p>Se muestran agrupadas para que puedas identificar rápidamente qué hará la integración.</p>
+            </div>
+            <span class="tools-count">${params.toolCount} herramientas</span>
+          </div>
+          <div class="tool-sections">
+            ${params.toolSectionsHtml}
+          </div>
+        </div>
+      </div>
+
+      <form method="POST" action="${params.actionUrl}">
+        ${params.hiddenFields}
+        <div class="footer-actions">
+          <button type="submit" name="confirm" value="no" class="btn-secondary"><span class="material-symbols-rounded" style="font-size:1.125rem">close</span> Denegar</button>
+          <button type="submit" name="confirm" value="yes" class="btn-primary"><span class="material-symbols-rounded" style="font-size:1.125rem">check</span> Permitir</button>
+        </div>
+      </form>
+    </div>
   </div>
 </body>
 </html>`
@@ -331,7 +639,7 @@ oauthApp.get('/oauth/authorize', async (c) => {
     if (!clerkId) {
       const frontendUrl = process.env.FRONTEND_URL
       if (!frontendUrl) {
-        return c.json({ error: 'server_error', error_description: 'FRONTEND_URL not configured' }, 500)
+        return jsonResponse({ error: 'server_error', error_description: 'FRONTEND_URL not configured' }, 500)
       }
       const backendAuthorizeUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
       const frontendOAuthUrl = `${frontendUrl}/oauth/login?redirect=${encodeURIComponent(backendAuthorizeUrl)}`
@@ -353,25 +661,68 @@ oauthApp.get('/oauth/authorize', async (c) => {
       // Fallback: use clerkId as email display
     }
 
-    // Build tools list
-    const tools = listTools()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(t => {
-        const icon = toolIcon(t.name)
+    const tools = listTools().sort((a, b) => a.name.localeCompare(b.name))
+    const toolSections = [
+      {
+        label: 'Pedidos y confirmaciones',
+        icon: 'receipt_long',
+        description: 'Crear, revisar, aceptar y cerrar acarreos desde el flujo principal.',
+      },
+      {
+        label: 'Operación del conductor',
+        icon: 'local_shipping',
+        description: 'Búsqueda, oferta, viaje y comprobantes de entrega.',
+      },
+      {
+        label: 'Comunicación y consulta',
+        icon: 'forum',
+        description: 'Mensajería, perfiles públicos y soporte de negociación.',
+      },
+    ].map((section) => {
+      const sectionTools = tools.filter((tool) => toolGroup(tool.name).label === section.label)
+      if (!sectionTools.length) return ''
+
+      const cards = sectionTools.map((tool, index) => {
+        const presentation = toolGroup(tool.name)
+        const icon = toolIcon(tool.name)
         return `
-    <div class="tool-item">
-      <div class="accent"></div>
-      <span class="material-symbols-rounded icon">${icon}</span>
-      <div class="body">
-        <div class="name">${t.name.replace(/_/g, ' ')}</div>
-        <div class="desc">${escapeHtml(t.description)}</div>
-      </div>
-    </div>`
-      })
-      .join('\n      ')
+        <article class="tool-card">
+          <div class="tool-card-top">
+            <div class="tool-icon"><span class="material-symbols-rounded" style="font-size:1.15rem">${icon}</span></div>
+            <div class="tool-copy">
+              <div class="tool-name">${escapeHtml(tool.name.replace(/_/g, ' '))}</div>
+              <div class="tool-group">${escapeHtml(presentation.label)}</div>
+            </div>
+            <span class="tool-index">${index + 1}/${sectionTools.length}</span>
+          </div>
+          <p class="tool-desc">${escapeHtml(tool.description)}</p>
+          <div class="tool-tags">
+            <span class="tool-tag"><span class="material-symbols-rounded" style="font-size:0.85rem">${presentation.icon}</span> ${escapeHtml(presentation.note)}</span>
+            <span class="tool-tag">${escapeHtml(toolAudience(tool.name))}</span>
+          </div>
+        </article>`
+      }).join('')
+
+      return `
+      <section class="tool-section">
+        <div class="tool-section-header">
+          <div class="tool-section-title">
+            <span class="section-icon"><span class="material-symbols-rounded" style="font-size:1.05rem">${section.icon}</span></span>
+            <div class="copy">
+              <h3>${escapeHtml(section.label)}</h3>
+              <p>${escapeHtml(section.description)}</p>
+            </div>
+          </div>
+          <span class="tool-section-count">${sectionTools.length} tools</span>
+        </div>
+        <div class="tool-grid">
+          ${cards}
+        </div>
+      </section>`
+    }).filter(Boolean).join('\n')
 
     const hiddenFields = Object.entries(query)
-      .map(([k, v]) => `<input type="hidden" name="${k.replace(/"/g, '&quot;')}" value="${(v || '').replace(/"/g, '&quot;')}">`)
+      .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v || '')}">`)
       .join('\n      ')
 
     const actionUrl = `${baseUrl()}/oauth/authorize`
@@ -384,13 +735,15 @@ oauthApp.get('/oauth/authorize', async (c) => {
       scope,
       actionUrl,
       hiddenFields,
-      toolsHtml: tools,
+      toolSectionsHtml: toolSections,
       logoUrl,
+      toolCount: tools.length,
+      groupCount: toolSections ? toolSections.split('<section').length - 1 : 0,
     })
 
     return c.html(html)
   } catch {
-    return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
+    return jsonResponse({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
 
@@ -449,7 +802,7 @@ oauthApp.post('/oauth/authorize', async (c) => {
     const redirectTarget = `${redirectUri}?${params.toString()}`
     return c.redirect(redirectTarget)
   } catch {
-    return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
+    return jsonResponse({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
 
@@ -462,7 +815,7 @@ oauthApp.post('/oauth/token', async (c) => {
     const authHeader = c.req.header('authorization')
     const auth = parseBasicAuth(authHeader)
     if (!auth) {
-      return c.json({ error: 'invalid_client', error_description: 'Missing or invalid Authorization header' }, 401)
+      return jsonResponse({ error: 'invalid_client', error_description: 'Missing or invalid Authorization header' }, 401)
     }
 
     const body = await c.req.parseBody<Record<string, string>>()
@@ -502,12 +855,15 @@ oauthApp.post('/oauth/token', async (c) => {
       })
     }
 
-    return c.json({ error: 'unsupported_grant_type', error_description: `Grant type '${grantType}' is not supported` }, 400)
+    return jsonResponse({ error: 'unsupported_grant_type', error_description: `Grant type '${grantType}' is not supported` }, 400)
   } catch (err) {
     if (err instanceof OAuthError) {
-      return c.json({ error: err.error, error_description: err.description }, err.statusCode)
+      return new Response(JSON.stringify({ error: err.error, error_description: err.description }), {
+        status: err.statusCode,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
-    return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
+    return jsonResponse({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
 
@@ -526,7 +882,7 @@ oauthApp.post('/oauth/revoke', async (c) => {
 
     return c.json({}, 200)
   } catch {
-    return c.json({ error: 'server_error', error_description: 'Internal server error' }, 500)
+    return jsonResponse({ error: 'server_error', error_description: 'Internal server error' }, 500)
   }
 })
 
