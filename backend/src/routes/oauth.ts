@@ -181,7 +181,8 @@ const CONSENT_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
-const LOGIN_PAGE = `<!DOCTYPE html>
+function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -190,23 +191,49 @@ const LOGIN_PAGE = `<!DOCTYPE html>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; background: #F8FAFC; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
-    .card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 2rem; max-width: 420px; width: 100%; text-align: center; }
+    .card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 2rem; max-width: 480px; width: 100%; }
     .logo { display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.25rem; color: #0D9488; margin-bottom: 1.5rem; }
-    h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; color: #0F172A; margin-bottom: 0.75rem; }
-    p { color: #334155; margin-bottom: 1rem; font-size: 0.95rem; }
-    .login-link { display: block; width: 100%; background: #0D9488; color: white; border: none; padding: 0.75rem; border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 0.9rem; text-align: center; text-decoration: none; margin-top: 1rem; }
-    .login-link:hover { background: #0F766E; }
+    h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; color: #0F172A; margin-bottom: 0.5rem; text-align: center; }
+    p { color: #334155; margin-bottom: 1.5rem; font-size: 0.95rem; text-align: center; }
+    .loading { text-align: center; color: #64748B; padding: 2rem; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">Plataforma de Acarreos</div>
     <h1>Inicia sesi\u00f3n para continuar</h1>
-    <p>Debes iniciar sesi\u00f3n para autorizar la conexi\u00f3n con esta aplicaci\u00f3n.</p>
-    <a href="{{LOGIN_URL}}" class="login-link">Iniciar sesi\u00f3n</a>
+    <p>Debes iniciar sesi\u00f3n para autorizar la conexi\u00f3n con Carglyn.</p>
+    <div id="clerk-signin">
+      <div class="loading">Cargando...</div>
+    </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+  <script>
+    (async function() {
+      try {
+        const clerk = new Clerk("${publishableKey}");
+        await clerk.load();
+
+        if (clerk.user) {
+          // Ya autenticado — el __session cookie está seteada en este dominio
+          window.location.href = "${authorizeUrl}";
+          return;
+        }
+
+        // Montar formulario de inicio de sesión de Clerk
+        document.getElementById('clerk-signin').innerHTML = '';
+        clerk.mountSignIn(document.getElementById('clerk-signin'), {
+          afterSignInUrl: "${authorizeUrl}",
+        });
+      } catch (err) {
+        console.error('Clerk init error:', err);
+        document.getElementById('clerk-signin').innerHTML =
+          '<p style="color:#EF4444;">Error al cargar el inicio de sesi\u00f3n. Intenta de nuevo.</p>';
+      }
+    })();
+  </script>
 </body>
-</html>`
+</html>`}
 
 oauthApp.get('/oauth/authorize', async (c) => {
   try {
@@ -232,28 +259,29 @@ oauthApp.get('/oauth/authorize', async (c) => {
       return c.redirect(`${redirectUri}?error=invalid_redirect_uri&state=${encodeURIComponent(state)}`)
     }
 
-    // Intentar obtener session token: 1) cookie __session, 2) query param session_token
+    // Obtener session token: 1) cookie __session (seteada por Clerk JS SDK), 2) query param
     const authHeader = c.req.header('cookie')
-    let sessionToken = parseSessionCookie(authHeader) || query.session_token || null
+    const sessionToken = parseSessionCookie(authHeader) || query.session_token || null
 
-    // Si no hay token, redirigir al frontend para que el usuario se autentique con Clerk
-    if (!sessionToken) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-      const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
-      const redirectParam = `${frontendUrl}/sign-in?redirect_url=${encodeURIComponent(currentUrl)}`
-      return c.redirect(redirectParam)
+    // Verificar el session token con Clerk
+    let clerkId: string | null = null
+    if (sessionToken) {
+      try {
+        const session = await verifyToken(sessionToken, { secretKey: process.env.CLERK_SECRET_KEY })
+        clerkId = session.sub
+      } catch {
+        clerkId = null
+      }
     }
 
-    let clerkId: string
-    try {
-      const session = await verifyToken(sessionToken, { secretKey: process.env.CLERK_SECRET_KEY })
-      clerkId = session.sub
-    } catch {
-      // Token inválido — redirigir al frontend para re-autenticar
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+    // Si no hay sesión válida, servir página de login con Clerk JS SDK
+    if (!clerkId) {
+      const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
+      if (!publishableKey) {
+        return c.json({ error: 'server_error', error_description: 'CLERK_PUBLISHABLE_KEY not configured' }, 500)
+      }
       const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
-      const redirectParam = `${frontendUrl}/sign-in?redirect_url=${encodeURIComponent(currentUrl)}`
-      return c.redirect(redirectParam)
+      return c.html(clerkLoginPage(publishableKey, currentUrl))
     }
 
     let userEmail = clerkId
