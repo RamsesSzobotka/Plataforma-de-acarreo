@@ -65,6 +65,7 @@ function SettingsMcp() {
 
   // Active environment for snippet
   const [env, setEnv] = useState<'localhost' | 'production'>('localhost')
+  const [agentTab, setAgentTab] = useState<'opencode' | 'github' | 'claude' | 'codex'>('opencode')
   const baseUrl = env === 'localhost' ? 'http://localhost:3000' : 'https://carglyn-backend.onrender.com'
 
   // ── Fetch token status ────────────────────────────────────────────────────
@@ -184,20 +185,19 @@ function SettingsMcp() {
 
   // ── Config snippet ─────────────────────────────────────────────────────────
 
-  function buildOpenCodeConfig(tokenValue: string): string {
-    return JSON.stringify({
-      mcpServers: {
-        carglyn: {
-          enabled: true,
-          type: 'remote',
-          transport: 'streamable-http',
-          url: `${baseUrl}/api/mcp`,
-          headers: {
-            MCP_API_KEY: tokenValue
-          }
+  function buildSnippet(): string {
+    const entry = {
+      carglyn: {
+        enabled: true,
+        type: 'remote',
+        transport: 'streamable-http',
+        url: `${baseUrl}/api/mcp`,
+        headers: {
+          MCP_API_KEY: 'TU_TOKEN_AQUI'
         }
       }
-    }, null, 2)
+    }
+    return JSON.stringify(entry, null, 2)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -382,7 +382,7 @@ function SettingsMcp() {
         </div>
       </div>
 
-      {/* ── Section 3: Configuration ────────────────────────────────────── */}
+      {/* ── Section 3: MCP Client Configuration ──────────────────────── */}
       {state === 'has_token' && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div className="card-header">
@@ -393,52 +393,132 @@ function SettingsMcp() {
           </div>
           <div className="card-body">
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              {t('mcp.configSubtitle')} (<code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>opencode.json</code>):
+              {t('mcp.configSubtitle')}
             </p>
 
-            {/* Env toggle */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            {/* Environment Toggle */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
               <button
                 className={`tab ${env === 'localhost' ? 'active' : ''}`}
                 onClick={() => setEnv('localhost')}
               >
-                {t('mcp.localhost')}
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>laptop</span>
+                Localhost
               </button>
               <button
                 className={`tab ${env === 'production' ? 'active' : ''}`}
                 onClick={() => setEnv('production')}
               >
-                {t('mcp.production')}
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>cloud</span>
+                Producción
               </button>
             </div>
 
-            {/* Snippet */}
-            <div style={{ position: 'relative' }}>
-              <pre
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  padding: '1rem',
-                  overflow: 'auto',
-                  fontSize: '0.75rem',
-                  lineHeight: '1.6',
-                  maxHeight: '400px',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-mono)'
-                }}
-              >
-                <code>{buildOpenCodeConfig('TU_TOKEN_AQUI')}</code>
-              </pre>
+            {/* Tool Tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
               <button
-                className={`btn btn-sm ${copied ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => copyToClipboard(buildOpenCodeConfig('TU_TOKEN_AQUI'))}
-                style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
+                className={`tab ${agentTab === 'opencode' ? 'active' : ''}`}
+                onClick={() => setAgentTab('opencode')}
               >
-                <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
-                {copied ? t('mcp.copySuccess') : t('mcp.copy')}
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>terminal</span>
+                {t('mcp.tab.opencode')}
+              </button>
+              <button
+                className={`tab ${agentTab === 'github' ? 'active' : ''}`}
+                onClick={() => setAgentTab('github')}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>code</span>
+                {t('mcp.tab.github')}
+              </button>
+              <button
+                className={`tab ${agentTab === 'claude' ? 'active' : ''}`}
+                onClick={() => setAgentTab('claude')}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>psychology</span>
+                {t('mcp.tab.claude')}
+              </button>
+              <button
+                className={`tab ${agentTab === 'codex' ? 'active' : ''}`}
+                onClick={() => setAgentTab('codex')}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>smart_toy</span>
+                {t('mcp.tab.codex')}
               </button>
             </div>
+
+            {/* Tab Content */}
+            {agentTab === 'opencode' ? (
+              <>
+                {/* Instructions for OpenCode */}
+                <div style={{
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }}>folder</span>
+                  <span>
+                    {t('mcp.configFile', { path: '~/.config/opencode/opencode.json' })}
+                    <br />
+                    {t('mcp.configMcpServers')}
+                  </span>
+                </div>
+
+                {/* Snippet */}
+                <div style={{ position: 'relative' }}>
+                  <pre
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      padding: '1rem',
+                      overflow: 'auto',
+                      fontSize: '0.75rem',
+                      lineHeight: '1.6',
+                      maxHeight: '400px',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-mono)'
+                    }}
+                  >
+                    <code>{buildSnippet()}</code>
+                  </pre>
+                  <button
+                    className={`btn btn-sm ${copied ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => copyToClipboard(buildSnippet())}
+                    style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
+                  >
+                    <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
+                    {copied ? t('mcp.copySuccess') : t('mcp.copy')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Placeholder for other tools */
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3rem 1rem',
+                textAlign: 'center',
+                color: 'var(--text-muted)'
+              }}>
+                <span className="material-symbols-rounded" style={{ fontSize: '2.5rem', marginBottom: '0.75rem', opacity: 0.5 }}>
+                  {agentTab === 'github' ? 'code' : agentTab === 'claude' ? 'psychology' : 'smart_toy'}
+                </span>
+                <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  {t('mcp.comingSoon')}
+                </p>
+                <p style={{ fontSize: '0.8125rem' }}>
+                  {t('mcp.comingSoonText', { tool: t(`mcp.tab.${agentTab}`) })}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
