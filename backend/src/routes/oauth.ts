@@ -325,7 +325,7 @@ function buildConsentHtml(params: {
       letter-spacing: 0.02em;
       white-space: nowrap;
     }
-    .hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 1rem; align-items: start; }
+    .hero { display: flex; flex-direction: column; gap: 1.5rem; align-items: stretch; }
     .title { font-family: var(--font-heading); font-size: clamp(1.55rem, 2vw, 2.15rem); color: var(--text-primary); margin-bottom: 0.6rem; line-height: 1.1; }
     .subtitle { color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.98rem; line-height: 1.6; max-width: 58ch; }
     .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
@@ -417,7 +417,7 @@ function buildConsentHtml(params: {
     .tool-section-title h3 { font-family: var(--font-heading); font-size: 0.96rem; color: var(--text-primary); font-weight: 700; margin-bottom: 0.15rem; }
     .tool-section-title p { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4; }
     .tool-section-count { font: 700 0.72rem var(--font-mono); color: var(--text-muted); background: #fff; border: 1px solid var(--border); padding: 0.3rem 0.6rem; border-radius: 999px; white-space: nowrap; }
-    .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; padding: 0.9rem 1rem 1rem; }
+    .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; padding: 0.9rem 1rem 1rem; }
     .tool-card {
       border: 1px solid var(--border);
       border-radius: 16px;
