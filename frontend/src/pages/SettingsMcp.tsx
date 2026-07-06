@@ -497,6 +497,65 @@ function SettingsMcp() {
                   </button>
                 </div>
               </>
+            ) : agentTab === 'claude' ? (
+              <>
+                {/* Instructions for Claude */}
+                <div style={{
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }}>info</span>
+                  <span>{t('mcp.claude.instructions')}</span>
+                </div>
+
+                {/* Steps */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  <p>{t('mcp.claude.step1')}</p>
+                  <p>{t('mcp.claude.step2')}</p>
+                  <p>{t('mcp.claude.step3')}</p>
+                </div>
+
+                {/* URL box with copy */}
+                <div style={{
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '1rem',
+                  marginTop: '0.75rem',
+                  marginBottom: '1rem'
+                }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                    {t('mcp.claude.urlLabel')}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="input font-mono"
+                      value={`${baseUrl}/mcp`}
+                      readOnly
+                      style={{ fontSize: '0.8125rem', flex: 1 }}
+                    />
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => copyToClipboard(`${baseUrl}/mcp`)}
+                    >
+                      <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* No API key needed */}
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  {t('mcp.claude.step4')}
+                </p>
+              </>
             ) : (
               /* Placeholder for other tools */
               <div style={{
@@ -509,7 +568,7 @@ function SettingsMcp() {
                 color: 'var(--text-muted)'
               }}>
                 <span className="material-symbols-rounded" style={{ fontSize: '2.5rem', marginBottom: '0.75rem', opacity: 0.5 }}>
-                  {agentTab === 'github' ? 'code' : agentTab === 'claude' ? 'psychology' : 'smart_toy'}
+                  {agentTab === 'github' ? 'code' : 'smart_toy'}
                 </span>
                 <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                   {t('mcp.comingSoon')}
