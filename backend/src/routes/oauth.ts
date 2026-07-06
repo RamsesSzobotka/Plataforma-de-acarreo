@@ -204,6 +204,25 @@ const CONSENT_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
+// ── Clerk JS proxy ──────────────────────────────────────────────────────────
+// Clerk's JS SDK (320KB) se sirve localmente en vez de CDN porque algunos
+// webviews embebidos (Claude Desktop, Electron) bloquean CDNs externos.
+
+let clerkJsCache: string | null = null
+
+oauthApp.get('/clerk.browser.js', async (c) => {
+  if (!clerkJsCache) {
+    const res = await fetch('https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js')
+    if (!res.ok) {
+      return c.text(`// Error: Clerk JS fetch failed (${res.status})`, 502, { 'Content-Type': 'application/javascript' })
+    }
+    clerkJsCache = await res.text()
+  }
+  c.header('Content-Type', 'application/javascript; charset=utf-8')
+  c.header('Cache-Control', 'public, max-age=86400')
+  return c.body(clerkJsCache)
+})
+
 function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -215,7 +234,7 @@ function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; background: #F8FAFC; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
     .card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 2rem; max-width: 480px; width: 100%; }
-    .logo { display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.25rem; color: #0D9488; margin-bottom: 1.5rem; }
+    .logo { display: flex; align-items: center; gap: 0.5rem; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.25rem; color: #0D9488; margin-bottom: 1.5rem; }
     h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; color: #0F172A; margin-bottom: 0.5rem; text-align: center; }
     p { color: #334155; margin-bottom: 1.5rem; font-size: 0.95rem; text-align: center; }
     .loading { text-align: center; color: #64748B; padding: 2rem; }
@@ -230,7 +249,8 @@ function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
       <div class="loading">Cargando...</div>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+  <!-- Servido localmente para evitar bloqueo de CDN en webviews embebidos -->
+  <script src="/clerk.browser.js"></script>
   <script>
     (async function() {
       try {
@@ -238,8 +258,6 @@ function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
         await clerk.load();
 
         if (clerk.user) {
-          // Ya autenticado — pasar session token al backend via query param
-          // en vez de hacer redirect para evitar ciclos con la cookie __session
           try {
             const session = await clerk.session;
             if (session && session.id) {
@@ -252,12 +270,10 @@ function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
           } catch (e) {
             console.error('Error getting session token:', e);
           }
-          // Fallback: redirect normal si no se pudo obtener el token
           window.location.href = "${authorizeUrl}";
           return;
         }
 
-        // Montar formulario de inicio de sesión de Clerk
         document.getElementById('clerk-signin').innerHTML = '';
         clerk.mountSignIn(document.getElementById('clerk-signin'), {
           afterSignInUrl: "${authorizeUrl}",
@@ -304,13 +320,15 @@ oauthApp.get('/oauth/authorize', async (c) => {
       return c.redirect(`${redirectUri}?error=invalid_redirect_uri&state=${encodeURIComponent(state)}`)
     }
 
-    // Obtener session token: 1) cookie __session (seteada por Clerk JS SDK), 2) query param
+    // ── Session verification ────────────────────────────────────────────────
+    // Session token sources:
+    //   1. Cookie `__session` (seteada por Clerk via JS SDK / same-origin)
+    //   2. Query param `session_token` (pasado por Clerk JS SDK al redirect)
     const cookieHeader = c.req.header('cookie')
     const cookiePreview = cookieHeader ? cookieHeader.slice(0, 80) + '...' : '(none)'
     const sessionToken = parseSessionCookie(cookieHeader) || query.session_token || null
     console.log(`[OAuth:${reqId}] 🔍 Session check: cookie=${cookiePreview}, hasSessionToken=${!!sessionToken}, hasQueryToken=${!!query.session_token}`)
 
-    // Verificar el session token con Clerk
     let clerkId: string | null = null
     if (sessionToken) {
       try {
@@ -321,11 +339,9 @@ oauthApp.get('/oauth/authorize', async (c) => {
         console.log(`[OAuth:${reqId}] ❌ Token verification failed: ${(err as Error).message}`)
         clerkId = null
       }
-    } else {
-      console.log(`[OAuth:${reqId}] ⚠️ No session token found — showing Clerk login page`)
     }
 
-    // Si no hay sesión válida, servir página de login con Clerk JS SDK
+    // ── No session → mostrar página de login con Clerk JS (servido localmente) ──
     if (!clerkId) {
       const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
       if (!publishableKey) {
