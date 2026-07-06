@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-react'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import AuthPage from './pages/AuthPage'
+import OAuthLogin from './pages/OAuthLogin'
 import CreateRide from './pages/CreateRide'
 import MyRides from './pages/MyRides'
 import RideDetails from './pages/RideDetails'
@@ -77,6 +78,10 @@ function App() {
           </PublicAuthRoute>
         }
       />
+      
+      {/* OAuth bridge — Claude Desktop redirige aqui, esta pagina obtiene el
+          session_token de Clerk y redirige al backend para completar el authorize */}
+      <Route path="/oauth/login" element={<OAuthLogin />} />
       
       {/* Rutas protegidas con Layout */}
       <Route path="/" element={

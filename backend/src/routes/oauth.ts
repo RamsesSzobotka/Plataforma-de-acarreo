@@ -204,89 +204,7 @@ const CONSENT_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
-// ── Clerk JS proxy ──────────────────────────────────────────────────────────
-// Clerk's JS SDK (320KB) se sirve localmente en vez de CDN porque algunos
-// webviews embebidos (Claude Desktop, Electron) bloquean CDNs externos.
 
-let clerkJsCache: string | null = null
-
-oauthApp.get('/clerk.browser.js', async (c) => {
-  if (!clerkJsCache) {
-    const res = await fetch('https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js')
-    if (!res.ok) {
-      return c.text(`// Error: Clerk JS fetch failed (${res.status})`, 502, { 'Content-Type': 'application/javascript' })
-    }
-    clerkJsCache = await res.text()
-  }
-  c.header('Content-Type', 'application/javascript; charset=utf-8')
-  c.header('Cache-Control', 'public, max-age=86400')
-  return c.body(clerkJsCache)
-})
-
-function clerkLoginPage(publishableKey: string, authorizeUrl: string): string {
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Iniciar sesi\u00f3n \u2014 Plataforma de Acarreos</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; background: #F8FAFC; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
-    .card { background: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 2rem; max-width: 480px; width: 100%; }
-    .logo { display: flex; align-items: center; gap: 0.5rem; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.25rem; color: #0D9488; margin-bottom: 1.5rem; }
-    h1 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; color: #0F172A; margin-bottom: 0.5rem; text-align: center; }
-    p { color: #334155; margin-bottom: 1.5rem; font-size: 0.95rem; text-align: center; }
-    .loading { text-align: center; color: #64748B; padding: 2rem; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo">Plataforma de Acarreos</div>
-    <h1>Inicia sesi\u00f3n para continuar</h1>
-    <p>Debes iniciar sesi\u00f3n para autorizar la conexi\u00f3n con Carglyn.</p>
-    <div id="clerk-signin">
-      <div class="loading">Cargando...</div>
-    </div>
-  </div>
-  <!-- Servido localmente para evitar bloqueo de CDN en webviews embebidos -->
-  <script src="/clerk.browser.js"></script>
-  <script>
-    (async function() {
-      try {
-        const clerk = new Clerk("${publishableKey}");
-        await clerk.load();
-
-        if (clerk.user) {
-          try {
-            const session = await clerk.session;
-            if (session && session.id) {
-              const token = await session.getToken();
-              if (token) {
-                window.location.href = "${authorizeUrl}" + "&session_token=" + encodeURIComponent(token);
-                return;
-              }
-            }
-          } catch (e) {
-            console.error('Error getting session token:', e);
-          }
-          window.location.href = "${authorizeUrl}";
-          return;
-        }
-
-        document.getElementById('clerk-signin').innerHTML = '';
-        clerk.mountSignIn(document.getElementById('clerk-signin'), {
-          afterSignInUrl: "${authorizeUrl}",
-        });
-      } catch (err) {
-        console.error('Clerk init error:', err);
-        document.getElementById('clerk-signin').innerHTML =
-          '<p style="color:#EF4444;">Error al cargar el inicio de sesi\u00f3n. Intenta de nuevo.</p>';
-      }
-    })();
-  </script>
-</body>
-</html>`}
 
 oauthApp.get('/oauth/authorize', async (c) => {
   const reqId = getOAuthReqId()
@@ -341,16 +259,19 @@ oauthApp.get('/oauth/authorize', async (c) => {
       }
     }
 
-    // ── No session → mostrar página de login con Clerk JS (servido localmente) ──
+    // ── No session → redirect al frontend para autenticación ────────────────
+    // El frontend tiene Clerk configurado y puede obtener el session_token.
+    // Redirige de vuelta a este endpoint con el token.
     if (!clerkId) {
-      const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
-      if (!publishableKey) {
-        console.error(`[OAuth:${reqId}] ❌ CLERK_PUBLISHABLE_KEY not configured`)
-        return c.json({ error: 'server_error', error_description: 'CLERK_PUBLISHABLE_KEY not configured' }, 500)
+      const frontendUrl = process.env.FRONTEND_URL
+      if (!frontendUrl) {
+        console.error(`[OAuth:${reqId}] ❌ FRONTEND_URL not configured`)
+        return c.json({ error: 'server_error', error_description: 'FRONTEND_URL not configured' }, 500)
       }
-      const currentUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
-      console.log(`[OAuth:${reqId}] 🔐 Rendering Clerk login page → redirectUrl=${currentUrl}`)
-      return c.html(clerkLoginPage(publishableKey, currentUrl))
+      const backendAuthorizeUrl = `${baseUrl()}/oauth/authorize?${new URLSearchParams(query).toString()}`
+      const frontendOAuthUrl = `${frontendUrl}/oauth/login?redirect=${encodeURIComponent(backendAuthorizeUrl)}`
+      console.log(`[OAuth:${reqId}] 🔀 Redirecting to frontend auth → ${frontendUrl}/oauth/login`)
+      return c.redirect(frontendOAuthUrl)
     }
 
     let userEmail = clerkId
