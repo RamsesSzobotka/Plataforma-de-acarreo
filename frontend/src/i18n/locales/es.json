@@ -552,7 +552,7 @@
   "mcp.configSubtitle": "Copia esta configuración en tu agente MCP:",
   "mcp.comingSoon": "Próximamente",
   "mcp.comingSoonText": "Guía para {tool} disponible pronto.",
-  "mcp.configFile": "Edita el archivo {path}",
+  "mcp.configFile": "Edita el archivo en .config/opencode/opencode.json",
   "mcp.configMcpServers": "Dentro del objeto \"mcpServers\" agrega:",
   "mcp.copy": "Copiar",
   "mcp.securityLabel": "Seguridad",

@@ -420,7 +420,7 @@
 
   "mcp.active": "Active",
   "mcp.backHome": "Back to home",
-  "mcp.configFile": "Edit the file {path}",
+  "mcp.configFile": "Edit the file in .config/opencode/opencode.json",
   "mcp.configMcpServers": "Inside the \"mcpServers\" object, add:",
   "mcp.configSubtitle": "Copy this configuration into your MCP agent:",
   "mcp.configTitle": "MCP Client Configuration",
