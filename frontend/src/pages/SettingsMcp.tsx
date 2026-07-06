@@ -383,8 +383,7 @@ function SettingsMcp() {
       </div>
 
       {/* ── Section 3: MCP Client Configuration ──────────────────────── */}
-      {state === 'has_token' && (
-        <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div className="card-header">
             <span className="card-title">
               <span className="material-symbols-rounded" style={{ fontSize: '1.25rem', verticalAlign: 'middle', marginRight: '0.5rem' }}>code</span>
@@ -580,7 +579,6 @@ function SettingsMcp() {
             )}
           </div>
         </div>
-      )}
 
       {/* ── Section 4: Security note ──────────────────────────────────────── */}
       {state === 'has_token' && (
