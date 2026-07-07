@@ -159,3 +159,15 @@ export interface Report {
   createdAt: string
   updatedAt: string
 }
+
+export interface AppNotification {
+  _id: string
+  userId: string
+  type: 'report_response' | 'ride_message' | 'offer_accepted' | 'offer_received' | 'ride_status'
+  title: string
+  body: string
+  read: boolean
+  link?: string
+  metadata?: { rideId?: string; reportId?: string; offerId?: string }
+  createdAt: string
+}

@@ -3,6 +3,7 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
 import { logAudit } from '../services/audit'
+import { createNotification } from '../services/notificationService'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
 interface ClerkProfile {
@@ -1181,6 +1182,17 @@ admin.patch('/reports/:id/status', async (c) => {
     ip,
     userAgent,
   })
+
+  if (status === 'resolved' && report) {
+    await createNotification(
+      report.reporterId,
+      'report_response',
+      'Respuesta a tu reporte',
+      'Tu reporte ha sido revisado y resuelto por el equipo de Carglyn.',
+      undefined,
+      { reportId: id }
+    )
+  }
 
   return c.json(report)
 })
