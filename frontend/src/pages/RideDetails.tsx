@@ -287,7 +287,6 @@ function RideDetails() {
     const confirmed = await showConfirm({
       title: t('ride.detail.confirmDelivery'),
       text: confirmMessage,
-      showLoaderOnConfirm: true, // Show loading spinner during API call
     })
 
     if (!confirmed) return
