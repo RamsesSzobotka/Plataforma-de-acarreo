@@ -1434,19 +1434,19 @@ function RideDetails() {
                 <div style={{
                   marginTop: 'var(--space-3)',
                   padding: 'var(--space-3) var(--space-4)',
-                  background: 'var(--info-subtle)',
+                  background: 'var(--success-subtle)',
                   borderRadius: 'var(--radius)',
                   display: 'flex',
                   gap: 'var(--space-2)',
                   alignItems: 'center',
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--info)',
+                  color: 'var(--success)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
-                    lock
+                    check_circle
                   </span>
                   <span>
-                    {t('ride.detail.paymentAuthorized', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
+                    {t('ride.detail.paymentMade', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
                   </span>
                 </div>
               )}
@@ -1466,7 +1466,7 @@ function RideDetails() {
                     check_circle
                   </span>
                   <span>
-                    {t('ride.detail.paymentTransferred')}
+                    {t('ride.detail.paymentToDriver')}
                   </span>
                 </div>
               )}
