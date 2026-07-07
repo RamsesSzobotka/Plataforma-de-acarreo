@@ -59,11 +59,19 @@ const rideSchema = new mongoose.Schema({
   
   // Pago - Stripe
   stripePaymentMethodId: { type: String }, // ID del método de pago guardado (obligatorio)
-  paymentIntentId: { type: String }, // ID del PaymentIntent cuando se procesa
+  paymentIntentId: { type: String }, // ID del PaymentIntent cuando se autoriza
   platformFee: { type: Number },
   driverAmount: { type: Number },
-  paidAt: { type: Date }, // Fecha de pago automático
-  
+  paidAt: { type: Date }, // Fecha de captura del PaymentIntent
+
+  // Nuevos campos para el nuevo flujo de pago
+  chargedAt: { type: Date }, // Cuándo se cobró al cliente (captura)
+  transferId: { type: String }, // Stripe Transfer ID
+  transferredAt: { type: Date }, // Cuándo se transfirió al driver
+  refundId: { type: String }, // Si se reembolsó
+  refundedAt: { type: Date },
+  refundReason: { type: String },
+
 }, {
   timestamps: true
 })

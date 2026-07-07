@@ -176,6 +176,69 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
   return { paymentIntent, platformFee, driverAmount, customerId, paymentMethodId }
 }
 
+// Capture an authorized PaymentIntent
+export async function capturePaymentIntent(paymentIntentId: string) {
+  const paymentIntent = await getStripe().paymentIntents.capture(paymentIntentId)
+  return paymentIntent
+}
+
+// Create an authorized PaymentIntent (for later capture in confirm-delivery)
+// Uses capture_method: 'manual' so funds are authorized but not yet captured
+export async function createAuthorizedPaymentIntent(rideId: string, amountInCents: number, paymentMethodId: string, customerId: string) {
+  const { platformFee, driverAmount } = calculateMarketplaceAmounts(amountInCents)
+
+  const paymentIntent = await getStripe().paymentIntents.create({
+    amount: amountInCents,
+    currency: 'usd',
+    customer: customerId,
+    payment_method: paymentMethodId,
+    confirm: true, // Authorize the payment
+    off_session: true,
+    capture_method: 'manual', // Don't capture yet - will capture in confirm-delivery
+    metadata: {
+      rideId: rideId.toString(),
+      platformFee: platformFee.toString(),
+      driverAmount: driverAmount.toString(),
+    },
+  }, {
+    idempotencyKey: `ride:${rideId}:authorize`,
+  })
+
+  return { paymentIntent, platformFee, driverAmount }
+}
+
+// Transfer funds to driver (90% of the amount)
+export async function transferToDriver(
+  driverStripeAccountId: string,
+  amountInCents: number,
+  rideId: string
+) {
+  const transfer = await getStripe().transfers.create({
+    amount: amountInCents,
+    currency: 'usd',
+    destination: driverStripeAccountId,
+    transfer_group: rideId,
+    metadata: { rideId },
+  })
+  return transfer
+}
+
+// Refund a PaymentIntent
+export async function refundPayment(paymentIntentId: string, reason: string) {
+  const refund = await getStripe().refunds.create({
+    payment_intent: paymentIntentId,
+    reason: 'fraudulent', // or 'duplicate', 'requested_by_customer'
+    metadata: { reason },
+  })
+  return refund
+}
+
+// Cancel a PaymentIntent (for authorized but not yet captured PaymentIntents)
+export async function cancelPaymentIntent(paymentIntentId: string) {
+  const paymentIntent = await getStripe().paymentIntents.cancel(paymentIntentId)
+  return paymentIntent
+}
+
 export async function createDriverConnectAccount(params: { clerkId: string; email: string; origin: string }) {
   const driver = await Driver.findOne({ userId: params.clerkId })
   if (!driver) {
@@ -251,16 +314,25 @@ export async function handleStripeWebhookEvent(event: Stripe.Event) {
       const paymentIntent = event.data.object as Stripe.PaymentIntent
       const rideId = paymentIntent.metadata?.rideId
       if (rideId) {
-        const ride = await Ride.findByIdAndUpdate(rideId, {
-          status: 'paid',
-          paymentIntentId: paymentIntent.id,
-          platformFee: paymentIntent.metadata?.platformFee ? Number(paymentIntent.metadata.platformFee) : undefined,
-          driverAmount: paymentIntent.metadata?.driverAmount ? Number(paymentIntent.metadata.driverAmount) : undefined,
-          paidAt: new Date(),
-          updatedAt: new Date(),
-        }, { new: true })
+        // NEW FLOW: Just update chargedAt if not already set - don't change status to 'paid'
+        // The status 'paid' is set when the transfer to driver is completed in confirm-delivery
+        // The webhook is for idempotency/confirmation of the charge
+        console.log(`[Webhook] payment_intent.succeeded for ride ${rideId}, status: ${paymentIntent.status}`)
 
-        // Notify driver via email that payment was received
+        const ride = await Ride.findByIdAndUpdate(rideId, {
+          // Only set chargedAt if not already set (idempotency)
+          $setOnInsert: {
+            chargedAt: new Date(),
+          },
+          // Always update paymentIntentId if present
+          $set: {
+            paymentIntentId: paymentIntent.id,
+            platformFee: paymentIntent.metadata?.platformFee ? Number(paymentIntent.metadata.platformFee) : undefined,
+            driverAmount: paymentIntent.metadata?.driverAmount ? Number(paymentIntent.metadata.driverAmount) : undefined,
+          },
+        }, { new: true, upsert: true })
+
+        // Notify driver via email that payment authorization was received
         if (ride?.driverId) {
           const { sendEmail, getUserEmail, paymentReceivedEmail } = await import('./notifications/email')
           const driverEmail = await getUserEmail(ride.driverId)
@@ -281,6 +353,20 @@ export async function handleStripeWebhookEvent(event: Stripe.Event) {
             console.warn(`[Email] Cannot send payment notification - no email found for driver: ${ride.driverId}`)
           }
         }
+      }
+      break
+    }
+
+    case 'payment_intent.canceled': {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent
+      const rideId = paymentIntent.metadata?.rideId
+      if (rideId) {
+        console.log(`[Webhook] payment_intent.canceled for ride ${rideId}`)
+        // Update ride to show payment was canceled
+        await Ride.findByIdAndUpdate(rideId, {
+          paymentIntentId: null, // Clear the canceled PI
+          chargedAt: null,
+        }, { new: true })
       }
       break
     }

@@ -3,7 +3,7 @@ import { Ride } from '../models/ride'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
-import { createMarketplaceCharge, MarketplaceStripeError } from '../services/stripeMarketplace'
+import { createMarketplaceCharge, MarketplaceStripeError, capturePaymentIntent, transferToDriver, refundPayment } from '../services/stripeMarketplace'
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
@@ -419,6 +419,44 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { isActive: false }
   )
 
+  // NEW: Charge client immediately when offer is accepted
+  // If charge fails, revert the acceptance
+  if (!ride.paymentIntentId) {
+    try {
+      const driver = await Driver.findOne({ userId: ride.driverId })
+      const chargeResult = await chargeClient(ride._id.toString(), ride.finalPrice, driver?.stripeAccountId)
+      
+      await Ride.findByIdAndUpdate(ride._id, {
+        paymentIntentId: chargeResult.paymentIntentId,
+        chargedAt: new Date(),
+        platformFee: Math.round(ride.finalPrice * 0.10 * 100),
+        driverAmount: Math.round(ride.finalPrice * 0.90 * 100),
+      })
+      
+      // Refresh ride with payment info
+      const updatedRide = await Ride.findById(ride._id)
+      if (updatedRide) {
+        Object.assign(ride, updatedRide)
+      }
+    } catch (chargeError: any) {
+      // Revert: remove driver assignment and set status back
+      console.error(`Error charging client for ride ${ride._id}: ${chargeError.message}`)
+      
+      await Ride.findByIdAndUpdate(ride._id, {
+        driverId: undefined,
+        status: 'requested',
+        chatEnabled: false,
+        finalPrice: undefined,
+      })
+      
+      return c.json({
+        error: 'Error al procesar el pago. El pedido sigue disponible.',
+        details: chargeError.message,
+        currentStatus: 'requested'
+      }, 402)
+    }
+  }
+
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
   const userAgent = c.req.header('user-agent') || ''
   await logAudit({
@@ -617,9 +655,37 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   }
   
   // Cobro automático si hay método de pago guardado
-  const update: any = { status: 'completed' }
-  
-  if (!ride.paymentIntentId) {
+  let update: any = { status: 'completed' }
+
+  if (ride.paymentIntentId) {
+    // NEW FLOW: Payment was pre-authorized on accept
+    // 1. Capture the authorized PaymentIntent
+    const paymentIntent = await capturePaymentIntent(ride.paymentIntentId)
+
+    if (paymentIntent.status !== 'succeeded') {
+      return c.json({ error: 'Payment capture failed: ' + paymentIntent.status }, 500)
+    }
+
+    // 2. Get driver Stripe account
+    const { Driver } = await import('../models/driver')
+    const driver = await Driver.findOne({ userId: ride.driverId })
+    if (!driver?.stripeAccountId) {
+      return c.json({ error: 'Driver has no Stripe account configured' }, 400)
+    }
+
+    // 3. Transfer to driver (90%)
+    const amountInCents = ride.driverAmount || Math.round((ride.finalPrice || ride.estimatedPrice) * 90)
+    const transfer = await transferToDriver(driver.stripeAccountId, amountInCents, ride._id.toString())
+
+    // 4. Update ride with payment info
+    update = {
+      status: 'paid',
+      transferId: transfer.id,
+      transferredAt: new Date(),
+      paidAt: new Date(),
+    }
+  } else {
+    // Fallback: old behavior via processAutoCharge (edge case for old rides)
     await processAutoCharge(id, update)
   }
   
@@ -668,8 +734,9 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
-  // Usar la máquina de estados centralizada
-  const cancelCheck = canCancel(ride.status, currentUser.role)
+  // Usar la máquina de estados centralizada (pasar info de si hay pago para permitir cancelacion con refund)
+  const hasPaymentIntent = !!(ride.paymentIntentId && !ride.transferId)
+  const cancelCheck = canCancel(ride.status, currentUser.role, hasPaymentIntent)
   if (!cancelCheck.allowed) {
     return c.json({
       error: cancelCheck.reason,
@@ -684,12 +751,36 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
   if (currentUser.role === 'driver' && ride.driverId !== currentUser.clerkId) {
     return c.json({ error: 'No tienes permiso para cancelar este pedido' }, 403)
   }
-  
+
   const oldStatus = ride.status
-  const updatedRide = await Ride.findByIdAndUpdate(id, {
+  const role = currentUser.role
+
+  // Build base update
+  const updateBase: any = {
     status: 'cancelled',
-    cancellationReason: reason || 'Cancelado por usuario'
-  }, { new: true })
+    cancellationReason: reason || 'Cancelado por usuario',
+  }
+
+  // NEW: Automatic refund if ride was charged but not yet transferred
+  if (ride.paymentIntentId && !ride.transferId) {
+    // Ride was charged but not transferred → refund the client
+    const refundResult = await refundPayment(
+      ride.paymentIntentId,
+      'Cancellation by ' + role
+    )
+
+    updateBase.refundId = refundResult.id
+    updateBase.refundedAt = new Date()
+    updateBase.refundReason = 'Cancellation by ' + role
+  } else if (ride.paymentIntentId && ride.transferId) {
+    // Already transferred → cannot cancel (admin only via disputes)
+    return c.json({
+      error: 'Cannot cancel: payment already transferred. Contact support.',
+      currentStatus: ride.status,
+    }, 400)
+  }
+
+  const updatedRide = await Ride.findByIdAndUpdate(id, updateBase, { new: true })
 
   // Emitir via WebSocket
   broadcastToRide(id, {

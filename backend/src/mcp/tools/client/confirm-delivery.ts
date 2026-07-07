@@ -3,8 +3,9 @@ import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { confirmDeliverySchema } from '../../schemas';
 import { McpError } from '../../errors';
-import { createMarketplaceCharge, MarketplaceStripeError } from '../../../services/stripeMarketplace';
+import { capturePaymentIntent, transferToDriver } from '../../../services/stripeMarketplace';
 import { canTransition } from '../../../services/ride-machine';
+import { Driver } from '../../../models/driver';
 
 export async function handleConfirmDelivery(
   input: z.infer<typeof confirmDeliverySchema>,
@@ -36,55 +37,79 @@ export async function handleConfirmDelivery(
       throw new McpError('INVALID_INPUT', 'El conductor debe subir una foto de entrega primero', 400);
     }
 
+    // Estado del pago
+    let paymentStatus: 'paid' | 'payment_method_required' | 'failed' | 'already_processed' | 'skipped' = 'skipped';
+    let paymentMessage: string | null = null;
+
     const update: Record<string, any> = {
       status: 'completed',
       updatedAt: new Date(),
     };
 
-    // Estado del pago automático
-    let paymentStatus: 'paid' | 'payment_method_required' | 'failed' | 'already_processed' | 'skipped' = 'skipped';
-    let paymentMessage: string | null = null;
-
-    if (ride.status === 'paid') {
-      // Ya estaba pagado (ej: reconfirmación después de webhook)
-      paymentStatus = 'already_processed';
-      paymentMessage = 'Este acarreo ya había sido procesado como pagado.';
-    } else if (ride.paymentIntentId) {
-      // Ya tiene un PaymentIntent creado previamente
-      paymentStatus = 'already_processed';
-      paymentMessage = 'El acarreo ya tenía un intento de pago registrado.';
-    } else {
-      // Intentar cobro automático
+    // NEW FLOW: If ride has paymentIntentId and no transferId, capture and transfer
+    if (ride.paymentIntentId && !ride.transferId) {
       try {
-        const chargeResult = await createMarketplaceCharge(input.rideId, { skipStatusCheck: true });
-        update.paymentIntentId = chargeResult.paymentIntent.id;
-        update.platformFee = chargeResult.platformFee;
-        update.driverAmount = chargeResult.driverAmount;
-
-        if (chargeResult.paymentIntent.status === 'succeeded') {
-          update.status = 'paid';
-          update.paidAt = new Date();
-          paymentStatus = 'paid';
-          paymentMessage = `Pago exitoso de $${(ride.finalPrice || ride.estimatedPrice).toFixed(2)} USD. Comisión de plataforma (10%): $${(chargeResult.platformFee / 100).toFixed(2)} USD.`;
-        } else {
-          paymentStatus = 'failed';
-          paymentMessage = `El pago se procesó pero quedó en estado "${chargeResult.paymentIntent.status}". Contacta al administrador si el problema persiste.`;
+        // Get driver info for Stripe account
+        const driver = await Driver.findOne({ userId: ride.driverId });
+        if (!driver?.stripeAccountId) {
+          throw new Error('El conductor no tiene cuenta de pagos configurada');
         }
+
+        // Step 1: Capture the authorized PaymentIntent
+        const capturedPI = await capturePaymentIntent(ride.paymentIntentId);
+        update.chargedAt = new Date();
+        update.paidAt = new Date();
+
+        if (capturedPI.status !== 'succeeded') {
+          throw new Error(`La captura quedó en estado "${capturedPI.status}" en lugar de succeeded`);
+        }
+
+        // Step 2: Transfer to driver (90%)
+        const amountInCents = ride.driverAmount || Math.round((ride.finalPrice || ride.estimatedPrice) * 90);
+        const transfer = await transferToDriver(
+          driver.stripeAccountId,
+          amountInCents,
+          ride._id.toString()
+        );
+
+        update.status = 'paid';
+        update.transferId = transfer.id;
+        update.transferredAt = new Date();
+        paymentStatus = 'paid';
+        paymentMessage = `Pago capturado y transferido al conductor. ` +
+          `Monto: $${(amountInCents / 100).toFixed(2)} USD. ` +
+          `Transferencia: ${transfer.id}`;
       } catch (stripeError) {
-        const errorMessage = stripeError instanceof MarketplaceStripeError ? stripeError.message : (stripeError as Error).message;
+        const errorMessage = (stripeError as Error).message;
 
-        if (errorMessage?.toLowerCase().includes('método de pago') || errorMessage?.toLowerCase().includes('payment method')) {
-          // No tiene método de pago guardado — el usuario debe agregarlo desde el frontend
+        if (errorMessage.includes('payment method') || errorMessage.includes('método de pago')) {
           paymentStatus = 'payment_method_required';
-          paymentMessage = 'No se pudo procesar el pago automático porque no tienes un método de pago guardado. Debes agregar una tarjeta desde la página de pago en Carglyn (menú > Método de Pago) y luego usar la herramienta de pago para procesar el cobro.';
-        } else if (errorMessage?.toLowerCase().includes('stripe account') || errorMessage?.toLowerCase().includes('connect')) {
+          paymentMessage = 'No se pudo procesar el pago porque no tienes un método de pago guardado. ' +
+            'Agrega una tarjeta desde el menú > Método de Pago.';
+        } else if (errorMessage.includes('Stripe account') || errorMessage.includes('connect')) {
           paymentStatus = 'failed';
-          paymentMessage = `El pago no pudo procesarse porque el conductor no tiene una cuenta de cobros configurada. Motivo: ${errorMessage}`;
+          paymentMessage = `El pago no pudo procesarse porque el conductor no tiene cuenta de cobros: ${errorMessage}`;
         } else {
           paymentStatus = 'failed';
-          paymentMessage = `El pago automático falló. Motivo: ${errorMessage}. Puedes intentar el pago manualmente desde el frontend.`;
+          paymentMessage = `Error en el procesamiento del pago: ${errorMessage}`;
         }
+        // Don't update status to paid if payment failed
+        delete update.status;
+        delete update.chargedAt;
+        delete update.paidAt;
       }
+    } else if (ride.transferId) {
+      // Already processed - has transferId means payment was already captured and transferred
+      paymentStatus = 'already_processed';
+      paymentMessage = 'Este acarreo ya fue pagado y el conductor recibió su transferencia.';
+    } else if (ride.status === 'paid') {
+      // Legacy: already marked as paid (e.g., after webhook reconfirmation)
+      paymentStatus = 'already_processed';
+      paymentMessage = 'Este acarreo ya estaba marcado como pagado.';
+    } else {
+      // Fallback: No paymentIntentId (shouldn't happen in new flow, but handle gracefully)
+      paymentStatus = 'skipped';
+      paymentMessage = 'No hay PaymentIntent registrado para este acarreo. El pago puede procesarse por otro medio.';
     }
 
     const result = await db.collection('rides').findOneAndUpdate(
@@ -116,6 +141,9 @@ export async function handleConfirmDelivery(
       paymentIntentId: result.paymentIntentId,
       platformFee: result.platformFee,
       driverAmount: result.driverAmount,
+      transferId: result.transferId,
+      chargedAt: result.chargedAt?.toISOString?.() ?? result.chargedAt ?? null,
+      transferredAt: result.transferredAt?.toISOString?.() ?? result.transferredAt ?? null,
       paidAt: result.paidAt?.toISOString?.() ?? result.paidAt ?? null,
       createdAt: result.createdAt?.toISOString?.() ?? result.createdAt,
       updatedAt: result.updatedAt?.toISOString?.() ?? result.updatedAt,
