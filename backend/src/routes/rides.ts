@@ -647,6 +647,8 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
   }
   
   // Payment already captured on accept - just do the transfer to driver
+  let update: any = { status: 'paid' }
+
   if (ride.paymentIntentId && !ride.transferId) {
     // Get driver Stripe account
     const { Driver } = await import('../models/driver')
