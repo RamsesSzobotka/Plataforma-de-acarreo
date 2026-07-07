@@ -1,18 +1,18 @@
 /**
  * Payment service - handles client charging with Stripe
- * Uses capture_method: 'manual' to authorize payment without capturing immediately
- * Capture happens later in confirm-delivery
+ * Uses capture_method: 'automatic' to capture payment immediately on accept
+ * Transfer to driver happens at confirm-delivery
  */
 import { Ride } from '../models/ride'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import Stripe from 'stripe'
-import { createAuthorizedPaymentIntent } from './stripeMarketplace'
+import { createPaymentIntent } from './stripeMarketplace'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 // Charge client when accepting a ride offer
-// Creates a PaymentIntent with capture_method: 'manual' to authorize but not capture
+// Creates a PaymentIntent with capture_method: 'automatic' to capture immediately
 export async function chargeClient(
   rideId: string,
   amount: number,
@@ -49,8 +49,8 @@ export async function chargeClient(
 
   const amountInCents = Math.round(amount * 100)
 
-  // Create authorized payment intent (capture_method: 'manual')
-  const { paymentIntent, platformFee, driverAmount } = await createAuthorizedPaymentIntent(
+  // Create payment intent with automatic capture
+  const { paymentIntent, platformFee, driverAmount } = await createPaymentIntent(
     rideId,
     amountInCents,
     paymentMethodId,

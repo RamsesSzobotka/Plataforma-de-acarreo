@@ -3,7 +3,7 @@ import { Ride } from '../models/ride'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
-import { createMarketplaceCharge, MarketplaceStripeError, capturePaymentIntent, transferToDriver, refundPayment, createAuthorizedPaymentIntent, createAuthorizedCharge } from '../services/stripeMarketplace'
+import { createMarketplaceCharge, MarketplaceStripeError, transferToDriver, refundPayment, createCharge } from '../services/stripeMarketplace'
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
@@ -419,11 +419,11 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { isActive: false }
   )
 
-  // NEW: Authorize payment when driver accepts (capture happens at confirm-delivery)
-  // If authorization fails, revert the acceptance
+  // NEW: Capture payment immediately when driver accepts (transfer happens at confirm-delivery)
+  // If payment fails (insufficient funds), revert the acceptance
   if (!ride.paymentIntentId) {
     try {
-      const chargeResult = await createAuthorizedCharge(ride._id.toString())
+      const chargeResult = await createCharge(ride._id.toString())
       
       // Refresh ride with payment info
       const updatedRide = await Ride.findById(ride._id)
@@ -432,7 +432,7 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
       }
     } catch (chargeError: any) {
       // Revert: remove driver assignment and set status back
-      console.error(`Error authorizing payment for ride ${ride._id}: ${chargeError.message}`)
+      console.error(`Error capturing payment for ride ${ride._id}: ${chargeError.message}`)
       
       await Ride.findByIdAndUpdate(ride._id, {
         driverId: undefined,
@@ -442,7 +442,7 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
       })
       
       return c.json({
-        error: 'Error al procesar el pago. El pedido sigue disponible.',
+        error: 'No se pudo procesar el pago. Fondos insuficientes o método de pago inválido.',
         details: chargeError.message,
         currentStatus: 'requested'
       }, 402)
@@ -646,38 +646,33 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
     return c.json({ error: 'El conductor debe subir una foto de entrega primero' }, 400)
   }
   
-  // Cobro automático si hay método de pago guardado
-  let update: any = { status: 'completed' }
-
-  if (ride.paymentIntentId) {
-    // NEW FLOW: Payment was pre-authorized on accept
-    // 1. Capture the authorized PaymentIntent
-    const paymentIntent = await capturePaymentIntent(ride.paymentIntentId)
-
-    if (paymentIntent.status !== 'succeeded') {
-      return c.json({ error: 'Payment capture failed: ' + paymentIntent.status }, 500)
-    }
-
-    // 2. Get driver Stripe account
+  // Payment already captured on accept - just do the transfer to driver
+  if (ride.paymentIntentId && !ride.transferId) {
+    // Get driver Stripe account
     const { Driver } = await import('../models/driver')
     const driver = await Driver.findOne({ userId: ride.driverId })
     if (!driver?.stripeAccountId) {
       return c.json({ error: 'Driver has no Stripe account configured' }, 400)
     }
 
-    // 3. Transfer to driver (90%)
+    // Transfer to driver (90%)
     const amountInCents = ride.driverAmount || Math.round((ride.finalPrice || ride.estimatedPrice) * 90)
     const transfer = await transferToDriver(driver.stripeAccountId, amountInCents, ride._id.toString())
 
-    // 4. Update ride with payment info
+    // Update ride with payment info
     update = {
       status: 'paid',
       transferId: transfer.id,
       transferredAt: new Date(),
       paidAt: new Date(),
     }
+  } else if (ride.paymentIntentId && ride.transferId) {
+    // Already transferred - just update status to paid (idempotency)
+    update = {
+      status: 'paid',
+    }
   } else {
-    // Fallback: old behavior via processAutoCharge (edge case for old rides)
+    // Fallback: old behavior via processAutoCharge (edge case for old rides without paymentIntentId)
     await processAutoCharge(id, update)
   }
   

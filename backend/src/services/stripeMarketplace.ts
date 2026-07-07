@@ -176,15 +176,9 @@ export async function createMarketplaceCharge(rideId: string, options?: { skipSt
   return { paymentIntent, platformFee, driverAmount, customerId, paymentMethodId }
 }
 
-// Capture an authorized PaymentIntent
-export async function capturePaymentIntent(paymentIntentId: string) {
-  const paymentIntent = await getStripe().paymentIntents.capture(paymentIntentId)
-  return paymentIntent
-}
-
-// Create an authorized PaymentIntent (for later capture in confirm-delivery)
-// Uses capture_method: 'manual' so funds are authorized but not yet captured
-export async function createAuthorizedPaymentIntent(rideId: string, amountInCents: number, paymentMethodId: string, customerId: string) {
+// Create a PaymentIntent with automatic capture (captured immediately on create)
+// Uses capture_method: 'automatic' so funds are captured right away at accept time
+export async function createPaymentIntent(rideId: string, amountInCents: number, paymentMethodId: string, customerId: string) {
   const { platformFee, driverAmount } = calculateMarketplaceAmounts(amountInCents)
 
   const paymentIntent = await getStripe().paymentIntents.create({
@@ -192,25 +186,25 @@ export async function createAuthorizedPaymentIntent(rideId: string, amountInCent
     currency: 'usd',
     customer: customerId,
     payment_method: paymentMethodId,
-    confirm: true, // Authorize the payment
+    confirm: true, // Capture immediately
     off_session: true,
-    capture_method: 'manual', // Don't capture yet - will capture in confirm-delivery
+    capture_method: 'automatic', // Capture immediately - payment fails if insufficient funds
     metadata: {
       rideId: rideId.toString(),
       platformFee: platformFee.toString(),
       driverAmount: driverAmount.toString(),
     },
   }, {
-    idempotencyKey: `ride:${rideId}:authorize`,
+    idempotencyKey: `ride:${rideId}:capture`,
   })
 
   return { paymentIntent, platformFee, driverAmount }
 }
 
-// Create an authorized charge when driver accepts a ride
-// Returns the authorized PaymentIntent ID and fee breakdown
-// This is called at accept time; capture happens at confirm-delivery
-export async function createAuthorizedCharge(rideId: string) {
+// Create and capture payment when driver accepts a ride
+// Returns the PaymentIntent ID and fee breakdown
+// Payment is captured immediately - if card has insufficient funds, the accept fails
+export async function createCharge(rideId: string) {
   const ride = await Ride.findById(rideId)
   if (!ride) {
     throw new MarketplaceStripeError('Ride not found', 404)
@@ -248,7 +242,7 @@ export async function createAuthorizedCharge(rideId: string) {
   await ensurePaymentMethodAttached(paymentMethodId, customerId)
 
   const amountInCents = Math.round(ride.finalPrice * 100)
-  const { paymentIntent, platformFee, driverAmount } = await createAuthorizedPaymentIntent(
+  const { paymentIntent, platformFee, driverAmount } = await createPaymentIntent(
     rideId,
     amountInCents,
     paymentMethodId,

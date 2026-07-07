@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { confirmDeliverySchema } from '../../schemas';
 import { McpError } from '../../errors';
-import { capturePaymentIntent, transferToDriver } from '../../../services/stripeMarketplace';
+import { transferToDriver } from '../../../services/stripeMarketplace';
 import { canTransition } from '../../../services/ride-machine';
 import { Driver } from '../../../models/driver';
 
@@ -46,7 +46,7 @@ export async function handleConfirmDelivery(
       updatedAt: new Date(),
     };
 
-    // NEW FLOW: If ride has paymentIntentId and no transferId, capture and transfer
+    // NEW FLOW: Payment was captured on accept - just transfer to driver
     if (ride.paymentIntentId && !ride.transferId) {
       try {
         // Get driver info for Stripe account
@@ -55,16 +55,7 @@ export async function handleConfirmDelivery(
           throw new Error('El conductor no tiene cuenta de pagos configurada');
         }
 
-        // Step 1: Capture the authorized PaymentIntent
-        const capturedPI = await capturePaymentIntent(ride.paymentIntentId);
-        update.chargedAt = new Date();
-        update.paidAt = new Date();
-
-        if (capturedPI.status !== 'succeeded') {
-          throw new Error(`La captura quedó en estado "${capturedPI.status}" en lugar de succeeded`);
-        }
-
-        // Step 2: Transfer to driver (90%)
+        // Transfer to driver (90%)
         const amountInCents = ride.driverAmount || Math.round((ride.finalPrice || ride.estimatedPrice) * 90);
         const transfer = await transferToDriver(
           driver.stripeAccountId,
@@ -75,6 +66,8 @@ export async function handleConfirmDelivery(
         update.status = 'paid';
         update.transferId = transfer.id;
         update.transferredAt = new Date();
+        update.chargedAt = new Date();
+        update.paidAt = new Date();
         paymentStatus = 'paid';
         paymentMessage = `Pago capturado y transferido al conductor. ` +
           `Monto: $${(amountInCents / 100).toFixed(2)} USD. ` +

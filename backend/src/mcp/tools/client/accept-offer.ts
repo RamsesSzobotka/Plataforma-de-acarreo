@@ -3,7 +3,6 @@ import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { acceptOfferSchema } from '../../schemas';
 import { McpError } from '../../errors';
-import { createAuthorizedPaymentIntent } from '../../../../services/stripeMarketplace';
 
 export async function handleAcceptOffer(
   input: z.infer<typeof acceptOfferSchema>,
@@ -70,7 +69,7 @@ export async function handleAcceptOffer(
   // Store previous status for potential rollback
   const previousStatus = 'requested';
 
-  // --- NEW: Authorize payment (capture happens later in confirm-delivery) ---
+  // --- NEW: Capture payment immediately (transfer happens in confirm-delivery) ---
   let chargeSucceeded = false;
   let paymentIntentId: string | undefined;
 
@@ -113,7 +112,7 @@ export async function handleAcceptOffer(
         // Ignore if already attached
       }
 
-      // Authorize the payment (but don't capture yet - will capture in confirm-delivery)
+      // Capture the payment immediately - fails if insufficient funds
       const amountInCents = Math.round(offer.amount * 100);
       const platformFee = Math.round(amountInCents * 0.10);
       const driverAmount = Math.round(amountInCents * 0.90);
@@ -127,14 +126,14 @@ export async function handleAcceptOffer(
         payment_method: stripePaymentMethodId,
         confirm: true,
         off_session: true,
-        capture_method: 'manual', // Authorize only - capture in confirm-delivery
+        capture_method: 'automatic', // Capture immediately - fails if insufficient funds
         metadata: {
           rideId: result._id.toString(),
           platformFee: platformFee.toString(),
           driverAmount: driverAmount.toString(),
         },
       }, {
-        idempotencyKey: `ride:${result._id}:authorize`,
+        idempotencyKey: `ride:${result._id}:capture`,
       });
 
       paymentIntentId = paymentIntent.id;
@@ -171,7 +170,7 @@ export async function handleAcceptOffer(
 
       throw new McpError(
         'PAYMENT_ERROR',
-        'Error al procesar el pago. Tu método de pago pudo haber sido rechazado. Por favor verifica tu tarjeta e intenta nuevamente.',
+        'No se pudo procesar el pago. Fondos insuficientes o método de pago inválido.',
         402
       );
     }

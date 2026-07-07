@@ -323,7 +323,7 @@ messages.post('/accept-price', authMiddleware, async (c) => {
     { new: true }
   )
 
-  // NEW: Charge the client (authorize but don't capture - capture happens in confirm-delivery)
+  // NEW: Charge the client (capture immediately - transfer happens at confirm-delivery)
   try {
     const driver = await Driver.findOne({ userId: driverId })
     const chargeResult = await chargeClient(rideId, contact.proposedPrice, driver?.stripeAccountId)
@@ -343,7 +343,7 @@ messages.post('/accept-price', authMiddleware, async (c) => {
     }
   } catch (chargeError: any) {
     // Revert: remove driver assignment and set status back to 'requested'
-    console.error(`Error charging client for ride ${rideId}: ${chargeError.message}`)
+    console.error(`Error capturing payment for ride ${rideId}: ${chargeError.message}`)
 
     await Ride.findByIdAndUpdate(rideId, {
       status: 'requested',
@@ -353,7 +353,7 @@ messages.post('/accept-price', authMiddleware, async (c) => {
     })
 
     return c.json({
-      error: 'No se pudo autorizar el pago',
+      error: 'No se pudo procesar el pago. Fondos insuficientes o método de pago inválido.',
       details: chargeError.message,
     }, 402)
   }
@@ -407,7 +407,7 @@ messages.post('/accept-price', authMiddleware, async (c) => {
 
   return c.json({
     success: true,
-    message: 'Propuesta aceptada y pago autorizado',
+    message: 'Propuesta aceptada y pago capturado',
     paymentIntentId: updatedRide.paymentIntentId,
     platformFee: updatedRide.platformFee,
     driverAmount: updatedRide.driverAmount,
