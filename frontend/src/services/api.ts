@@ -461,6 +461,14 @@ export const ratingsAPI = {
   },
 }
 
+export const reportsAPI = {
+  create: (data: { reportedId: string; reportedRole: string; rideId?: string; comment: string }, token?: string) =>
+    fetchAPI<{ success: boolean; message: string; report: any }>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+}
+
 export const paymentsAPI = {
   createSetupIntent: (token?: string) =>
     fetchAPI<{ clientSecret: string; setupIntentId: string; stripeCustomerId: string }>(

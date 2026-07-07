@@ -147,3 +147,15 @@ export interface PaginatedResponse<T> {
     pages: number
   }
 }
+
+export interface Report {
+  _id: string
+  reporterId: string
+  reportedId: string
+  reportedRole: 'client' | 'driver'
+  rideId?: string
+  comment: string
+  status: 'pending' | 'in_review' | 'resolved'
+  createdAt: string
+  updatedAt: string
+}
