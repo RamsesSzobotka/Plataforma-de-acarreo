@@ -23,9 +23,19 @@ export function NotificationBadgeProvider({ children }: { children: ReactNode })
     } catch { /* silent */ }
   }, [isSignedIn, getToken])
 
-  // Listen for new notifications via WebSocket
+  // Connect WebSocket and listen for new notifications
   useEffect(() => {
-    if (!isSignedIn) return
+    if (!isLoaded || !isSignedIn) return
+
+    let cancelled = false
+
+    async function connectWs() {
+      const token = await getToken()
+      if (!token || cancelled) return
+      userWsService.connect(token)
+    }
+
+    connectWs()
 
     const unsubscribe = userWsService.onMessage((data) => {
       if (data.type === 'new_notification') {
@@ -33,8 +43,12 @@ export function NotificationBadgeProvider({ children }: { children: ReactNode })
       }
     })
 
-    return unsubscribe
-  }, [isSignedIn])
+    return () => {
+      cancelled = true
+      userWsService.disconnect()
+      unsubscribe()
+    }
+  }, [isLoaded, isSignedIn, getToken])
 
   // Fetch on mount
   useEffect(() => {
