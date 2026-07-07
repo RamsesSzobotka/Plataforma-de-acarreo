@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
-import { ridesAPI, usersAPI, ratingsAPI } from '../services/api'
+import { ridesAPI, usersAPI, ratingsAPI, reportsAPI } from '../services/api'
 import { wsService } from '../services/api'
 import { StatusBadge } from '../components/StatusBadge'
 import { TimelineStepper } from '../components/TimelineStepper'
@@ -10,6 +10,7 @@ import type { DriverContact, RatingWithRater } from '../types'
 import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
+import Swal from 'sweetalert2'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
 import DriverProfilePopup from '../components/DriverProfilePopup'
@@ -56,6 +57,8 @@ function RideDetails() {
   const [driverComment, setDriverComment] = useState('')
   const [driverExistingRating, setDriverExistingRating] = useState<RatingWithRater | null>(null)
   const [driverHasRated, setDriverHasRated] = useState(false)
+  const [hasReportedDriver, setHasReportedDriver] = useState(false)
+  const [hasReportedClient, setHasReportedClient] = useState(false)
 
   // ── Tracking en vivo del conductor ──
   const { driverLocation, isTracking } = useRideTracking({
@@ -391,6 +394,110 @@ function RideDetails() {
     }
   }
 
+  async function handleReportDriver() {
+    const token = await getToken()
+    if (!token || !ride?.driverId) return
+
+    const { value: comment } = await Swal.fire({
+      title: 'Reportar Conductor',
+      text: 'Describe el motivo del reporte (mín. 10 caracteres)',
+      input: 'textarea',
+      inputPlaceholder: 'Escribe aquí el motivo...',
+      inputAttributes: { 'aria-label': 'Motivo del reporte' },
+      showCancelButton: true,
+      confirmButtonText: 'Enviar Reporte',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      focusCancel: true,
+      inputValidator: (value: string) => {
+        if (!value || value.trim().length < 10) {
+          return 'El comentario debe tener al menos 10 caracteres'
+        }
+      },
+      showLoaderOnConfirm: true,
+      preConfirm: async (comment: string) => {
+        try {
+          const token = await getToken()
+          await reportsAPI.create({
+            reportedId: ride!.driverId!,
+            reportedRole: 'driver',
+            rideId: ride!._id,
+            comment: comment.trim(),
+          }, token ?? undefined)
+          return true
+        } catch (err: any) {
+          Swal.showValidationMessage(err.message || 'Error al enviar reporte')
+          return false
+        }
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    })
+
+    if (comment) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reporte Enviado',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisará pronto.',
+        confirmButtonColor: '#0D9488',
+      })
+      setHasReportedDriver(true)
+    }
+  }
+
+  async function handleReportClient() {
+    const token = await getToken()
+    if (!token || !ride?.clientId) return
+
+    const { value: comment } = await Swal.fire({
+      title: 'Reportar Cliente',
+      text: 'Describe el motivo del reporte (mín. 10 caracteres)',
+      input: 'textarea',
+      inputPlaceholder: 'Escribe aquí el motivo...',
+      inputAttributes: { 'aria-label': 'Motivo del reporte' },
+      showCancelButton: true,
+      confirmButtonText: 'Enviar Reporte',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      focusCancel: true,
+      inputValidator: (value: string) => {
+        if (!value || value.trim().length < 10) {
+          return 'El comentario debe tener al menos 10 caracteres'
+        }
+      },
+      showLoaderOnConfirm: true,
+      preConfirm: async (comment: string) => {
+        try {
+          const token = await getToken()
+          await reportsAPI.create({
+            reportedId: ride!.clientId,
+            reportedRole: 'client',
+            rideId: ride!._id,
+            comment: comment.trim(),
+          }, token ?? undefined)
+          return true
+        } catch (err: any) {
+          Swal.showValidationMessage(err.message || 'Error al enviar reporte')
+          return false
+        }
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    })
+
+    if (comment) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reporte Enviado',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisará pronto.',
+        confirmButtonColor: '#0D9488',
+      })
+      setHasReportedClient(true)
+    }
+  }
+
   const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
     const driverData = {
       clerkId: contact.driverId,
@@ -528,6 +635,27 @@ function RideDetails() {
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 {ride.description}
               </p>
+              {ride.driverId === user?.id && !hasReportedClient && (
+                <button
+                  onClick={handleReportClient}
+                  title="Reportar cliente"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#64748B',
+                    padding: '4px',
+                    marginTop: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>flag</span>
+                  Reportar cliente
+                </button>
+              )}
             </div>
           </div>
 
@@ -992,6 +1120,23 @@ function RideDetails() {
                   }}>
                     {driverUser.firstName} {driverUser.lastName}
                   </div>
+                  {ride.clientId === user?.id && ride.driverId && !hasReportedDriver && (
+                    <button
+                      onClick={handleReportDriver}
+                      title="Reportar conductor"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#64748B',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>flag</span>
+                    </button>
+                  )}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',

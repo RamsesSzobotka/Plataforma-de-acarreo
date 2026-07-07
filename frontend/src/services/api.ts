@@ -1,4 +1,4 @@
-import type { Ride, Message, PaginatedResponse, RatingWithRater } from '../types'
+import type { Ride, Message, PaginatedResponse, RatingWithRater, AppNotification } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -459,6 +459,33 @@ export const ratingsAPI = {
       token
     )
   },
+}
+
+export const reportsAPI = {
+  create: (data: { reportedId: string; reportedRole: string; rideId?: string; comment: string }, token?: string) =>
+    fetchAPI<{ success: boolean; message: string; report: any }>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+}
+
+export const notificationsAPI = {
+  list: (params?: { page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<AppNotification>>(`/api/notifications${query ? `?${query}` : ''}`, {}, token)
+  },
+
+  unreadCount: (token?: string) =>
+    fetchAPI<{ count: number }>('/api/notifications/unread-count', {}, token),
+
+  markRead: (id: string, token?: string) =>
+    fetchAPI<AppNotification>(`/api/notifications/${id}/read`, { method: 'PATCH' }, token),
+
+  markAllRead: (token?: string) =>
+    fetchAPI<{ success: boolean }>('/api/notifications/read-all', { method: 'PATCH' }, token),
 }
 
 export const paymentsAPI = {

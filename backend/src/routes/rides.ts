@@ -9,6 +9,7 @@ import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
 import { getDriverLocation } from '../services/redis'
 import { createRatingAndUpdateAverage } from '../services/rating'
+import { createNotification } from '../services/notificationService'
 
 /**
  * Intenta realizar el cobro automático con el marketplace charge.
@@ -442,6 +443,16 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
       timestamp: new Date().toISOString(),
     },
   })
+
+  // Notify client that a driver accepted their ride
+  createNotification(
+    ride.clientId,
+    'ride_status',
+    'Conductor asignado',
+    `Un conductor acepto tu pedido "${ride.title}"`,
+    `/ride/${ride._id}`,
+    { rideId: ride._id.toString() }
+  )
 
   return c.json(ride)
 })

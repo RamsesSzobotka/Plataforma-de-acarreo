@@ -147,3 +147,27 @@ export interface PaginatedResponse<T> {
     pages: number
   }
 }
+
+export interface Report {
+  _id: string
+  reporterId: string
+  reportedId: string
+  reportedRole: 'client' | 'driver'
+  rideId?: string
+  comment: string
+  status: 'pending' | 'in_review' | 'resolved'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AppNotification {
+  _id: string
+  userId: string
+  type: 'report_response' | 'ride_message' | 'offer_accepted' | 'offer_received' | 'ride_status'
+  title: string
+  body: string
+  read: boolean
+  link?: string
+  metadata?: { rideId?: string; reportId?: string; offerId?: string }
+  createdAt: string
+}

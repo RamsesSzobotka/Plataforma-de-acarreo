@@ -7,6 +7,7 @@ const navItems = [
   { to: '/users', label: 'Usuarios', icon: 'group' },
   { to: '/drivers', label: 'Conductores', icon: 'local_shipping' },
   { to: '/rides', label: 'Pedidos', icon: 'inventory_2' },
+  { to: '/user/reports', label: 'Reportes', icon: 'flag' },
 ]
 
 export default function Layout() {

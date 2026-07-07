@@ -3,6 +3,7 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
 import { logAudit } from '../services/audit'
+import { createNotification } from '../services/notificationService'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
 interface ClerkProfile {
@@ -1089,6 +1090,111 @@ admin.delete('/rides/:id', async (c) => {
   })
 
   return c.json({ success: true, message: 'Ride eliminado' })
+})
+
+// === GESTIÓN DE REPORTES ===
+
+// Listar reportes
+admin.get('/reports', async (c) => {
+  const status = c.req.query('status')
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = parseInt(c.req.query('limit') || '20')
+
+  const query: any = {}
+  if (status && status !== 'todos') query.status = status
+
+  const skip = (page - 1) * limit
+
+  const { Report } = await import('../models/report')
+
+  const [reports, total] = await Promise.all([
+    Report.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Report.countDocuments(query),
+  ])
+
+  const allClerkIds = [...new Set([
+    ...reports.map((r: any) => r.reporterId).filter(Boolean),
+    ...reports.map((r: any) => r.reportedId).filter(Boolean),
+  ])]
+
+  let clerkProfiles = new Map<string, any>()
+  if (allClerkIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(allClerkIds)
+  }
+
+  const enrichedReports = reports.map((report: any) => {
+    const reporterData = clerkProfiles.get(report.reporterId)
+    const reportedData = clerkProfiles.get(report.reportedId)
+    return {
+      ...report.toObject(),
+      reporter: reporterData ? {
+        firstName: reporterData.firstName,
+        lastName: reporterData.lastName,
+        imageUrl: reporterData.imageUrl,
+        email: reporterData.email,
+      } : null,
+      reported: reportedData ? {
+        firstName: reportedData.firstName,
+        lastName: reportedData.lastName,
+        imageUrl: reportedData.imageUrl,
+        email: reportedData.email,
+      } : null,
+    }
+  })
+
+  return c.json({
+    data: enrichedReports,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  })
+})
+
+// Actualizar estado de reporte
+admin.patch('/reports/:id/status', async (c) => {
+  const id = c.req.param('id')
+  const { status } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
+
+  const validStatuses = ['pending', 'in_review', 'resolved']
+  if (!status || !validStatuses.includes(status)) {
+    return c.json({ error: `Status debe ser uno de: ${validStatuses.join(', ')}` }, 400)
+  }
+
+  const { Report } = await import('../models/report')
+  const report = await Report.findByIdAndUpdate(
+    id,
+    { status, updatedAt: new Date() },
+    { new: true }
+  )
+
+  if (!report) {
+    return c.json({ error: 'Reporte no encontrado' }, 404)
+  }
+
+  await logAudit({
+    action: 'admin.report_status',
+    entityType: 'report',
+    entityId: id,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    details: { to: status },
+    ip,
+    userAgent,
+  })
+
+  if (status === 'resolved' && report) {
+    await createNotification(
+      report.reporterId,
+      'report_response',
+      'Respuesta a tu reporte',
+      'Tu reporte ha sido revisado y resuelto por el equipo de Carglyn.',
+      undefined,
+      { reportId: id }
+    )
+  }
+
+  return c.json(report)
 })
 
 export default admin

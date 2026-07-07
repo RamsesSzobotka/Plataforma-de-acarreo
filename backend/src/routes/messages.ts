@@ -4,6 +4,7 @@ import { Ride } from '../models/ride'
 import { DriverContact } from '../models/driverContact'
 import { broadcastToRide } from '../services/websocket'
 import { authMiddleware } from '../middleware/auth'
+import { createNotification } from '../services/notificationService'
 
 const messages = new Hono()
 
@@ -106,6 +107,16 @@ messages.post('/', authMiddleware, async (c) => {
       data: message
     })
 
+    // Notify client about new message from a driver
+    createNotification(
+      ride.clientId,
+      'ride_message',
+      'Nuevo mensaje en tu publicacion',
+      `Recibiste un mensaje de un conductor interesado en "${ride.title}"`,
+      `/ride/${rideId}`,
+      { rideId }
+    )
+
     return c.json(message, 201)
   }
 
@@ -125,6 +136,18 @@ messages.post('/', authMiddleware, async (c) => {
         data: message
       })
 
+      // Notify driver about new message from client
+      if (ride.driverId) {
+        createNotification(
+          ride.driverId,
+          'ride_message',
+          'Nuevo mensaje de tu cliente',
+          `Recibiste un mensaje en "${ride.title}"`,
+          `/chat/${rideId}`,
+          { rideId }
+        )
+      }
+
       return c.json(message, 201)
     }
 
@@ -137,6 +160,16 @@ messages.post('/', authMiddleware, async (c) => {
         type: 'new_message',
         data: message
       })
+
+      // Notify client about new message from driver
+      createNotification(
+        ride.clientId,
+        'ride_message',
+        'Nuevo mensaje de tu conductor',
+        `Tu conductor te envio un mensaje en "${ride.title}"`,
+        `/chat/${rideId}`,
+        { rideId }
+      )
 
       return c.json(message, 201)
     }
@@ -324,6 +357,16 @@ messages.post('/accept-price', authMiddleware, async (c) => {
       ride: updatedRide
     }
   })
+
+  // Notify driver that their offer was accepted
+  createNotification(
+    driverId,
+    'offer_accepted',
+    'Oferta aceptada',
+    `Tu oferta de $${contact.proposedPrice} fue aceptada en "${ride.title}"`,
+    `/ride/${rideId}`,
+    { rideId }
+  )
 
   return c.json({
     success: true,

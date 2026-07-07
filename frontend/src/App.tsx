@@ -16,7 +16,9 @@ import AddPaymentMethodPage from './pages/AddPaymentMethod'
 import PaymentHistory from './pages/PaymentHistory'
 import SettingsMcp from './pages/SettingsMcp'
 import DriverPublicProfile from './pages/DriverPublicProfile'
+import Notifications from './pages/Notifications'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+import { NotificationBadgeProvider } from './contexts/NotificationBadgeContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import PageTransition from './components/PageTransition'
 import { hideLoading, showLoading } from './services/alerts'
@@ -86,7 +88,9 @@ function App() {
       {/* Rutas protegidas con Layout */}
       <Route path="/" element={
         <NotificationsProvider>
-          <Layout />
+          <NotificationBadgeProvider>
+            <Layout />
+          </NotificationBadgeProvider>
         </NotificationsProvider>
       }>
         <Route index element={<Home />} />
@@ -156,6 +160,13 @@ function App() {
           </ProtectedRoute>
         } />
         
+        {/* Notifications */}
+        <Route path="notifications" element={
+          <ProtectedRoute>
+            <Notifications />
+          </ProtectedRoute>
+        } />
+
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

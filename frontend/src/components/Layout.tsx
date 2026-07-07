@@ -3,12 +3,14 @@ import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher'
+import { useNotificationBadge } from '../contexts/NotificationBadgeContext'
 
 function Layout() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const { t } = useTranslation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { unreadCount } = useNotificationBadge()
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -139,6 +141,55 @@ function Layout() {
                 </Link>
 
                 <LanguageSwitcher />
+
+                {/* Notifications Bell */}
+                <Link
+                  to="/notifications"
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '40px',
+                    height: '40px',
+                    textDecoration: 'none',
+                    color: 'var(--text-secondary)',
+                    borderRadius: '50%',
+                    transition: 'all var(--duration-fast) var(--ease-out)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.375rem' }}>notifications</span>
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      minWidth: '16px',
+                      height: '16px',
+                      borderRadius: '8px',
+                      background: 'var(--error)',
+                      color: '#fff',
+                      fontSize: '0.625rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 4px',
+                      lineHeight: 1,
+                      boxShadow: '0 0 0 2px var(--surface-0)',
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
 
                 {/* User Button */}
                 <div style={{
@@ -381,6 +432,47 @@ function Layout() {
               <div style={{ marginBottom: 'var(--space-3)' }}>
                 <LanguageSwitcher />
               </div>
+              <Link
+                to="/notifications"
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-medium)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  borderRadius: 'var(--radius)',
+                  transition: 'all var(--duration-fast) var(--ease-out)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>notifications</span>
+                Notificaciones
+                {unreadCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: 'var(--error)',
+                    color: '#fff',
+                    borderRadius: '999px',
+                    padding: '0.125rem 0.5rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </Link>
               <UserButton
                 afterSignOutUrl="/"
                 appearance={{

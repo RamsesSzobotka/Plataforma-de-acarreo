@@ -80,4 +80,12 @@ export const api = {
     request(`/rides/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   deleteRide: (id: string) =>
     request(`/rides/${id}`, { method: 'DELETE' }),
+
+  // Reports
+  getReports: (params?: { status?: string; page?: number }) => {
+    const query = new URLSearchParams(params as any).toString()
+    return request(`/reports${query ? `?${query}` : ''}`)
+  },
+  updateReportStatus: (id: string, status: string) =>
+    request(`/reports/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 }
