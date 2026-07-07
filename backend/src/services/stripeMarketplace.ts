@@ -207,6 +207,65 @@ export async function createAuthorizedPaymentIntent(rideId: string, amountInCent
   return { paymentIntent, platformFee, driverAmount }
 }
 
+// Create an authorized charge when driver accepts a ride
+// Returns the authorized PaymentIntent ID and fee breakdown
+// This is called at accept time; capture happens at confirm-delivery
+export async function createAuthorizedCharge(rideId: string) {
+  const ride = await Ride.findById(rideId)
+  if (!ride) {
+    throw new MarketplaceStripeError('Ride not found', 404)
+  }
+
+  if (!ride.driverId) {
+    throw new MarketplaceStripeError('Ride has no driver assigned', 400)
+  }
+
+  if (!ride.finalPrice) {
+    throw new MarketplaceStripeError('Ride has no final price agreed', 400)
+  }
+
+  const client = await User.findOne({ clerkId: ride.clientId })
+  if (!client) {
+    throw new MarketplaceStripeError('Client not found', 404)
+  }
+
+  const driver = await Driver.findOne({ userId: ride.driverId })
+  if (!driver) {
+    throw new MarketplaceStripeError('Driver not found', 404)
+  }
+
+  if (!driver.stripeAccountId) {
+    throw new MarketplaceStripeError('Driver has no Stripe Connect account', 400)
+  }
+
+  // Get payment method from client profile
+  const paymentMethodId = client.paymentMethodId || client.stripePaymentMethodId || ride.stripePaymentMethodId
+  if (!paymentMethodId) {
+    throw new MarketplaceStripeError('Client has no payment method saved', 400)
+  }
+
+  const customerId = await ensureStripeCustomer(client)
+  await ensurePaymentMethodAttached(paymentMethodId, customerId)
+
+  const amountInCents = Math.round(ride.finalPrice * 100)
+  const { paymentIntent, platformFee, driverAmount } = await createAuthorizedPaymentIntent(
+    rideId,
+    amountInCents,
+    paymentMethodId,
+    customerId
+  )
+
+  await Ride.findByIdAndUpdate(rideId, {
+    paymentIntentId: paymentIntent.id,
+    platformFee,
+    driverAmount,
+    stripePaymentMethodId: paymentMethodId,
+    updatedAt: new Date(),
+  })
+
+  return { paymentIntentId: paymentIntent.id, platformFee, driverAmount }
+}
+
 // Transfer funds to driver (90% of the amount)
 export async function transferToDriver(
   driverStripeAccountId: string,

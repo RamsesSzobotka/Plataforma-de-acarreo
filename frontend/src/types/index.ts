@@ -20,6 +20,7 @@ export interface Ride {
   cancellationReason?: string
   stripePaymentMethodId?: string
   paymentIntentId?: string
+  transferId?: string
   platformFee?: number
   driverAmount?: number
   paidAt?: string

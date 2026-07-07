@@ -3,7 +3,7 @@ import { Ride } from '../models/ride'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
-import { createMarketplaceCharge, MarketplaceStripeError, capturePaymentIntent, transferToDriver, refundPayment } from '../services/stripeMarketplace'
+import { createMarketplaceCharge, MarketplaceStripeError, capturePaymentIntent, transferToDriver, refundPayment, createAuthorizedPaymentIntent, createAuthorizedCharge } from '../services/stripeMarketplace'
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
@@ -419,19 +419,11 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { isActive: false }
   )
 
-  // NEW: Charge client immediately when offer is accepted
-  // If charge fails, revert the acceptance
+  // NEW: Authorize payment when driver accepts (capture happens at confirm-delivery)
+  // If authorization fails, revert the acceptance
   if (!ride.paymentIntentId) {
     try {
-      const driver = await Driver.findOne({ userId: ride.driverId })
-      const chargeResult = await chargeClient(ride._id.toString(), ride.finalPrice, driver?.stripeAccountId)
-      
-      await Ride.findByIdAndUpdate(ride._id, {
-        paymentIntentId: chargeResult.paymentIntentId,
-        chargedAt: new Date(),
-        platformFee: Math.round(ride.finalPrice * 0.10 * 100),
-        driverAmount: Math.round(ride.finalPrice * 0.90 * 100),
-      })
+      const chargeResult = await createAuthorizedCharge(ride._id.toString())
       
       // Refresh ride with payment info
       const updatedRide = await Ride.findById(ride._id)
@@ -440,7 +432,7 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
       }
     } catch (chargeError: any) {
       // Revert: remove driver assignment and set status back
-      console.error(`Error charging client for ride ${ride._id}: ${chargeError.message}`)
+      console.error(`Error authorizing payment for ride ${ride._id}: ${chargeError.message}`)
       
       await Ride.findByIdAndUpdate(ride._id, {
         driverId: undefined,

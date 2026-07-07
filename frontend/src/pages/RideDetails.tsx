@@ -254,10 +254,14 @@ function RideDetails() {
   }, [id])
 
   async function handleCancel() {
-    if (!id) return
+    if (!id || !ride) return
+    // When payment is authorized, show refund message
+    const cancelText = hasAuthorizedPayment
+      ? t('ride.detail.cancelConfirmTextWithRefund', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })
+      : t('ride.detail.cancelConfirmText')
     const confirmed = await showConfirm({
       title: t('ride.detail.cancelConfirmTitle'),
-      text: t('ride.detail.cancelConfirmText'),
+      text: cancelText,
       icon: 'warning',
       confirmText: t('ride.detail.cancelConfirmBtn')
     })
@@ -275,13 +279,15 @@ function RideDetails() {
   async function handleConfirmDelivery() {
     if (!user || !ride || !id) return
 
+    const amount = ride.finalPrice || ride.estimatedPrice
     const confirmMessage = userHasPaymentMethod
-      ? t('ride.detail.confirmDeliveryWithPayment')
+      ? t('ride.detail.confirmDeliveryWithPayment', { amount: amount.toLocaleString() })
       : t('ride.detail.confirmDeliveryWithoutPayment')
 
     const confirmed = await showConfirm({
       title: t('ride.detail.confirmDelivery'),
-      text: confirmMessage
+      text: confirmMessage,
+      showLoaderOnConfirm: true, // Show loading spinner during API call
     })
 
     if (!confirmed) return
@@ -527,7 +533,14 @@ function RideDetails() {
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
   const isOwner = isClientOwner
-  const canClientCancel = isClientOwner && ride.status === 'requested'
+
+  // Client can cancel if: owner AND (requested OR negotiating OR (accepted with paymentIntent but no transfer yet))
+  const clientCancelStatuses = ['requested', 'negotiating']
+  const hasAuthorizedPayment = !!(ride.paymentIntentId && !ride.transferId)
+  const canClientCancel = isClientOwner && (
+    clientCancelStatuses.includes(ride.status) ||
+    (ride.status === 'accepted' && hasAuthorizedPayment)
+  )
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
 
   const unreadCount = unreadCounts[ride._id] || 0
@@ -1414,6 +1427,48 @@ function RideDetails() {
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>done</span>
                   {t('ride.detail.negotiatedPrice')}
+                </div>
+              )}
+
+              {/* Payment status messages */}
+              {hasAuthorizedPayment && !ride.paidAt && (
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--info-subtle)',
+                  borderRadius: 'var(--radius)',
+                  display: 'flex',
+                  gap: 'var(--space-2)',
+                  alignItems: 'center',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--info)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
+                    lock
+                  </span>
+                  <span>
+                    {t('ride.detail.paymentAuthorized', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
+                  </span>
+                </div>
+              )}
+              {ride.transferId && (
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  display: 'flex',
+                  gap: 'var(--space-2)',
+                  alignItems: 'center',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
+                    check_circle
+                  </span>
+                  <span>
+                    {t('ride.detail.paymentTransferred')}
+                  </span>
                 </div>
               )}
             </div>
