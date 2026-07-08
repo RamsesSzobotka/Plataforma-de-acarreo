@@ -64,7 +64,7 @@ describe('POST /api/rides/:id/cancel', () => {
     expect(body.error).toBeDefined();
   });
 
-  it('driver can cancel ride in accepted status', async () => {
+  it('driver can cancel ride in accepted status (unassign)', async () => {
     mockClerkId = 'cancel_driver_1';
     await createTestUser('cancel_driver_1', 'driver');
     await createTestDriver('cancel_driver_1');
@@ -81,7 +81,9 @@ describe('POST /api/rides/:id/cancel', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.status).toBe('cancelled');
+    // Driver unassign: ride goes back to 'requested', driverId is removed
+    expect(body.status).toBe('requested');
+    expect(body.driverId).toBeUndefined();
   });
 
   it('driver CANNOT cancel ride in requested status (no driver assigned)', async () => {
