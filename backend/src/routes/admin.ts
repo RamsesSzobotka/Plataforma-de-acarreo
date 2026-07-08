@@ -794,6 +794,54 @@ admin.post('/drivers/:userId/suspend', async (c) => {
   })
 })
 
+// Quitar suspensión de driver
+admin.post('/drivers/:userId/unsuspend', async (c) => {
+  const userId = c.req.param('userId')
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
+
+  const driver = await Driver.findOneAndUpdate(
+    { userId },
+    {
+      verificationStatus: 'verified',
+      rejectionReason: '',
+      isAvailable: true,
+      updatedAt: new Date(),
+    },
+    { new: true }
+  )
+
+  if (!driver) {
+    return c.json({ error: 'Driver no encontrado' }, 404)
+  }
+
+  await logAudit({
+    action: 'admin.driver_unsuspend',
+    entityType: 'driver',
+    entityId: userId,
+    userId: adminUser?.clerkId || null,
+    userRole: 'admin',
+    ip,
+    userAgent,
+  })
+
+  // Notify the driver
+  await createNotification(
+    userId,
+    'account_unsuspended',
+    'Cuenta reactivada',
+    'Tu cuenta ha sido reactivada por el administrador. Ya puedes aceptar pedidos.',
+    undefined,
+    {}
+  )
+
+  return c.json({
+    success: true,
+    driver: { userId: driver.userId, verificationStatus: driver.verificationStatus },
+  })
+})
+
 // Actualizar driver
 admin.patch('/drivers/:userId', async (c) => {
   const userId = c.req.param('userId')

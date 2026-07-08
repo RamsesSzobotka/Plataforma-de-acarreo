@@ -61,6 +61,8 @@ export const api = {
     request(`/drivers/${userId}/review`, { method: 'POST' }),
   suspendDriver: (userId: string, reason?: string) =>
     request(`/drivers/${userId}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  unsuspendDriver: (userId: string) =>
+    request(`/drivers/${userId}/unsuspend`, { method: 'POST' }),
   suspendClient: (clerkId: string, reason?: string) =>
     request(`/users/${clerkId}`, { method: 'PATCH', body: JSON.stringify({ isActive: false, reason }) }),
   updateDriver: (userId: string, data: any) =>
