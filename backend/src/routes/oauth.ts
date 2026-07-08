@@ -98,7 +98,7 @@ function toolGroup(name: string): { key: ToolGroupKey; label: string; icon: stri
     view_offers: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'request_quote', note: 'Flujo principal del cliente.' },
     accept_offer: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'handshake', note: 'Flujo principal del cliente.' },
     confirm_delivery: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'check_circle', note: 'Flujo principal del cliente.' },
-    cancel_ride: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'cancel', note: 'Flujo principal del cliente.' },
+    cancel_ride: { key: 'shared', label: 'Comunicación y consulta', icon: 'cancel', note: 'Cliente cancela con reembolso; conductor se retira y la publicación vuelve a solicitada.' },
     rate_service: { key: 'client', label: 'Pedidos y confirmaciones', icon: 'star', note: 'Flujo principal del cliente.' },
     get_public_driver_profile: { key: 'shared', label: 'Comunicación y consulta', icon: 'person_search', note: 'Información pública y validación.' },
     send_message: { key: 'shared', label: 'Comunicación y consulta', icon: 'chat', note: 'Negociación en tiempo real.' },
@@ -114,7 +114,7 @@ function toolGroup(name: string): { key: ToolGroupKey; label: string; icon: stri
 }
 
 function toolAudience(name: string): string {
-  if (name === 'get_public_driver_profile' || name === 'send_message' || name === 'list_my_rides') return 'Compartida'
+  if (name === 'get_public_driver_profile' || name === 'send_message' || name === 'list_my_rides' || name === 'cancel_ride') return 'Compartida'
   if (name.startsWith('list_available') || name.startsWith('propose_') || name.startsWith('start_') || name.startsWith('upload_') || name.startsWith('get_payment') || name === 'get_driver_profile') return 'Conductor'
   return 'Cliente'
 }

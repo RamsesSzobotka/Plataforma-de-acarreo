@@ -255,7 +255,28 @@ function RideDetails() {
 
   async function handleCancel() {
     if (!id || !ride) return
-    // When payment is authorized, show refund message
+    const isDriver = user?.id === ride.driverId
+
+    if (isDriver) {
+      // Driver unassign: no refund, vuelve a requested
+      const confirmed = await showConfirm({
+        title: '¿Retirarte de este acarreo?',
+        text: 'Tu oferta será cancelada y la publicación volverá a estar disponible para otros conductores.',
+        icon: 'warning',
+        confirmText: 'Sí, retirarme'
+      })
+      if (!confirmed) return
+
+      try {
+        const token = await getToken()
+        await ridesAPI.cancel(id, 'Conductor se retiró', token || undefined)
+        loadRide()
+      } catch {
+      }
+      return
+    }
+
+    // Client cancel: con refund si aplica
     const cancelText = hasAuthorizedPayment
       ? t('ride.detail.cancelConfirmTextWithRefund', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })
       : t('ride.detail.cancelConfirmText')
@@ -408,7 +429,7 @@ function RideDetails() {
       input: 'radio',
       inputOptions: {
         illicit_actions: '⚠️ Comportamiento inapropiado',
-        ...(ride?.paymentIntentId ? { payment_dispute: '💰 Disputa de pago' } : {}),
+        ...(ride?.paymentIntentId && ride?.driverId ? { payment_dispute: '💰 Disputa de pago' } : {}),
         other: '📋 Otro',
       },
       inputValidator: (value: string) => {
@@ -482,7 +503,7 @@ function RideDetails() {
       input: 'radio',
       inputOptions: {
         illicit_actions: '⚠️ Comportamiento inapropiado',
-        ...(ride?.paymentIntentId ? { payment_dispute: '💰 Disputa de pago' } : {}),
+        ...(ride?.paymentIntentId && ride?.driverId ? { payment_dispute: '💰 Disputa de pago' } : {}),
         other: '📋 Otro',
       },
       inputValidator: (value: string) => {
@@ -691,7 +712,7 @@ function RideDetails() {
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 {ride.description}
               </p>
-              {ride.driverId === user?.id && !hasReportedClient && (
+              {user?.id && user?.id !== ride.clientId && !hasReportedClient && (
                 <button
                   onClick={handleReportClient}
                   title="Reportar cliente"

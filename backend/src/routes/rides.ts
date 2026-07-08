@@ -1,5 +1,6 @@
 import { Hono } from 'hono/tiny'
 import { Ride } from '../models/ride'
+import { Offer } from '../models/offer'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
@@ -723,16 +724,6 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     return c.json({ error: 'Ride no encontrado' }, 404)
   }
 
-  // Usar la máquina de estados centralizada (pasar info de si hay pago para permitir cancelacion con refund)
-  const hasPaymentIntent = !!(ride.paymentIntentId && !ride.transferId)
-  const cancelCheck = canCancel(ride.status, currentUser.role, hasPaymentIntent)
-  if (!cancelCheck.allowed) {
-    return c.json({
-      error: cancelCheck.reason,
-      currentStatus: ride.status,
-    }, 403)
-  }
-
   // Ownership checks
   if (currentUser.role === 'client' && ride.clientId !== currentUser.clerkId) {
     return c.json({ error: 'No tienes permiso para cancelar este pedido' }, 403)
@@ -742,6 +733,64 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
   }
 
   const oldStatus = ride.status
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+
+  // --- DRIVER UNASSIGN: solo en accepted, vuelve a requested sin refund ---
+  if (currentUser.role === 'driver' && ride.status === 'accepted') {
+    const updatedRide = await Ride.findByIdAndUpdate(id, {
+      $set: {
+        status: 'requested',
+        chatEnabled: false,
+        updatedAt: new Date(),
+      },
+      $unset: {
+        driverId: '',
+        finalPrice: '',
+      }
+    }, { new: true })
+
+    // Marcar la oferta aceptada del driver como cancelada
+    await Offer.updateOne(
+      { rideId: id, driverId: currentUser.clerkId, status: 'accepted' },
+      { $set: { status: 'cancelled', updatedAt: new Date() } }
+    )
+
+    broadcastToRide(id, {
+      type: 'ride_status_changed',
+      data: {
+        rideId: id,
+        previousStatus: oldStatus,
+        newStatus: 'requested',
+        ride: updatedRide,
+        timestamp: new Date().toISOString(),
+      },
+    })
+
+    await logAudit({
+      action: 'ride.cancelled',
+      entityType: 'ride',
+      entityId: id,
+      userId: currentUser?.clerkId || null,
+      userRole: currentUser?.role,
+      details: { reason: reason || 'Conductor se retiró', type: 'driver_unassign' },
+      ip,
+      userAgent,
+    })
+
+    return c.json(updatedRide)
+  }
+
+  // --- CLIENT CANCEL (o admin): con refund automático si hay pago ---
+  const hasPaymentIntent = !!(ride.paymentIntentId && !ride.transferId)
+  const cancelCheck = canCancel(ride.status, currentUser.role, hasPaymentIntent)
+  if (!cancelCheck.allowed) {
+    return c.json({
+      error: cancelCheck.reason,
+      currentStatus: ride.status,
+    }, 403)
+  }
+
   const role = currentUser.role
 
   // Build base update
@@ -750,7 +799,7 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     cancellationReason: reason || 'Cancelado por usuario',
   }
 
-  // NEW: Automatic refund if ride was charged but not yet transferred
+  // Automatic refund if ride was charged but not yet transferred
   if (ride.paymentIntentId && !ride.transferId) {
     // Ride was charged but not transferred → refund the client
     const refundResult = await refundPayment(
@@ -783,8 +832,6 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     },
   })
 
-  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
-  const userAgent = c.req.header('user-agent') || ''
   await logAudit({
     action: 'ride.cancelled',
     entityType: 'ride',

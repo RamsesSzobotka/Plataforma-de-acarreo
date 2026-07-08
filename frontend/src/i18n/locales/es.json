@@ -590,7 +590,7 @@
   "mcp.tools.view_offers": "Ver ofertas recibidas para un acarreo.",
   "mcp.tools.accept_offer": "Aceptar una oferta de un conductor para un acarreo.",
   "mcp.tools.confirm_delivery": "Confirmar la entrega de un acarreo y cobrar al cliente.",
-  "mcp.tools.cancel_ride": "Cancelar un acarreo en estado requested.",
+  "mcp.tools.cancel_ride": "Cancelar acarreo (cliente) o retirarse como conductor asignado (vuelve a solicitada).",
   "mcp.tools.rate_service": "Calificar el servicio de un acarreo completado (1-5 estrellas).",
   "mcp.tools.get_public_driver_profile": "Obtener el perfil público de un conductor por su ID.",
   "mcp.tools.list_available_rides": "Listar acarreos disponibles para un conductor.",

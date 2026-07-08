@@ -22,6 +22,7 @@ interface Report {
     imageUrl?: string
     role?: string
   }
+  reportedRole: 'client' | 'driver'
   rideId?: string
   paymentStatus: string
   status: string
@@ -606,14 +607,37 @@ export default function Disputes() {
                     </h4>
                     <div className="detail-row">
                       <span className="detail-label">Denunciante</span>
-                      <span className="detail-value">
+                      <span className="detail-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                         <UserDisplay user={selectedReport.reporter} />
+                        {selectedReport.reporter?.clerkId && (
+                          <button
+                            className="action-btn"
+                            onClick={() => navigate(`/users/${selectedReport.reporter.clerkId}`)}
+                            title="Ver perfil del denunciante"
+                            style={{ padding: '0.25rem 0.375rem', minWidth: 0, background: 'rgba(100, 116, 139, 0.1)', color: '#475569', borderRadius: '6px', lineHeight: 1 }}
+                          >
+                            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>person</span>
+                          </button>
+                        )}
                       </span>
                     </div>
                     <div className="detail-row">
                       <span className="detail-label">Denunciado</span>
-                      <span className="detail-value">
+                      <span className="detail-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                         <UserDisplay user={selectedReport.reported} />
+                        {selectedReport.reported?.clerkId && (
+                          <button
+                            className="action-btn"
+                            onClick={() => {
+                              const path = selectedReport.reported.role === 'driver' ? `/drivers/${selectedReport.reported.clerkId}` : `/users/${selectedReport.reported.clerkId}`
+                              navigate(path)
+                            }}
+                            title={`Ver perfil de ${selectedReport.reported.role === 'driver' ? 'conductor' : 'cliente'}`}
+                            style={{ padding: '0.25rem 0.375rem', minWidth: 0, background: 'rgba(100, 116, 139, 0.1)', color: '#475569', borderRadius: '6px', lineHeight: 1 }}
+                          >
+                            <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>person</span>
+                          </button>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -625,14 +649,22 @@ export default function Disputes() {
                     </h4>
                     {selectedReport.rideId ? (
                       <>
-                        <div className="detail-row">
-                          <span className="detail-label">Ride ID</span>
-                          <span className="detail-value" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                            <Link to={`/rides/${selectedReport.rideId}`}>
-                              {selectedReport.rideId}
-                            </Link>
-                          </span>
-                        </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Ride ID</span>
+                      <span className="detail-value" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Link to={`/rides/${selectedReport.rideId}`}>
+                          {selectedReport.rideId}
+                        </Link>
+                        <button
+                          className="action-btn"
+                          onClick={() => navigate(`/rides/${selectedReport.rideId}`)}
+                          title="Ver acarreo"
+                          style={{ padding: '0.25rem 0.375rem', minWidth: 0, background: 'rgba(59, 130, 246, 0.1)', color: '#2563EB', borderRadius: '6px', lineHeight: 1 }}
+                        >
+                          <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>visibility</span>
+                        </button>
+                      </span>
+                    </div>
                         <div className="detail-row">
                           <span className="detail-label">Estado Pago</span>
                           <span
@@ -708,7 +740,7 @@ export default function Disputes() {
                       Resolver sin acción
                     </button>
 
-                    {selectedReport.reported?.role === 'driver' && (
+                    {selectedReport.reportedRole === 'driver' && (
                       <button
                         className="action-btn danger"
                         onClick={handleSuspendDriver}
@@ -721,7 +753,7 @@ export default function Disputes() {
                       </button>
                     )}
 
-                    {selectedReport.reported?.role === 'client' && (
+                    {selectedReport.reportedRole === 'client' && (
                       <button
                         className="action-btn danger"
                         onClick={handleSuspendClient}
@@ -734,7 +766,7 @@ export default function Disputes() {
                       </button>
                     )}
 
-                    {selectedReport.rideId && (
+                    {selectedReport.reportedRole === 'client' && selectedReport.rideId && (
                       <button
                         className="action-btn danger"
                         onClick={handleSuspendRide}
@@ -749,42 +781,6 @@ export default function Disputes() {
                   </div>
                 )}
 
-                {/* Navigation section - always visible */}
-                <div className="modal-footer" style={{ flexWrap: 'wrap', marginTop: (canAct && selectedReport.category === 'payment_dispute') ? '0.5rem' : '0', borderTop: (canAct && selectedReport.category === 'payment_dispute') ? '1px solid var(--border)' : 'none', paddingTop: (canAct && selectedReport.category === 'payment_dispute') ? '0.75rem' : '0' }}>
-                  {selectedReport.rideId && (
-                    <button
-                      className="action-btn"
-                      style={{
-                        background: 'rgba(59, 130, 246, 0.1)',
-                        color: '#2563EB',
-                      }}
-                      onClick={() => navigate(`/rides/${selectedReport.rideId}`)}
-                    >
-                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
-                        visibility
-                      </span>
-                      Ver acarreo
-                    </button>
-                  )}
-                  {selectedReport.reported?.clerkId && (
-                    <button
-                      className="action-btn"
-                      style={{
-                        background: 'rgba(100, 116, 139, 0.1)',
-                        color: '#475569',
-                      }}
-                      onClick={() => {
-                        const path = selectedReport.reported.role === 'driver' ? `/drivers/${selectedReport.reported.clerkId}` : `/users/${selectedReport.reported.clerkId}`;
-                        navigate(path);
-                      }}
-                    >
-                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
-                        person
-                      </span>
-                      Ver perfil de {selectedReport.reported.role === 'driver' ? 'conductor' : 'cliente'}
-                    </button>
-                  )}
-                </div>
               </>
             ) : null}
           </div>

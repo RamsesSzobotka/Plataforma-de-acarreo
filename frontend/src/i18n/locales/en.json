@@ -480,7 +480,7 @@
   "mcp.tokenGeneratedOnce": "Token generated. It is not shown again for security.",
   "mcp.tokenWarning": "⚠️ This token is shown only once. Save it in a secure place.",
   "mcp.tools.accept_offer": "Accept a driver's offer for a ride.",
-  "mcp.tools.cancel_ride": "Cancel a ride in requested state.",
+  "mcp.tools.cancel_ride": "Cancel a ride (client) or withdraw as assigned driver (ride goes back to requested).",
   "mcp.tools.confirm_delivery": "Confirm ride delivery and charge the client.",
   "mcp.tools.create_ride": "Create a new haul request. Requires at least 1 image.",
   "mcp.tools.get_driver_profile": "Get the authenticated driver's profile.",
