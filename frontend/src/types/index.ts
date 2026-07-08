@@ -24,6 +24,9 @@ export interface Ride {
   platformFee?: number
   driverAmount?: number
   paidAt?: string
+  refundId?: string
+  refundedAt?: string
+  refundReason?: string
   createdAt: string
   updatedAt: string
 }
@@ -156,9 +159,26 @@ export interface Report {
   reportedRole: 'client' | 'driver'
   rideId?: string
   comment: string
+  category: 'payment_dispute' | 'illicit_actions' | 'other'
   status: 'pending' | 'in_review' | 'resolved'
+  resolution?: 'refunded' | 'dismissed' | 'warning'
+  resolvedBy?: string
+  resolvedAt?: string
   createdAt: string
   updatedAt: string
+  // Populated fields when fetching single report
+  reporter?: {
+    firstName?: string
+    lastName?: string
+    email?: string
+    imageUrl?: string
+  }
+  reported?: {
+    firstName?: string
+    lastName?: string
+    email?: string
+    imageUrl?: string
+  }
 }
 
 export interface AppNotification {

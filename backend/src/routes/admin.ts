@@ -1066,6 +1066,252 @@ admin.post('/rides/:id/cancel', async (c) => {
   return c.json(ride)
 })
 
+// Reembolsar ride (admin) - POST /api/admin/rides/:id/refund
+admin.post('/rides/:id/refund', async (c) => {
+  const id = c.req.param('id')
+  const { reportId, reason } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
+
+  if (!reason) {
+    return c.json({ error: 'reason es requerido para el reembolso' }, 400)
+  }
+
+  // Get the ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Validate ride has paymentIntentId
+  if (!ride.paymentIntentId) {
+    return c.json({ error: 'Este ride no tiene un pago asociado para reembolsar' }, 400)
+  }
+
+  // Import refundPayment from stripeMarketplace service
+  const { refundPayment } = await import('../services/stripeMarketplace')
+
+  try {
+    // Create Stripe refund
+    const refund = await refundPayment(ride.paymentIntentId, reason)
+
+    // Update ride status and refund info
+    const updatedRide = await Ride.findByIdAndUpdate(
+      id,
+      {
+        status: 'cancelled',
+        refundId: refund.id,
+        refundedAt: new Date(),
+        refundReason: reason,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    )
+
+    // If reportId is provided, update the report as well
+    if (reportId) {
+      const { Report } = await import('../models/report')
+      await Report.findByIdAndUpdate(
+        reportId,
+        {
+          status: 'resolved',
+          resolution: 'refunded',
+          resolvedBy: adminUser?.clerkId || null,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { new: true }
+      )
+    }
+
+    // Audit log
+    await logAudit({
+      action: 'admin.ride_refund',
+      entityType: 'ride',
+      entityId: id,
+      userId: adminUser?.clerkId || null,
+      userRole: 'admin',
+      details: {
+        reason,
+        refundId: refund.id,
+        reportId: reportId || null,
+        paymentIntentId: ride.paymentIntentId,
+      },
+      ip,
+      userAgent,
+    })
+
+    // Notify client and driver via WebSocket
+    try {
+      const { broadcastToRide } = await import('../services/websocket')
+      
+      // Notify client
+      if (ride.clientId) {
+        broadcastToRide(`user:${ride.clientId}`, {
+          type: 'notification',
+          title: 'Reembolso procesado',
+          message: `Se ha procesado un reembolso de $${ride.finalPrice || ride.estimatedPrice} para tu acarreo "${ride.title}". Razón: ${reason}`,
+          timestamp: Date.now(),
+        })
+      }
+      
+      // Notify driver
+      if (ride.driverId) {
+        broadcastToRide(`user:${ride.driverId}`, {
+          type: 'notification',
+          title: 'Acarreo reembolsado',
+          message: `El acarreo "${ride.title}" ha sido reembolsado al cliente. Razón: ${reason}`,
+          timestamp: Date.now(),
+        })
+      }
+    } catch (wsError) {
+      console.error('Error sending WebSocket notification for refund:', wsError)
+    }
+
+    return c.json({
+      success: true,
+      message: 'Reembolso procesado correctamente',
+      refund: {
+        id: refund.id,
+        status: refund.status,
+        amount: refund.amount,
+      },
+      ride: updatedRide,
+    })
+  } catch (error: any) {
+    console.error('Error processing refund:', error)
+    return c.json({ error: 'Error al procesar el reembolso: ' + error.message }, 500)
+  }
+})
+
+// Pagar al conductor (admin) - POST /api/admin/rides/:id/pay-driver
+admin.post('/rides/:id/pay-driver', async (c) => {
+  const id = c.req.param('id')
+  const { reportId } = await c.req.json()
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
+  const userAgent = c.req.header('user-agent') || ''
+  const adminUser: any = c.get('adminUser')
+
+  // Get the ride
+  const ride = await Ride.findById(id)
+  if (!ride) {
+    return c.json({ error: 'Ride no encontrado' }, 404)
+  }
+
+  // Validate ride has paymentIntentId (payment was captured)
+  if (!ride.paymentIntentId) {
+    return c.json({ error: 'Este ride no tiene un pago asociado' }, 400)
+  }
+
+  // Validate ride doesn't already have transferId
+  if (ride.transferId) {
+    return c.json({ error: 'Este ride ya tiene un pago transferido al conductor' }, 400)
+  }
+
+  // Get driver's Stripe account
+  const driver = await Driver.findOne({ userId: ride.driverId })
+
+  if (!driver?.stripeAccountId) {
+    return c.json({ error: 'El conductor no tiene cuenta de Stripe configurada' }, 400)
+  }
+
+  // Import transferToDriver
+  const { transferToDriver } = await import('../services/stripeMarketplace')
+
+  try {
+    // Amount to transfer (90% of final price, in cents)
+    const amountInCents = ride.driverAmount || Math.round((ride.finalPrice || ride.estimatedPrice) * 90)
+
+    // Create Stripe transfer
+    const transfer = await transferToDriver(driver.stripeAccountId, amountInCents, ride._id.toString())
+
+    // Update ride
+    const updatedRide = await Ride.findByIdAndUpdate(
+      id,
+      {
+        status: 'paid',
+        transferId: transfer.id,
+        transferredAt: new Date(),
+        paidAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { new: true }
+    )
+
+    // If reportId is provided, update the report as well
+    if (reportId) {
+      const { Report } = await import('../models/report')
+      await Report.findByIdAndUpdate(
+        reportId,
+        {
+          status: 'resolved',
+          resolution: 'dismissed',
+          resolvedBy: adminUser?.clerkId || null,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        },
+        { new: true }
+      )
+    }
+
+    // Audit log
+    await logAudit({
+      action: 'admin.ride_pay_driver',
+      entityType: 'ride',
+      entityId: id,
+      userId: adminUser?.clerkId || null,
+      userRole: 'admin',
+      details: {
+        transferId: transfer.id,
+        amount: amountInCents,
+        driverId: ride.driverId,
+        reportId: reportId || null,
+      },
+      ip,
+      userAgent,
+    })
+
+    // Notify client and driver
+    try {
+      const { broadcastToRide } = await import('../services/websocket')
+
+      if (ride.clientId) {
+        broadcastToRide(`user:${ride.clientId}`, {
+          type: 'notification',
+          title: 'Pago al conductor procesado',
+          message: `Se ha liberado el pago a tu conductor por el acarreo "${ride.title}".`,
+          timestamp: Date.now(),
+        })
+      }
+
+      if (ride.driverId) {
+        broadcastToRide(`user:${ride.driverId}`, {
+          type: 'notification',
+          title: 'Pago recibido',
+          message: `Has recibido el pago por el acarreo "${ride.title}".`,
+          timestamp: Date.now(),
+        })
+      }
+    } catch (wsError) {
+      console.error('Error sending WebSocket notification:', wsError)
+    }
+
+    return c.json({
+      success: true,
+      message: 'Pago al conductor procesado correctamente',
+      transfer: {
+        id: transfer.id,
+        amount: amountInCents,
+      },
+      ride: updatedRide,
+    })
+  } catch (error: any) {
+    console.error('Error processing payment to driver:', error)
+    return c.json({ error: 'Error al procesar el pago: ' + error.message }, 500)
+  }
+})
+
 // Eliminar ride
 admin.delete('/rides/:id', async (c) => {
   const id = c.req.param('id')
@@ -1148,10 +1394,10 @@ admin.get('/reports', async (c) => {
   })
 })
 
-// Actualizar estado de reporte
+// Actualizar estado de reporte (con resolución)
 admin.patch('/reports/:id/status', async (c) => {
   const id = c.req.param('id')
-  const { status } = await c.req.json()
+  const { status, resolution } = await c.req.json()
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
   const userAgent = c.req.header('user-agent') || ''
   const adminUser: any = c.get('adminUser')
@@ -1161,10 +1407,31 @@ admin.patch('/reports/:id/status', async (c) => {
     return c.json({ error: `Status debe ser uno de: ${validStatuses.join(', ')}` }, 400)
   }
 
+  // Validate resolution if provided
+  const validResolutions = ['refunded', 'dismissed', 'warning', null]
+  if (resolution !== undefined && !validResolutions.includes(resolution)) {
+    return c.json({ error: `Resolution debe ser uno de: ${validResolutions.filter(r => r !== null).join(', ')}` }, 400)
+  }
+
+  // Build update object
+  const updateData: any = { status, updatedAt: new Date() }
+  
+  // If setting resolution, also set resolvedBy and resolvedAt
+  if (resolution) {
+    updateData.resolution = resolution
+    updateData.resolvedBy = adminUser?.clerkId || null
+    updateData.resolvedAt = new Date()
+  } else if (status === 'resolved' && !resolution) {
+    // If resolving without explicit resolution, default to dismissed
+    updateData.resolution = 'dismissed'
+    updateData.resolvedBy = adminUser?.clerkId || null
+    updateData.resolvedAt = new Date()
+  }
+
   const { Report } = await import('../models/report')
   const report = await Report.findByIdAndUpdate(
     id,
-    { status, updatedAt: new Date() },
+    updateData,
     { new: true }
   )
 
@@ -1178,7 +1445,7 @@ admin.patch('/reports/:id/status', async (c) => {
     entityId: id,
     userId: adminUser?.clerkId || null,
     userRole: 'admin',
-    details: { to: status },
+    details: { to: status, resolution },
     ip,
     userAgent,
   })
@@ -1188,7 +1455,7 @@ admin.patch('/reports/:id/status', async (c) => {
       report.reporterId,
       'report_response',
       'Respuesta a tu reporte',
-      'Tu reporte ha sido revisado y resuelto por el equipo de Carglyn.',
+      `Tu reporte ha sido revisado y resuelto: ${resolution || 'dismissed'}.`,
       undefined,
       { reportId: id }
     )

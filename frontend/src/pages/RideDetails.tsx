@@ -403,19 +403,57 @@ function RideDetails() {
     const token = await getToken()
     if (!token || !ride?.driverId) return
 
-    const { value: comment } = await Swal.fire({
+    const showPaymentDispute = !!(ride?.paymentIntentId)
+
+    const { value: categoryValue } = await Swal.fire({
       title: 'Reportar Conductor',
-      text: 'Describe el motivo del reporte (mín. 10 caracteres)',
+      html: `
+        <p style="margin-bottom: 1rem; color: #64748B; font-size: 0.875rem;">Selecciona el tipo de reporte:</p>
+        <div style="text-align: left; display: flex; flex-direction: column; gap: 0.5rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="category" value="illicit_actions" checked>
+            <span style="font-weight: 500;">⚠️ Comportamiento inapropiado</span>
+          </label>
+          ${showPaymentDispute ? `
+          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="category" value="payment_dispute">
+            <span style="font-weight: 500;">💰 Disputa de pago</span>
+          </label>` : ''}
+          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="category" value="other">
+            <span style="font-weight: 500;">📋 Otro</span>
+          </label>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Siguiente',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      preConfirm: () => {
+        const selected = document.querySelector('input[name="category"]:checked') as HTMLInputElement
+        if (!selected) {
+          Swal.showValidationMessage('Selecciona una categoría')
+          return
+        }
+        return selected.value
+      },
+    })
+
+    if (!categoryValue) return
+
+    const { value: comment } = await Swal.fire({
+      title: categoryValue === 'payment_dispute' ? 'Detalle de la disputa' : 'Describe el problema',
+      text: 'Mínimo 10 caracteres',
       input: 'textarea',
       inputPlaceholder: 'Escribe aquí el motivo...',
-      inputAttributes: { 'aria-label': 'Motivo del reporte' },
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0D9488',
       cancelButtonColor: '#64748B',
       reverseButtons: true,
-      focusCancel: true,
       inputValidator: (value: string) => {
         if (!value || value.trim().length < 10) {
           return 'El comentario debe tener al menos 10 caracteres'
@@ -430,6 +468,7 @@ function RideDetails() {
             reportedRole: 'driver',
             rideId: ride!._id,
             comment: comment.trim(),
+            category: categoryValue,
           }, token ?? undefined)
           return true
         } catch (err: any) {
@@ -455,19 +494,50 @@ function RideDetails() {
     const token = await getToken()
     if (!token || !ride?.clientId) return
 
-    const { value: comment } = await Swal.fire({
+    const { value: categoryValue } = await Swal.fire({
       title: 'Reportar Cliente',
-      text: 'Describe el motivo del reporte (mín. 10 caracteres)',
+      html: `
+        <p style="margin-bottom: 1rem; color: #64748B; font-size: 0.875rem;">Selecciona el tipo de reporte:</p>
+        <div style="text-align: left; display: flex; flex-direction: column; gap: 0.5rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="category" value="illicit_actions" checked>
+            <span style="font-weight: 500;">⚠️ Comportamiento inapropiado</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
+            <input type="radio" name="category" value="other">
+            <span style="font-weight: 500;">📋 Otro</span>
+          </label>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Siguiente',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      preConfirm: () => {
+        const selected = document.querySelector('input[name="category"]:checked') as HTMLInputElement
+        if (!selected) {
+          Swal.showValidationMessage('Selecciona una categoría')
+          return
+        }
+        return selected.value
+      },
+    })
+
+    if (!categoryValue) return
+
+    const { value: comment } = await Swal.fire({
+      title: 'Describe el problema',
+      text: 'Mínimo 10 caracteres',
       input: 'textarea',
       inputPlaceholder: 'Escribe aquí el motivo...',
-      inputAttributes: { 'aria-label': 'Motivo del reporte' },
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0D9488',
       cancelButtonColor: '#64748B',
       reverseButtons: true,
-      focusCancel: true,
       inputValidator: (value: string) => {
         if (!value || value.trim().length < 10) {
           return 'El comentario debe tener al menos 10 caracteres'
@@ -482,6 +552,7 @@ function RideDetails() {
             reportedRole: 'client',
             rideId: ride!._id,
             comment: comment.trim(),
+            category: categoryValue,
           }, token ?? undefined)
           return true
         } catch (err: any) {

@@ -32,6 +32,27 @@ const reportSchema = new mongoose.Schema({
     enum: ['pending', 'in_review', 'resolved'],
     default: 'pending',
   },
+  // Category of the report
+  category: {
+    type: String,
+    enum: ['payment_dispute', 'illicit_actions', 'other'],
+    default: 'other',
+  },
+  // Resolution (only set when report is resolved)
+  resolution: {
+    type: String,
+    enum: ['refunded', 'dismissed', 'warning', null],
+    default: null,
+  },
+  // Admin who resolved the report
+  resolvedBy: {
+    type: String,
+    default: null,
+  },
+  resolvedAt: {
+    type: Date,
+    default: null,
+  },
 }, { timestamps: true })
 
 // Unique index: same reporter can't report the same ride twice
