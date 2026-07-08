@@ -46,7 +46,7 @@ export function registerAllTools() {
   register('view_offers', 'Ver ofertas recibidas para un acarreo.', viewOffersSchema, handleViewOffers);
   register('accept_offer', 'Aceptar una oferta de un conductor para un acarreo. El cliente selecciona cuál oferta aceptar. Se rechazarán automáticamente las demás ofertas pendientes.', acceptOfferSchema, handleAcceptOffer);
   register('confirm_delivery', 'Confirmar la entrega de un acarreo. Cambia el estado a completado e intenta el cobro automático con el método de pago guardado. Si no hay método de pago, entrega igual pero reporta que se requiere una tarjeta.', confirmDeliverySchema, handleConfirmDelivery);
-  register('cancel_ride', 'Cancelar un acarreo en estado requested.', cancelRideSchema, handleCancelRide);
+  register('cancel_ride', 'Cancelar un acarreo (cliente) o retirarse como conductor asignado. Cliente: cancela con reembolso. Conductor: se retira y la publicación vuelve a solicitada.', cancelRideSchema, handleCancelRide);
   register('rate_service', 'Calificar el servicio de un acarreo completado (1-5 estrellas). Solo disponible después del pago.', rateServiceSchema, handleRateService);
   register('get_public_driver_profile', 'Obtener el perfil público de un conductor por su ID. Incluye rating, total de acarreos, tipo de vehículo, placa y estado de verificación.', getPublicDriverProfileSchema, handleGetPublicDriverProfile);
 

@@ -55,7 +55,7 @@ export function canTransition(from: string, to: string, role: string): Transitio
   return { allowed: true }
 }
 
-export function canCancel(status: string, role: string): TransitionResult {
+export function canCancel(status: string, role: string, hasPaymentIntent: boolean = false): TransitionResult {
   if (role === 'admin') return { allowed: true }
   
   switch (status) {
@@ -68,9 +68,15 @@ export function canCancel(status: string, role: string): TransitionResult {
         ? { allowed: true }
         : { allowed: false, reason: 'Solo el cliente puede cancelar un pedido en negociación' }
     case 'accepted':
-      return role === 'driver'
-        ? { allowed: true }
-        : { allowed: false, reason: 'Solo el conductor puede cancelar un pedido aceptado' }
+      // Si ya se cobró al cliente (paymentIntentId existe), el cliente puede cancelar con refund automático
+      if (role === 'client' && hasPaymentIntent) {
+        return { allowed: true }
+      }
+      // Driver siempre puede cancelar en accepted
+      if (role === 'driver') {
+        return { allowed: true }
+      }
+      return { allowed: false, reason: 'Solo el conductor puede cancelar un pedido aceptado' }
     case 'in_progress':
     case 'completed':
     case 'paid':
