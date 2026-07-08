@@ -81,7 +81,11 @@ export default function Users() {
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.clerkId}>
+              <tr
+                key={user.clerkId}
+                onClick={() => window.location.href = `/users/${user.clerkId}`}
+                style={{ cursor: 'pointer' }}
+              >
                 <td>
                   <div className="user-cell">
                     {user.imageUrl ? (

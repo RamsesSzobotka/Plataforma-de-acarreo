@@ -61,11 +61,13 @@ export const api = {
     request(`/drivers/${userId}/review`, { method: 'POST' }),
   suspendDriver: (userId: string, reason?: string) =>
     request(`/drivers/${userId}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  suspendClient: (clerkId: string, reason?: string) =>
+    request(`/users/${clerkId}`, { method: 'PATCH', body: JSON.stringify({ isActive: false, reason }) }),
   updateDriver: (userId: string, data: any) =>
     request(`/drivers/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Rides
-  getRides: (params?: { status?: string; page?: number }) => {
+  getRides: (params?: { status?: string; page?: number; limit?: number; clientId?: string }) => {
     const query = new URLSearchParams(params as any).toString()
     return request(`/rides${query ? `?${query}` : ''}`)
   },

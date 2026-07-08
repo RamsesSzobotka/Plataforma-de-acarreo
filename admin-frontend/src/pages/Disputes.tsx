@@ -256,6 +256,96 @@ export default function Disputes() {
     }
   }
 
+  async function handleSuspendDriver() {
+    if (!selectedReport) return
+    const result = await Swal.fire({
+      title: '¿Suspender conductor?',
+      text: 'El conductor no podrá aceptar nuevos pedidos hasta que un admin lo reactive.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, suspender',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      input: 'textarea',
+      inputPlaceholder: 'Motivo de la suspensión (opcional)',
+    })
+    if (!result.isConfirmed) return
+    setActionLoading('suspend-driver')
+    try {
+      await api.suspendDriver(selectedReport.reported.clerkId, result.value || 'Suspendido por reporte de acciones ilícitas')
+      await api.resolveReport(selectedReport._id, { status: 'resolved', resolution: 'suspended' })
+      await Swal.fire({ icon: 'success', title: 'Conductor suspendido', text: 'El conductor ha sido suspendido correctamente.', confirmButtonColor: '#0D9488' })
+      closeModal()
+      loadReports()
+    } catch (e: any) {
+      alert(e.message || 'Error al suspender conductor')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleSuspendClient() {
+    if (!selectedReport) return
+    const result = await Swal.fire({
+      title: '¿Suspender cliente?',
+      text: 'El cliente no podrá crear nuevos pedidos hasta que un admin lo reactive.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, suspender',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      input: 'textarea',
+      inputPlaceholder: 'Motivo de la suspensión (opcional)',
+    })
+    if (!result.isConfirmed) return
+    setActionLoading('suspend-client')
+    try {
+      await api.suspendClient(selectedReport.reported.clerkId, result.value || 'Suspendido por reporte de acciones ilícitas')
+      await api.resolveReport(selectedReport._id, { status: 'resolved', resolution: 'suspended' })
+      await Swal.fire({ icon: 'success', title: 'Cliente suspendido', text: 'El cliente ha sido suspendido correctamente.', confirmButtonColor: '#0D9488' })
+      closeModal()
+      loadReports()
+    } catch (e: any) {
+      alert(e.message || 'Error al suspender cliente')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  async function handleSuspendRide() {
+    if (!selectedReport?.rideId) return
+    const result = await Swal.fire({
+      title: '¿Suspender (cancelar) acarreo?',
+      text: 'El acarreo será cancelado. Esta acción no es reversible.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cancelar acarreo',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      input: 'textarea',
+      inputPlaceholder: 'Motivo de la cancelación (opcional)',
+    })
+    if (!result.isConfirmed) return
+    setActionLoading('suspend-ride')
+    try {
+      await api.cancelRide(selectedReport.rideId, result.value || 'Cancelado por admin desde reporte de acciones ilícitas')
+      await api.resolveReport(selectedReport._id, { status: 'resolved', resolution: 'dismissed' })
+      await Swal.fire({ icon: 'success', title: 'Acarreo cancelado', text: 'El acarreo ha sido cancelado correctamente.', confirmButtonColor: '#0D9488' })
+      closeModal()
+      loadReports()
+    } catch (e: any) {
+      alert(e.message || 'Error al cancelar acarreo')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const canAct = selectedReport && (selectedReport.status === 'pending' || selectedReport.status === 'in_review')
 
   if (loading && reports.length === 0) {
@@ -353,7 +443,6 @@ export default function Disputes() {
                   <th>Denunciante</th>
                   <th>Denunciado</th>
                   <th>Ride ID</th>
-                  <th>Estado Pago</th>
                   <th>Estado Reporte</th>
                   <th>Acciones</th>
                 </tr>
@@ -361,7 +450,6 @@ export default function Disputes() {
               <tbody>
                 {reports.map((report) => {
                   const catColor = CATEGORY_COLORS[report.category] || CATEGORY_COLORS.other
-                  const payColor = PAYMENT_COLORS[report.paymentStatus] || PAYMENT_COLORS.none
                   return (
                     <tr key={report._id}>
                       <td>
@@ -397,17 +485,6 @@ export default function Disputes() {
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            color: payColor.color,
-                          }}
-                        >
-                          {PAYMENT_LABELS[report.paymentStatus] || report.paymentStatus}
-                        </span>
                       </td>
                       <td>
                         <span className={`status-badge ${report.status}`}>
@@ -579,7 +656,7 @@ export default function Disputes() {
                   </div>
                 </div>
 
-                {canAct && (
+                {canAct && selectedReport.category === 'payment_dispute' && (
                   <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
                     {selectedReport.rideId && (
                       <button
@@ -618,8 +695,62 @@ export default function Disputes() {
                   </div>
                 )}
 
-                {/* Navigation section - always visible when a report is selected */}
-                <div className="modal-footer" style={{ flexWrap: 'wrap', marginTop: canAct ? '0.5rem' : '0', borderTop: canAct ? '1px solid var(--border)' : 'none', paddingTop: canAct ? '0.75rem' : '0' }}>
+                {canAct && selectedReport.category !== 'payment_dispute' && (
+                  <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
+                    <button
+                      className="action-btn secondary"
+                      onClick={handleDismiss}
+                      disabled={actionLoading === 'dismiss'}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                        check
+                      </span>
+                      Resolver sin acción
+                    </button>
+
+                    {selectedReport.reported?.role === 'driver' && (
+                      <button
+                        className="action-btn danger"
+                        onClick={handleSuspendDriver}
+                        disabled={actionLoading === 'suspend-driver'}
+                      >
+                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                          block
+                        </span>
+                        Suspender conductor
+                      </button>
+                    )}
+
+                    {selectedReport.reported?.role === 'client' && (
+                      <button
+                        className="action-btn danger"
+                        onClick={handleSuspendClient}
+                        disabled={actionLoading === 'suspend-client'}
+                      >
+                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                          block
+                        </span>
+                        Suspender cliente
+                      </button>
+                    )}
+
+                    {selectedReport.rideId && (
+                      <button
+                        className="action-btn danger"
+                        onClick={handleSuspendRide}
+                        disabled={actionLoading === 'suspend-ride'}
+                      >
+                        <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                          cancel
+                        </span>
+                        Suspender acarreo
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Navigation section - always visible */}
+                <div className="modal-footer" style={{ flexWrap: 'wrap', marginTop: (canAct && selectedReport.category === 'payment_dispute') ? '0.5rem' : '0', borderTop: (canAct && selectedReport.category === 'payment_dispute') ? '1px solid var(--border)' : 'none', paddingTop: (canAct && selectedReport.category === 'payment_dispute') ? '0.75rem' : '0' }}>
                   {selectedReport.rideId && (
                     <button
                       className="action-btn"
@@ -635,37 +766,22 @@ export default function Disputes() {
                       Ver acarreo
                     </button>
                   )}
-                  {selectedReport.reported?.role === 'driver' && (
-                    <button
-                      className="action-btn"
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        color: '#B45309',
-                      }}
-                      onClick={() => navigate(`/drivers/${selectedReport.reported.clerkId}`)}
-                    >
-                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
-                        block
-                      </span>
-                      Suspender conductor
-                    </button>
-                  )}
-                  {selectedReport.reported?.role === 'client' && (
+                  {selectedReport.reported?.clerkId && (
                     <button
                       className="action-btn"
                       style={{
                         background: 'rgba(100, 116, 139, 0.1)',
-                        color: '#64748B',
-                        opacity: 0.6,
-                        cursor: 'not-allowed',
+                        color: '#475569',
                       }}
-                      disabled
-                      title="Próximamente"
+                      onClick={() => {
+                        const path = selectedReport.reported.role === 'driver' ? `/drivers/${selectedReport.reported.clerkId}` : `/users/${selectedReport.reported.clerkId}`;
+                        navigate(path);
+                      }}
                     >
                       <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
-                        block
+                        person
                       </span>
-                      Suspender cliente
+                      Ver perfil de {selectedReport.reported.role === 'driver' ? 'conductor' : 'cliente'}
                     </button>
                   )}
                 </div>

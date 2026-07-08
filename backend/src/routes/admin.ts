@@ -480,6 +480,9 @@ admin.patch('/users/:clerkId', async (c) => {
   }
   if (body.isActive !== undefined) updateData.isActive = body.isActive
 
+  // Save old state to detect changes
+  const oldUser = await User.findOne({ clerkId })
+
   const user = await User.findOneAndUpdate(
     { clerkId },
     updateData,
@@ -500,6 +503,18 @@ admin.patch('/users/:clerkId', async (c) => {
     ip,
     userAgent,
   })
+
+  // Notify user if they were suspended (isActive changed from true to false)
+  if (body.isActive === false && oldUser?.isActive !== false) {
+    await createNotification(
+      clerkId,
+      'account_suspended',
+      'Cuenta suspendida',
+      'Tu cuenta ha sido suspendida por el administrador.',
+      undefined,
+      {}
+    )
+  }
 
   return c.json(user)
 })
@@ -761,6 +776,17 @@ admin.post('/drivers/:userId/suspend', async (c) => {
     ip,
     userAgent,
   })
+
+  // Notify the driver
+  const suspendReason = reason || 'Incumplimiento de términos'
+  await createNotification(
+    userId,
+    'account_suspended',
+    'Cuenta suspendida',
+    `Tu cuenta ha sido suspendida por el administrador. Motivo: ${suspendReason}`,
+    undefined,
+    {}
+  )
 
   return c.json({
     success: true,
@@ -1063,6 +1089,29 @@ admin.post('/rides/:id/cancel', async (c) => {
     userAgent,
   })
 
+  // Notify client and driver
+  const cancelReason = reason || 'Cancelado por el administrador'
+  if (ride.clientId) {
+    await createNotification(
+      ride.clientId,
+      'ride_status',
+      'Acarreo cancelado',
+      `Tu acarreo "${ride.title}" ha sido cancelado por el administrador. Motivo: ${cancelReason}`,
+      undefined,
+      { rideId: id }
+    )
+  }
+  if (ride.driverId) {
+    await createNotification(
+      ride.driverId,
+      'ride_status',
+      'Acarreo cancelado',
+      `El acarreo "${ride.title}" ha sido cancelado por el administrador. Motivo: ${cancelReason}`,
+      undefined,
+      { rideId: id }
+    )
+  }
+
   return c.json(ride)
 })
 
@@ -1142,31 +1191,27 @@ admin.post('/rides/:id/refund', async (c) => {
       userAgent,
     })
 
-    // Notify client and driver via WebSocket
-    try {
-      const { broadcastToRide } = await import('../services/websocket')
-      
-      // Notify client
-      if (ride.clientId) {
-        broadcastToRide(`user:${ride.clientId}`, {
-          type: 'notification',
-          title: 'Reembolso procesado',
-          message: `Se ha procesado un reembolso de $${ride.finalPrice || ride.estimatedPrice} para tu acarreo "${ride.title}". Razón: ${reason}`,
-          timestamp: Date.now(),
-        })
-      }
-      
-      // Notify driver
-      if (ride.driverId) {
-        broadcastToRide(`user:${ride.driverId}`, {
-          type: 'notification',
-          title: 'Acarreo reembolsado',
-          message: `El acarreo "${ride.title}" ha sido reembolsado al cliente. Razón: ${reason}`,
-          timestamp: Date.now(),
-        })
-      }
-    } catch (wsError) {
-      console.error('Error sending WebSocket notification for refund:', wsError)
+    // Notify client and driver
+    const refundAmount = ride.finalPrice || ride.estimatedPrice
+    if (ride.clientId) {
+      await createNotification(
+        ride.clientId,
+        'payment_dispute',
+        'Reembolso procesado',
+        `Se ha procesado un reembolso de $${refundAmount} para tu acarreo "${ride.title}". Razón: ${reason}`,
+        undefined,
+        { rideId: id }
+      )
+    }
+    if (ride.driverId) {
+      await createNotification(
+        ride.driverId,
+        'payment_dispute',
+        'Acarreo reembolsado',
+        `El acarreo "${ride.title}" ha sido reembolsado al cliente. Razón: ${reason}`,
+        undefined,
+        { rideId: id }
+      )
     }
 
     return c.json({
@@ -1276,28 +1321,26 @@ admin.post('/rides/:id/pay-driver', async (c) => {
     })
 
     // Notify client and driver
-    try {
-      const { broadcastToRide } = await import('../services/websocket')
-
-      if (ride.clientId) {
-        broadcastToRide(`user:${ride.clientId}`, {
-          type: 'notification',
-          title: 'Pago al conductor procesado',
-          message: `Se ha liberado el pago a tu conductor por el acarreo "${ride.title}".`,
-          timestamp: Date.now(),
-        })
-      }
-
-      if (ride.driverId) {
-        broadcastToRide(`user:${ride.driverId}`, {
-          type: 'notification',
-          title: 'Pago recibido',
-          message: `Has recibido el pago por el acarreo "${ride.title}".`,
-          timestamp: Date.now(),
-        })
-      }
-    } catch (wsError) {
-      console.error('Error sending WebSocket notification:', wsError)
+    const payAmount = ride.finalPrice || ride.estimatedPrice
+    if (ride.clientId) {
+      await createNotification(
+        ride.clientId,
+        'payment_dispute',
+        'Pago al conductor procesado',
+        `Se ha liberado el pago de $${payAmount} a tu conductor por el acarreo "${ride.title}".`,
+        undefined,
+        { rideId: id }
+      )
+    }
+    if (ride.driverId) {
+      await createNotification(
+        ride.driverId,
+        'payment_dispute',
+        'Pago recibido',
+        `Has recibido el pago de $${payAmount} por el acarreo "${ride.title}".`,
+        undefined,
+        { rideId: id }
+      )
     }
 
     return c.json({
@@ -1515,14 +1558,44 @@ admin.patch('/reports/:id/status', async (c) => {
   })
 
   if (status === 'resolved' && report) {
+    const resolutionType = resolution || 'dismissed'
+
+    // Notify reporter
+    let reporterTitle: string, reporterBody: string
+    if (resolutionType === 'dismissed') {
+      reporterTitle = 'Respuesta a tu reporte'
+      reporterBody = 'Hemos revisado tu reporte y no se consideró válido. No se tomarán acciones adicionales.'
+    } else if (resolutionType === 'suspended') {
+      reporterTitle = 'Reporte resuelto'
+      reporterBody = 'Hemos suspendido al usuario reportado. Gracias por tu reporte.'
+    } else if (resolutionType === 'refunded') {
+      reporterTitle = 'Reporte resuelto'
+      reporterBody = 'Se ha procesado el reembolso correspondiente a tu disputa de pago.'
+    } else {
+      reporterTitle = 'Respuesta a tu reporte'
+      reporterBody = `Tu reporte ha sido revisado y resuelto.`
+    }
+
     await createNotification(
       report.reporterId,
       'report_response',
-      'Respuesta a tu reporte',
-      `Tu reporte ha sido revisado y resuelto: ${resolution || 'dismissed'}.`,
+      reporterTitle,
+      reporterBody,
       undefined,
       { reportId: id }
     )
+
+    // Notify reported person if suspension action was taken
+    if (resolutionType === 'suspended' && report.reportedId) {
+      await createNotification(
+        report.reportedId,
+        'account_suspended',
+        'Cuenta suspendida',
+        'Tu cuenta ha sido suspendida debido a un reporte en tu contra. Contacta al administrador para más información.',
+        undefined,
+        { reportId: id }
+      )
+    }
   }
 
   return c.json(report)
