@@ -1394,6 +1394,46 @@ admin.get('/reports', async (c) => {
   })
 })
 
+// Get single report by ID
+admin.get('/reports/:id', async (c) => {
+  const id = c.req.param('id')
+  const { Report } = await import('../models/report')
+
+  const report = await Report.findById(id)
+  if (!report) {
+    return c.json({ error: 'Reporte no encontrado' }, 404)
+  }
+
+  // Fetch user profiles from Clerk
+  const clerkIds = [report.reporterId, report.reportedId].filter(Boolean)
+  let clerkProfiles = new Map<string, any>()
+  if (clerkIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(clerkIds)
+  }
+
+  const reporterData = clerkProfiles.get(report.reporterId)
+  const reportedData = clerkProfiles.get(report.reportedId)
+
+  return c.json({
+    ...report.toObject(),
+    reporter: reporterData ? {
+      clerkId: report.reporterId,
+      firstName: reporterData.firstName,
+      lastName: reporterData.lastName,
+      imageUrl: reporterData.imageUrl,
+      email: reporterData.email,
+    } : { clerkId: report.reporterId, email: '', firstName: '', lastName: '' },
+    reported: reportedData ? {
+      clerkId: report.reportedId,
+      firstName: reportedData.firstName,
+      lastName: reportedData.lastName,
+      imageUrl: reportedData.imageUrl,
+      email: reportedData.email,
+      role: reportedData.role,
+    } : { clerkId: report.reportedId, email: '', firstName: '', lastName: '' },
+  })
+})
+
 // Actualizar estado de reporte (con resolución)
 admin.patch('/reports/:id/status', async (c) => {
   const id = c.req.param('id')
@@ -1408,7 +1448,7 @@ admin.patch('/reports/:id/status', async (c) => {
   }
 
   // Validate resolution if provided
-  const validResolutions = ['refunded', 'dismissed', 'warning', null]
+  const validResolutions = ['refunded', 'dismissed', 'warning', 'suspended', null]
   if (resolution !== undefined && !validResolutions.includes(resolution)) {
     return c.json({ error: `Resolution debe ser uno de: ${validResolutions.filter(r => r !== null).join(', ')}` }, 400)
   }

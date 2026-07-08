@@ -208,7 +208,7 @@ export default function Disputes() {
     if (!confirm('¿Suspender al conductor denunciado?')) return
     setActionLoading('suspend')
     try {
-      await api.resolveReport(selectedReport._id, { resolution: 'suspended' })
+      await api.resolveReport(selectedReport._id, { status: 'resolved', resolution: 'suspended' })
       closeModal()
       loadReports()
     } catch (e: any) {
@@ -223,7 +223,7 @@ export default function Disputes() {
     if (!confirm('¿Resolver sin tomar acción?')) return
     setActionLoading('dismiss')
     try {
-      await api.resolveReport(selectedReport._id, { resolution: 'dismissed' })
+      await api.resolveReport(selectedReport._id, { status: 'resolved', resolution: 'dismissed' })
       closeModal()
       loadReports()
     } catch (e: any) {
