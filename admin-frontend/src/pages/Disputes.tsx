@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Swal from 'sweetalert2'
 import { api } from '../services/api'
 
@@ -105,6 +105,7 @@ function UserDisplay({ user }: { user?: Report['reporter'] | Report['reported'] 
 }
 
 export default function Disputes() {
+  const navigate = useNavigate()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -198,21 +199,6 @@ export default function Disputes() {
       loadReports()
     } catch (e: any) {
       alert(e.message || 'Error al procesar reembolso')
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  async function handleSuspendDriver() {
-    if (!selectedReport) return
-    if (!confirm('¿Suspender al conductor denunciado?')) return
-    setActionLoading('suspend')
-    try {
-      await api.resolveReport(selectedReport._id, { status: 'resolved', resolution: 'suspended' })
-      closeModal()
-      loadReports()
-    } catch (e: any) {
-      alert(e.message || 'Error al suspender conductor')
     } finally {
       setActionLoading(null)
     }
@@ -429,22 +415,12 @@ export default function Disputes() {
                         </span>
                       </td>
                       <td>
-                        <div className="btn-group">
-                          <button
-                            className="action-btn secondary"
-                            onClick={() => openDetail(report._id)}
-                          >
-                            Ver detalle
-                          </button>
-                          {(report.status === 'pending' || report.status === 'in_review') && (
-                            <button
-                              className="action-btn primary"
-                              onClick={() => openDetail(report._id)}
-                            >
-                              Resolver
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          className="action-btn secondary"
+                          onClick={() => openDetail(report._id)}
+                        >
+                          Ver detalle
+                        </button>
                       </td>
                     </tr>
                   )
@@ -624,25 +600,11 @@ export default function Disputes() {
                         disabled={actionLoading === 'pay'}
                       >
                         <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
-                          payments
+                          done_all
                         </span>
-                        Pagar al conductor
+                        Completar viaje y pagar al conductor
                       </button>
                     )}
-                    <button
-                      className="action-btn"
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        color: '#B45309',
-                      }}
-                      onClick={handleSuspendDriver}
-                      disabled={actionLoading === 'suspend'}
-                    >
-                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
-                        block
-                      </span>
-                      Suspender conductor
-                    </button>
                     <button
                       className="action-btn secondary"
                       onClick={handleDismiss}
@@ -655,6 +617,43 @@ export default function Disputes() {
                     </button>
                   </div>
                 )}
+
+                {/* Navigation section - always visible when a report is selected */}
+                <div className="modal-footer" style={{ flexWrap: 'wrap', marginTop: canAct ? '0.5rem' : '0', borderTop: canAct ? '1px solid var(--border)' : 'none', paddingTop: canAct ? '0.75rem' : '0' }}>
+                  {selectedReport.reported?.role === 'driver' && (
+                    <button
+                      className="action-btn"
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        color: '#B45309',
+                      }}
+                      onClick={() => navigate(`/drivers/${selectedReport.reported.clerkId}`)}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                        block
+                      </span>
+                      Suspender conductor
+                    </button>
+                  )}
+                  {selectedReport.reported?.role === 'client' && (
+                    <button
+                      className="action-btn"
+                      style={{
+                        background: 'rgba(100, 116, 139, 0.1)',
+                        color: '#64748B',
+                        opacity: 0.6,
+                        cursor: 'not-allowed',
+                      }}
+                      disabled
+                      title="Próximamente"
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                        block
+                      </span>
+                      Suspender cliente
+                    </button>
+                  )}
+                </div>
               </>
             ) : null}
           </div>

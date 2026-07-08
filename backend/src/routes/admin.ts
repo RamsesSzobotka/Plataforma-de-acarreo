@@ -1226,7 +1226,10 @@ admin.post('/rides/:id/pay-driver', async (c) => {
     // Create Stripe transfer
     const transfer = await transferToDriver(driver.stripeAccountId, amountInCents, ride._id.toString())
 
-    // Update ride
+    // Update ride: first complete, then pay
+    await Ride.findByIdAndUpdate(id, {
+      $set: { status: 'completed', completedAt: new Date() },
+    })
     const updatedRide = await Ride.findByIdAndUpdate(
       id,
       {

@@ -482,6 +482,7 @@ function RideDetails() {
       input: 'radio',
       inputOptions: {
         illicit_actions: '⚠️ Comportamiento inapropiado',
+        ...(ride?.paymentIntentId ? { payment_dispute: '💰 Disputa de pago' } : {}),
         other: '📋 Otro',
       },
       inputValidator: (value: string) => {
