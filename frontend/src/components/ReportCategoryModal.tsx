@@ -35,11 +35,15 @@ export function ReportCategoryModal({
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         zIndex: 9999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
+        paddingTop: '15vh',
         padding: 'var(--space-4)',
       }}
     >
@@ -47,8 +51,11 @@ export function ReportCategoryModal({
       <div
         onClick={onClose}
         style={{
-          position: 'absolute',
-          inset: 0,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           background: 'rgba(0, 0, 0, 0.5)',
           backdropFilter: 'blur(4px)',
         }}
@@ -60,11 +67,12 @@ export function ReportCategoryModal({
           position: 'relative',
           width: '100%',
           maxWidth: '420px',
-          background: 'var(--bg-primary)',
+          background: '#FFFFFF',
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--border)',
           overflow: 'hidden',
-          animation: 'fadeInUp var(--duration-normal) var(--ease-out)',
+          animation: 'slideDown var(--duration-normal) var(--ease-out)',
         }}
       >
         {/* Header */}
@@ -255,10 +263,10 @@ export function ReportCategoryModal({
       </div>
 
       <style>{`
-        @keyframes fadeInUp {
+        @keyframes slideDown {
           from {
             opacity: 0;
-            transform: translateY(16px);
+            transform: translateY(-20px);
           }
           to {
             opacity: 1;
