@@ -477,7 +477,7 @@ function RideDetails() {
             reportedRole: 'driver',
             rideId: ride!._id,
             comment: comment.trim(),
-            category: reportModal.category,
+            category: reportModal.category ?? undefined,
           }, token ?? undefined)
           return true
         } catch (err: any) {
@@ -537,7 +537,7 @@ function RideDetails() {
             reportedRole: 'client',
             rideId: ride!._id,
             comment: comment.trim(),
-            category: reportModal.category,
+            category: reportModal.category ?? undefined,
           }, token ?? undefined)
           return true
         } catch (err: any) {
