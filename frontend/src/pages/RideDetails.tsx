@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
@@ -10,6 +10,7 @@ import type { DriverContact, RatingWithRater } from '../types'
 import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
+import { ReportCategoryModal } from '../components/ReportCategoryModal'
 import Swal from 'sweetalert2'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
@@ -59,6 +60,16 @@ function RideDetails() {
   const [driverHasRated, setDriverHasRated] = useState(false)
   const [hasReportedDriver, setHasReportedDriver] = useState(false)
   const [hasReportedClient, setHasReportedClient] = useState(false)
+
+  // Report modal state
+  const [reportModal, setReportModal] = useState<{
+    isOpen: boolean
+    type: 'driver' | 'client' | null
+    category: string | null
+  }>({ isOpen: false, type: null, category: null })
+
+  // Ref to track if we're currently processing a report to avoid loop
+  const isProcessingReport = useRef(false)
 
   // ── Tracking en vivo del conductor ──
   const { driverLocation, isTracking } = useRideTracking({
@@ -420,38 +431,32 @@ function RideDetails() {
     }
   }
 
+  function openReportModal(type: 'driver' | 'client') {
+    isProcessingReport.current = false
+    setReportModal({ isOpen: true, type, category: null })
+  }
+
+  async function handleReportCategorySelect(category: string) {
+    setReportModal((prev) => ({ ...prev, isOpen: false, category }))
+  }
+
   async function handleReportDriver() {
     const token = await getToken()
     if (!token || !ride?.driverId) return
 
-    const { value: categoryValue } = await Swal.fire({
-      title: 'Reportar Conductor',
-      input: 'radio',
-      inputOptions: {
-        illicit_actions: '⚠️ Comportamiento inapropiado',
-        ...(ride?.paymentIntentId && ride?.driverId ? { payment_dispute: '💰 Disputa de pago' } : {}),
-        other: '📋 Otro',
-      },
-      inputValidator: (value: string) => {
-        if (!value) {
-          return 'Selecciona una categoría'
-        }
-      },
-      showCancelButton: true,
-      confirmButtonText: 'Siguiente',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#0D9488',
-      cancelButtonColor: '#64748B',
-      reverseButtons: true,
-    })
+    // First step: select category using custom modal
+    openReportModal('driver')
+  }
 
-    if (!categoryValue) return
+  async function handleReportDriverSecondStep() {
+    const token = await getToken()
+    if (!token || !ride?.driverId || !reportModal.category) return
 
     const { value: comment } = await Swal.fire({
-      title: categoryValue === 'payment_dispute' ? 'Detalle de la disputa' : 'Describe el problema',
-      text: 'Mínimo 10 caracteres',
+      title: reportModal.category === 'payment_dispute' ? 'Detalle de la disputa' : 'Describe el problema',
+      text: 'Minimo 10 caracteres',
       input: 'textarea',
-      inputPlaceholder: 'Escribe aquí el motivo...',
+      inputPlaceholder: 'Escribe aqui el motivo...',
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
@@ -472,7 +477,7 @@ function RideDetails() {
             reportedRole: 'driver',
             rideId: ride!._id,
             comment: comment.trim(),
-            category: categoryValue,
+            category: reportModal.category,
           }, token ?? undefined)
           return true
         } catch (err: any) {
@@ -487,45 +492,31 @@ function RideDetails() {
       await Swal.fire({
         icon: 'success',
         title: 'Reporte Enviado',
-        text: 'Hemos recibido tu reporte. Un administrador lo revisará pronto.',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisara pronto.',
         confirmButtonColor: '#0D9488',
       })
       setHasReportedDriver(true)
     }
+    setReportModal({ isOpen: false, type: null, category: null })
   }
 
   async function handleReportClient() {
     const token = await getToken()
     if (!token || !ride?.clientId) return
 
-    const { value: categoryValue } = await Swal.fire({
-      title: 'Reportar Cliente',
-      input: 'radio',
-      inputOptions: {
-        illicit_actions: '⚠️ Comportamiento inapropiado',
-        ...(ride?.paymentIntentId && ride?.driverId ? { payment_dispute: '💰 Disputa de pago' } : {}),
-        other: '📋 Otro',
-      },
-      inputValidator: (value: string) => {
-        if (!value) {
-          return 'Selecciona una categoría'
-        }
-      },
-      showCancelButton: true,
-      confirmButtonText: 'Siguiente',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#0D9488',
-      cancelButtonColor: '#64748B',
-      reverseButtons: true,
-    })
+    // First step: select category using custom modal
+    openReportModal('client')
+  }
 
-    if (!categoryValue) return
+  async function handleReportClientSecondStep() {
+    const token = await getToken()
+    if (!token || !ride?.clientId || !reportModal.category) return
 
     const { value: comment } = await Swal.fire({
       title: 'Describe el problema',
-      text: 'Mínimo 10 caracteres',
+      text: 'Minimo 10 caracteres',
       input: 'textarea',
-      inputPlaceholder: 'Escribe aquí el motivo...',
+      inputPlaceholder: 'Escribe aqui el motivo...',
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
@@ -546,7 +537,7 @@ function RideDetails() {
             reportedRole: 'client',
             rideId: ride!._id,
             comment: comment.trim(),
-            category: categoryValue,
+            category: reportModal.category,
           }, token ?? undefined)
           return true
         } catch (err: any) {
@@ -561,11 +552,12 @@ function RideDetails() {
       await Swal.fire({
         icon: 'success',
         title: 'Reporte Enviado',
-        text: 'Hemos recibido tu reporte. Un administrador lo revisará pronto.',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisara pronto.',
         confirmButtonColor: '#0D9488',
       })
       setHasReportedClient(true)
     }
+    setReportModal({ isOpen: false, type: null, category: null })
   }
 
   const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
@@ -582,6 +574,18 @@ function RideDetails() {
       position: { x: e.clientX, y: e.clientY },
     })
   }
+
+  // Effect to trigger second step after category is selected
+  useEffect(() => {
+    if (reportModal.category && reportModal.type && !isProcessingReport.current) {
+      isProcessingReport.current = true
+      if (reportModal.type === 'driver') {
+        handleReportDriverSecondStep()
+      } else {
+        handleReportClientSecondStep()
+      }
+    }
+  }, [reportModal.category, reportModal.type])
 
   if (loading) {
     return (
@@ -2052,6 +2056,21 @@ function RideDetails() {
           onClose={() => setDriverPopup(null)}
         />
       )}
+
+      {/* Report Category Modal */}
+      <ReportCategoryModal
+        isOpen={reportModal.isOpen}
+        title={reportModal.type === 'driver' ? 'Reportar Conductor' : 'Reportar Cliente'}
+        categories={[
+          { value: 'illicit_actions', label: 'Comportamiento inapropiado', description: 'Conducta agresiva, irrespetuosa o inapropiada' },
+          ...(ride?.paymentIntentId && ride?.driverId
+            ? [{ value: 'payment_dispute', label: 'Disputa de pago', description: 'Problemas relacionados con el pago del servicio' }]
+            : []),
+          { value: 'other', label: 'Otro', description: 'Otra razon no mencionada anteriormente' },
+        ]}
+        onSelect={handleReportCategorySelect}
+        onClose={() => setReportModal({ isOpen: false, type: null, category: null })}
+      />
     </div>
   )
 }
