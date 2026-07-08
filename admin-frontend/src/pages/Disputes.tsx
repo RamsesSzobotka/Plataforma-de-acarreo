@@ -620,6 +620,21 @@ export default function Disputes() {
 
                 {/* Navigation section - always visible when a report is selected */}
                 <div className="modal-footer" style={{ flexWrap: 'wrap', marginTop: canAct ? '0.5rem' : '0', borderTop: canAct ? '1px solid var(--border)' : 'none', paddingTop: canAct ? '0.75rem' : '0' }}>
+                  {selectedReport.rideId && (
+                    <button
+                      className="action-btn"
+                      style={{
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        color: '#2563EB',
+                      }}
+                      onClick={() => navigate(`/rides/${selectedReport.rideId}`)}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                        visibility
+                      </span>
+                      Ver acarreo
+                    </button>
+                  )}
                   {selectedReport.reported?.role === 'driver' && (
                     <button
                       className="action-btn"

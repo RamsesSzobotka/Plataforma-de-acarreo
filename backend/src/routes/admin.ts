@@ -1343,6 +1343,13 @@ admin.delete('/rides/:id', async (c) => {
 
 // === GESTIÓN DE REPORTES ===
 
+function derivePaymentStatus(ride: any): string {
+  if (ride?.refundId) return 'refunded'
+  if (ride?.transferId) return 'transferred'
+  if (ride?.paymentIntentId) return 'charged'
+  return 'none'
+}
+
 // Listar reportes
 admin.get('/reports', async (c) => {
   const status = c.req.query('status')
@@ -1371,11 +1378,18 @@ admin.get('/reports', async (c) => {
     clerkProfiles = await getClerkUserProfiles(allClerkIds)
   }
 
+  const rideIds = [...new Set(reports.map((r: any) => r.rideId).filter(Boolean))]
+  const rides = rideIds.length > 0
+    ? await Ride.find({ _id: { $in: rideIds } }).lean()
+    : []
+  const ridePaymentMap = new Map(rides.map((r: any) => [r._id.toString(), derivePaymentStatus(r)]))
+
   const enrichedReports = reports.map((report: any) => {
     const reporterData = clerkProfiles.get(report.reporterId)
     const reportedData = clerkProfiles.get(report.reportedId)
     return {
       ...report.toObject(),
+      paymentStatus: report.rideId ? ridePaymentMap.get(report.rideId.toString()) || 'none' : 'none',
       reporter: reporterData ? {
         firstName: reporterData.firstName,
         lastName: reporterData.lastName,
@@ -1417,8 +1431,15 @@ admin.get('/reports/:id', async (c) => {
   const reporterData = clerkProfiles.get(report.reporterId)
   const reportedData = clerkProfiles.get(report.reportedId)
 
+  let paymentStatus = 'none'
+  if (report.rideId) {
+    const ride = await Ride.findById(report.rideId).lean()
+    paymentStatus = derivePaymentStatus(ride)
+  }
+
   return c.json({
     ...report.toObject(),
+    paymentStatus,
     reporter: reporterData ? {
       clerkId: report.reporterId,
       firstName: reporterData.firstName,
