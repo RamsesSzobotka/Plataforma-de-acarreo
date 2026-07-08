@@ -32,20 +32,7 @@ export function ReportCategoryModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--space-4)',
-      }}
-    >
+    <>
       {/* Backdrop */}
       <div
         onClick={onClose}
@@ -57,13 +44,17 @@ export function ReportCategoryModal({
           bottom: 0,
           background: 'rgba(0, 0, 0, 0.6)',
           backdropFilter: 'blur(4px)',
+          zIndex: 9998,
         }}
       />
 
-      {/* Modal */}
+      {/* Modal - centered in viewport using transform */}
       <div
         style={{
-          position: 'relative',
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
           width: '100%',
           maxWidth: '420px',
           background: '#0F172A',
@@ -71,6 +62,7 @@ export function ReportCategoryModal({
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
           overflow: 'hidden',
           animation: 'modalSlide var(--duration-normal) var(--ease-out)',
+          zIndex: 9999,
         }}
       >
         {/* Header */}
@@ -290,14 +282,14 @@ export function ReportCategoryModal({
         @keyframes modalSlide {
           from {
             opacity: 0;
-            transform: scale(0.95) translateY(-10px);
+            transform: translate(-50%, -50%) scale(0.95);
           }
           to {
             opacity: 1;
-            transform: scale(1) translateY(0);
+            transform: translate(-50%, -50%) scale(1);
           }
         }
       `}</style>
-    </div>
+    </>
   )
 }
