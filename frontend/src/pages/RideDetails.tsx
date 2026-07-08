@@ -453,10 +453,15 @@ function RideDetails() {
     if (!token || !ride?.driverId || !reportModal.category) return
 
     const { value: comment } = await Swal.fire({
+      background: '#1E293B',
+      color: '#F1F5F9',
       title: reportModal.category === 'payment_dispute' ? 'Detalle de la disputa' : 'Describe el problema',
       text: 'Minimo 10 caracteres',
       input: 'textarea',
       inputPlaceholder: 'Escribe aqui el motivo...',
+      inputAttributes: {
+        style: 'background: #334155; color: #F8FAFC; border: 1px solid #475569; border-radius: 8px; padding: 12px;'
+      },
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
@@ -513,10 +518,15 @@ function RideDetails() {
     if (!token || !ride?.clientId || !reportModal.category) return
 
     const { value: comment } = await Swal.fire({
+      background: '#1E293B',
+      color: '#F1F5F9',
       title: 'Describe el problema',
       text: 'Minimo 10 caracteres',
       input: 'textarea',
       inputPlaceholder: 'Escribe aqui el motivo...',
+      inputAttributes: {
+        style: 'background: #334155; color: #F8FAFC; border: 1px solid #475569; border-radius: 8px; padding: 12px;'
+      },
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
