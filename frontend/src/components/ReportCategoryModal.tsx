@@ -41,9 +41,8 @@ export function ReportCategoryModal({
         bottom: 0,
         zIndex: 9999,
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: '15vh',
         padding: 'var(--space-4)',
       }}
     >
@@ -56,7 +55,7 @@ export function ReportCategoryModal({
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'rgba(0, 0, 0, 0.6)',
           backdropFilter: 'blur(4px)',
         }}
       />
@@ -67,12 +66,11 @@ export function ReportCategoryModal({
           position: 'relative',
           width: '100%',
           maxWidth: '420px',
-          background: '#FFFFFF',
+          background: '#0F172A',
           borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--border)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
           overflow: 'hidden',
-          animation: 'slideDown var(--duration-normal) var(--ease-out)',
+          animation: 'modalSlide var(--duration-normal) var(--ease-out)',
         }}
       >
         {/* Header */}
@@ -82,7 +80,7 @@ export function ReportCategoryModal({
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: 'var(--space-5) var(--space-6)',
-            borderBottom: '1px solid var(--border-subtle)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -90,7 +88,7 @@ export function ReportCategoryModal({
               className="material-symbols-rounded"
               style={{
                 fontSize: '1.25rem',
-                color: 'var(--error)',
+                color: '#F97316',
               }}
             >
               flag
@@ -101,6 +99,7 @@ export function ReportCategoryModal({
                 fontSize: 'var(--text-lg)',
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
+                color: '#FFFFFF',
               }}
             >
               {title}
@@ -109,7 +108,7 @@ export function ReportCategoryModal({
           <button
             onClick={onClose}
             style={{
-              background: 'var(--surface-2)',
+              background: 'rgba(255, 255, 255, 0.1)',
               border: 'none',
               borderRadius: 'var(--radius)',
               width: '32px',
@@ -118,16 +117,16 @@ export function ReportCategoryModal({
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: 'var(--text-secondary)',
+              color: '#94A3B8',
               transition: 'all var(--duration-fast)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--surface-3)'
-              e.currentTarget.style.color = 'var(--text-primary)'
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'
+              e.currentTarget.style.color = '#FFFFFF'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--surface-2)'
-              e.currentTarget.style.color = 'var(--text-secondary)'
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+              e.currentTarget.style.color = '#94A3B8'
             }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>
@@ -154,9 +153,9 @@ export function ReportCategoryModal({
                 alignItems: 'center',
                 gap: 'var(--space-4)',
                 padding: 'var(--space-4)',
-                background: selected === category.value ? 'var(--primary-subtle)' : 'var(--surface-2)',
+                background: selected === category.value ? '#0D9488' : 'rgba(255, 255, 255, 0.05)',
                 border: '2px solid',
-                borderColor: selected === category.value ? 'var(--primary)' : 'transparent',
+                borderColor: selected === category.value ? '#0D9488' : 'transparent',
                 borderRadius: 'var(--radius)',
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -165,12 +164,12 @@ export function ReportCategoryModal({
               }}
               onMouseEnter={(e) => {
                 if (selected !== category.value) {
-                  e.currentTarget.style.background = 'var(--surface-3)'
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
                 }
               }}
               onMouseLeave={(e) => {
                 if (selected !== category.value) {
-                  e.currentTarget.style.background = 'var(--surface-2)'
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
                 }
               }}
             >
@@ -180,7 +179,7 @@ export function ReportCategoryModal({
                   height: '20px',
                   borderRadius: '50%',
                   border: '2px solid',
-                  borderColor: selected === category.value ? 'var(--primary)' : 'var(--text-muted)',
+                  borderColor: selected === category.value ? '#FFFFFF' : '#64748B',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -194,7 +193,7 @@ export function ReportCategoryModal({
                       width: '10px',
                       height: '10px',
                       borderRadius: '50%',
-                      background: 'var(--primary)',
+                      background: '#FFFFFF',
                     }}
                   />
                 )}
@@ -203,7 +202,7 @@ export function ReportCategoryModal({
                 <div
                   style={{
                     fontWeight: 'var(--font-medium)',
-                    color: 'var(--text-primary)',
+                    color: '#FFFFFF',
                     fontSize: 'var(--text-sm)',
                   }}
                 >
@@ -213,7 +212,7 @@ export function ReportCategoryModal({
                   <div
                     style={{
                       fontSize: 'var(--text-xs)',
-                      color: 'var(--text-muted)',
+                      color: '#94A3B8',
                       marginTop: '2px',
                     }}
                   >
@@ -231,15 +230,30 @@ export function ReportCategoryModal({
             display: 'flex',
             gap: 'var(--space-3)',
             padding: 'var(--space-4) var(--space-6) var(--space-5)',
-            borderTop: '1px solid var(--border-subtle)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
           }}
         >
           <button
             onClick={onClose}
-            className="btn btn-ghost"
             style={{
               flex: 1,
-              color: 'var(--text-secondary)',
+              padding: 'var(--space-3) var(--space-4)',
+              background: 'transparent',
+              border: '1px solid #475569',
+              borderRadius: 'var(--radius)',
+              color: '#94A3B8',
+              fontWeight: 'var(--font-medium)',
+              fontSize: 'var(--text-sm)',
+              cursor: 'pointer',
+              transition: 'all var(--duration-fast)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+              e.currentTarget.style.color = '#FFFFFF'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = '#94A3B8'
             }}
           >
             Cancelar
@@ -247,11 +261,21 @@ export function ReportCategoryModal({
           <button
             onClick={handleContinue}
             disabled={!selected}
-            className="btn btn-primary"
             style={{
               flex: 1,
-              opacity: selected ? 1 : 0.5,
+              padding: 'var(--space-3) var(--space-4)',
+              background: selected ? '#0D9488' : 'rgba(13, 148, 136, 0.3)',
+              border: 'none',
+              borderRadius: 'var(--radius)',
+              color: '#FFFFFF',
+              fontWeight: 'var(--font-semibold)',
+              fontSize: 'var(--text-sm)',
               cursor: selected ? 'pointer' : 'not-allowed',
+              transition: 'all var(--duration-fast)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-2)',
             }}
           >
             Siguiente
@@ -263,14 +287,14 @@ export function ReportCategoryModal({
       </div>
 
       <style>{`
-        @keyframes slideDown {
+        @keyframes modalSlide {
           from {
             opacity: 0;
-            transform: translateY(-20px);
+            transform: scale(0.95) translateY(-10px);
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            transform: scale(1) translateY(0);
           }
         }
       `}</style>
