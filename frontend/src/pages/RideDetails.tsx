@@ -403,42 +403,25 @@ function RideDetails() {
     const token = await getToken()
     if (!token || !ride?.driverId) return
 
-    const showPaymentDispute = !!(ride?.paymentIntentId)
-
     const { value: categoryValue } = await Swal.fire({
       title: 'Reportar Conductor',
-      html: `
-        <p style="margin-bottom: 1rem; color: #64748B; font-size: 0.875rem;">Selecciona el tipo de reporte:</p>
-        <div style="text-align: left; display: flex; flex-direction: column; gap: 0.5rem;">
-          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
-            <input type="radio" name="category" value="illicit_actions" checked>
-            <span style="font-weight: 500;">⚠️ Comportamiento inapropiado</span>
-          </label>
-          ${showPaymentDispute ? `
-          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
-            <input type="radio" name="category" value="payment_dispute">
-            <span style="font-weight: 500;">💰 Disputa de pago</span>
-          </label>` : ''}
-          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
-            <input type="radio" name="category" value="other">
-            <span style="font-weight: 500;">📋 Otro</span>
-          </label>
-        </div>
-      `,
+      input: 'radio',
+      inputOptions: {
+        illicit_actions: '⚠️ Comportamiento inapropiado',
+        ...(ride?.paymentIntentId ? { payment_dispute: '💰 Disputa de pago' } : {}),
+        other: '📋 Otro',
+      },
+      inputValidator: (value: string) => {
+        if (!value) {
+          return 'Selecciona una categoría'
+        }
+      },
       showCancelButton: true,
       confirmButtonText: 'Siguiente',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0D9488',
       cancelButtonColor: '#64748B',
       reverseButtons: true,
-      preConfirm: () => {
-        const selected = document.querySelector('input[name="category"]:checked') as HTMLInputElement
-        if (!selected) {
-          Swal.showValidationMessage('Selecciona una categoría')
-          return
-        }
-        return selected.value
-      },
     })
 
     if (!categoryValue) return
@@ -496,33 +479,22 @@ function RideDetails() {
 
     const { value: categoryValue } = await Swal.fire({
       title: 'Reportar Cliente',
-      html: `
-        <p style="margin-bottom: 1rem; color: #64748B; font-size: 0.875rem;">Selecciona el tipo de reporte:</p>
-        <div style="text-align: left; display: flex; flex-direction: column; gap: 0.5rem;">
-          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
-            <input type="radio" name="category" value="illicit_actions" checked>
-            <span style="font-weight: 500;">⚠️ Comportamiento inapropiado</span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;">
-            <input type="radio" name="category" value="other">
-            <span style="font-weight: 500;">📋 Otro</span>
-          </label>
-        </div>
-      `,
+      input: 'radio',
+      inputOptions: {
+        illicit_actions: '⚠️ Comportamiento inapropiado',
+        other: '📋 Otro',
+      },
+      inputValidator: (value: string) => {
+        if (!value) {
+          return 'Selecciona una categoría'
+        }
+      },
       showCancelButton: true,
       confirmButtonText: 'Siguiente',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0D9488',
       cancelButtonColor: '#64748B',
       reverseButtons: true,
-      preConfirm: () => {
-        const selected = document.querySelector('input[name="category"]:checked') as HTMLInputElement
-        if (!selected) {
-          Swal.showValidationMessage('Selecciona una categoría')
-          return
-        }
-        return selected.value
-      },
     })
 
     if (!categoryValue) return
