@@ -107,6 +107,22 @@ export default function DriverDetail() {
     }
   }
 
+  async function handleUnsuspend() {
+    if (!userId) return
+    if (!confirm('¿Quitar la suspensión de este conductor?')) return
+    setActionLoading(true)
+    try {
+      await api.unsuspendDriver(userId)
+      setDriver((d) =>
+        d ? { ...d, verificationStatus: 'verified', isAvailable: true, rejectionReason: '' } : d
+      )
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="loading-spinner">
@@ -379,6 +395,18 @@ export default function DriverDetail() {
                 block
               </span>
               Suspender
+            </button>
+          )}
+          {driver.verificationStatus === 'suspended' && (
+            <button
+              className="action-btn warning"
+              onClick={handleUnsuspend}
+              disabled={actionLoading}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                check_circle
+              </span>
+              Quitar Suspensión
             </button>
           )}
           <Link to="/drivers" className="action-btn secondary">

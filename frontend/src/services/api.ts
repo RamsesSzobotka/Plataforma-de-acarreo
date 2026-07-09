@@ -462,9 +462,44 @@ export const ratingsAPI = {
 }
 
 export const reportsAPI = {
-  create: (data: { reportedId: string; reportedRole: string; rideId?: string; comment: string }, token?: string) =>
+  create: (data: { reportedId: string; reportedRole: string; rideId?: string; comment: string; category?: string }, token?: string) =>
     fetchAPI<{ success: boolean; message: string; report: any }>('/api/reports', {
       method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+}
+
+export const adminReportsAPI = {
+  // List reports with filters
+  list: (params?: { status?: string; category?: string; page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.status) searchParams.set('status', params.status)
+    if (params?.category) searchParams.set('category', params.category)
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<{
+      reports: Report[]
+      total: number
+      page: number
+      pages: number
+    }>(`/api/admin/reports${query ? `?${query}` : ''}`, {}, token)
+  },
+
+  // Get single report with details
+  get: (id: string, token?: string) => fetchAPI<{ report: Report; ride?: Ride }>(`/api/admin/reports/${id}`, {}, token),
+
+  // Process refund for a ride
+  refund: (rideId: string, data: { reportId?: string; reason: string }, token?: string) =>
+    fetchAPI<{ success: boolean; ride: Ride; refundId: string }>(`/api/admin/rides/${rideId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+
+  // Resolve a report
+  resolve: (reportId: string, data: { resolution: 'refunded' | 'dismissed' | 'warning'; reason?: string }, token?: string) =>
+    fetchAPI<{ success: boolean; report: Report }>(`/api/admin/reports/${reportId}/resolve`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     }, token),
 }

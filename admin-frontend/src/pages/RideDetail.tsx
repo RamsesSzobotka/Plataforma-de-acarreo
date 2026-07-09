@@ -18,6 +18,8 @@ interface RideDetail {
   images: { url: string }[]
   deliveryPhoto?: { url: string }
   cancellationReason?: string
+  refundId?: string
+  paymentIntentId?: string
   clientId?: { firstName?: string; lastName?: string; email: string }
   driverId?: { firstName?: string; lastName?: string; email: string }
   createdAt: string
@@ -98,6 +100,23 @@ export default function RideDetail() {
     try {
       await api.deleteRide(id)
       window.location.href = '/rides'
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleRefund() {
+    if (!id) return
+    const reason = prompt('Motivo del reembolso:')
+    if (!reason) return
+    setActionLoading(true)
+    try {
+      await api.refundRide(id, { reason })
+      alert('Reembolso procesado exitosamente')
+      const updated = await api.getRide(id!)
+      setRide(updated)
     } catch (e: any) {
       alert(e.message)
     } finally {
@@ -358,6 +377,14 @@ export default function RideDetail() {
                 cancel
               </span>
               Cancelar
+            </button>
+          )}
+          {ride.paymentIntentId && ride.status !== 'cancelled' && !ride.refundId && (
+            <button className="action-btn danger" onClick={handleRefund} disabled={actionLoading}>
+              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                currency_exchange
+              </span>
+              Reembolsar
             </button>
           )}
           <button className="action-btn danger" onClick={handleDelete} disabled={actionLoading}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
@@ -10,6 +10,7 @@ import type { DriverContact, RatingWithRater } from '../types'
 import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { showConfirm, showError, showSuccess } from '../services/alerts'
+import { ReportCategoryModal } from '../components/ReportCategoryModal'
 import Swal from 'sweetalert2'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
@@ -59,6 +60,16 @@ function RideDetails() {
   const [driverHasRated, setDriverHasRated] = useState(false)
   const [hasReportedDriver, setHasReportedDriver] = useState(false)
   const [hasReportedClient, setHasReportedClient] = useState(false)
+
+  // Report modal state
+  const [reportModal, setReportModal] = useState<{
+    isOpen: boolean
+    type: 'driver' | 'client' | null
+    category: string | null
+  }>({ isOpen: false, type: null, category: null })
+
+  // Ref to track if we're currently processing a report to avoid loop
+  const isProcessingReport = useRef(false)
 
   // ── Tracking en vivo del conductor ──
   const { driverLocation, isTracking } = useRideTracking({
@@ -254,10 +265,35 @@ function RideDetails() {
   }, [id])
 
   async function handleCancel() {
-    if (!id) return
+    if (!id || !ride) return
+    const isDriver = user?.id === ride.driverId
+
+    if (isDriver) {
+      // Driver unassign: no refund, vuelve a requested
+      const confirmed = await showConfirm({
+        title: '¿Retirarte de este acarreo?',
+        text: 'Tu oferta será cancelada y la publicación volverá a estar disponible para otros conductores.',
+        icon: 'warning',
+        confirmText: 'Sí, retirarme'
+      })
+      if (!confirmed) return
+
+      try {
+        const token = await getToken()
+        await ridesAPI.cancel(id, 'Conductor se retiró', token || undefined)
+        loadRide()
+      } catch {
+      }
+      return
+    }
+
+    // Client cancel: con refund si aplica
+    const cancelText = hasAuthorizedPayment
+      ? t('ride.detail.cancelConfirmTextWithRefund', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })
+      : t('ride.detail.cancelConfirmText')
     const confirmed = await showConfirm({
       title: t('ride.detail.cancelConfirmTitle'),
-      text: t('ride.detail.cancelConfirmText'),
+      text: cancelText,
       icon: 'warning',
       confirmText: t('ride.detail.cancelConfirmBtn')
     })
@@ -275,13 +311,14 @@ function RideDetails() {
   async function handleConfirmDelivery() {
     if (!user || !ride || !id) return
 
+    const amount = ride.finalPrice || ride.estimatedPrice
     const confirmMessage = userHasPaymentMethod
-      ? t('ride.detail.confirmDeliveryWithPayment')
+      ? t('ride.detail.confirmDeliveryWithPayment', { amount: amount.toLocaleString() })
       : t('ride.detail.confirmDeliveryWithoutPayment')
 
     const confirmed = await showConfirm({
       title: t('ride.detail.confirmDelivery'),
-      text: confirmMessage
+      text: confirmMessage,
     })
 
     if (!confirmed) return
@@ -394,23 +431,43 @@ function RideDetails() {
     }
   }
 
+  function openReportModal(type: 'driver' | 'client') {
+    isProcessingReport.current = false
+    setReportModal({ isOpen: true, type, category: null })
+  }
+
+  async function handleReportCategorySelect(category: string) {
+    setReportModal((prev) => ({ ...prev, isOpen: false, category }))
+  }
+
   async function handleReportDriver() {
     const token = await getToken()
     if (!token || !ride?.driverId) return
 
+    // First step: select category using custom modal
+    openReportModal('driver')
+  }
+
+  async function handleReportDriverSecondStep() {
+    const token = await getToken()
+    if (!token || !ride?.driverId || !reportModal.category) return
+
     const { value: comment } = await Swal.fire({
-      title: 'Reportar Conductor',
-      text: 'Describe el motivo del reporte (mín. 10 caracteres)',
+      background: '#1E293B',
+      color: '#F1F5F9',
+      title: reportModal.category === 'payment_dispute' ? 'Detalle de la disputa' : 'Describe el problema',
+      text: 'Minimo 10 caracteres',
       input: 'textarea',
-      inputPlaceholder: 'Escribe aquí el motivo...',
-      inputAttributes: { 'aria-label': 'Motivo del reporte' },
+      inputPlaceholder: 'Escribe aqui el motivo...',
+      inputAttributes: {
+        style: 'background: #334155; color: #F8FAFC; border: 1px solid #475569; border-radius: 8px; padding: 12px;'
+      },
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0D9488',
       cancelButtonColor: '#64748B',
       reverseButtons: true,
-      focusCancel: true,
       inputValidator: (value: string) => {
         if (!value || value.trim().length < 10) {
           return 'El comentario debe tener al menos 10 caracteres'
@@ -425,6 +482,7 @@ function RideDetails() {
             reportedRole: 'driver',
             rideId: ride!._id,
             comment: comment.trim(),
+            category: reportModal.category ?? undefined,
           }, token ?? undefined)
           return true
         } catch (err: any) {
@@ -439,30 +497,42 @@ function RideDetails() {
       await Swal.fire({
         icon: 'success',
         title: 'Reporte Enviado',
-        text: 'Hemos recibido tu reporte. Un administrador lo revisará pronto.',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisara pronto.',
         confirmButtonColor: '#0D9488',
       })
       setHasReportedDriver(true)
     }
+    setReportModal({ isOpen: false, type: null, category: null })
   }
 
   async function handleReportClient() {
     const token = await getToken()
     if (!token || !ride?.clientId) return
 
+    // First step: select category using custom modal
+    openReportModal('client')
+  }
+
+  async function handleReportClientSecondStep() {
+    const token = await getToken()
+    if (!token || !ride?.clientId || !reportModal.category) return
+
     const { value: comment } = await Swal.fire({
-      title: 'Reportar Cliente',
-      text: 'Describe el motivo del reporte (mín. 10 caracteres)',
+      background: '#1E293B',
+      color: '#F1F5F9',
+      title: 'Describe el problema',
+      text: 'Minimo 10 caracteres',
       input: 'textarea',
-      inputPlaceholder: 'Escribe aquí el motivo...',
-      inputAttributes: { 'aria-label': 'Motivo del reporte' },
+      inputPlaceholder: 'Escribe aqui el motivo...',
+      inputAttributes: {
+        style: 'background: #334155; color: #F8FAFC; border: 1px solid #475569; border-radius: 8px; padding: 12px;'
+      },
       showCancelButton: true,
       confirmButtonText: 'Enviar Reporte',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#0D9488',
       cancelButtonColor: '#64748B',
       reverseButtons: true,
-      focusCancel: true,
       inputValidator: (value: string) => {
         if (!value || value.trim().length < 10) {
           return 'El comentario debe tener al menos 10 caracteres'
@@ -477,6 +547,7 @@ function RideDetails() {
             reportedRole: 'client',
             rideId: ride!._id,
             comment: comment.trim(),
+            category: reportModal.category ?? undefined,
           }, token ?? undefined)
           return true
         } catch (err: any) {
@@ -491,11 +562,12 @@ function RideDetails() {
       await Swal.fire({
         icon: 'success',
         title: 'Reporte Enviado',
-        text: 'Hemos recibido tu reporte. Un administrador lo revisará pronto.',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisara pronto.',
         confirmButtonColor: '#0D9488',
       })
       setHasReportedClient(true)
     }
+    setReportModal({ isOpen: false, type: null, category: null })
   }
 
   const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
@@ -513,6 +585,18 @@ function RideDetails() {
     })
   }
 
+  // Effect to trigger second step after category is selected
+  useEffect(() => {
+    if (reportModal.category && reportModal.type && !isProcessingReport.current) {
+      isProcessingReport.current = true
+      if (reportModal.type === 'driver') {
+        handleReportDriverSecondStep()
+      } else {
+        handleReportClientSecondStep()
+      }
+    }
+  }, [reportModal.category, reportModal.type])
+
   if (loading) {
     return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 var(--space-4)' }}>
@@ -527,7 +611,14 @@ function RideDetails() {
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
   const isOwner = isClientOwner
-  const canClientCancel = isClientOwner && ride.status === 'requested'
+
+  // Client can cancel if: owner AND (requested OR negotiating OR (accepted with paymentIntent but no transfer yet))
+  const clientCancelStatuses = ['requested', 'negotiating']
+  const hasAuthorizedPayment = !!(ride.paymentIntentId && !ride.transferId)
+  const canClientCancel = isClientOwner && (
+    clientCancelStatuses.includes(ride.status) ||
+    (ride.status === 'accepted' && hasAuthorizedPayment)
+  )
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
 
   const unreadCount = unreadCounts[ride._id] || 0
@@ -635,7 +726,7 @@ function RideDetails() {
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 {ride.description}
               </p>
-              {ride.driverId === user?.id && !hasReportedClient && (
+              {user?.id && user?.id !== ride.clientId && !hasReportedClient && (
                 <button
                   onClick={handleReportClient}
                   title="Reportar cliente"
@@ -1416,6 +1507,48 @@ function RideDetails() {
                   {t('ride.detail.negotiatedPrice')}
                 </div>
               )}
+
+              {/* Payment status messages */}
+              {hasAuthorizedPayment && !ride.paidAt && (
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  display: 'flex',
+                  gap: 'var(--space-2)',
+                  alignItems: 'center',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
+                    check_circle
+                  </span>
+                  <span>
+                    {t('ride.detail.paymentMade', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
+                  </span>
+                </div>
+              )}
+              {ride.transferId && (
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  display: 'flex',
+                  gap: 'var(--space-2)',
+                  alignItems: 'center',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
+                    check_circle
+                  </span>
+                  <span>
+                    {t('ride.detail.paymentToDriver')}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -1933,6 +2066,21 @@ function RideDetails() {
           onClose={() => setDriverPopup(null)}
         />
       )}
+
+      {/* Report Category Modal */}
+      <ReportCategoryModal
+        isOpen={reportModal.isOpen}
+        title={reportModal.type === 'driver' ? 'Reportar Conductor' : 'Reportar Cliente'}
+        categories={[
+          { value: 'illicit_actions', label: 'Comportamiento inapropiado', description: 'Conducta agresiva, irrespetuosa o inapropiada' },
+          ...(ride?.paymentIntentId && ride?.driverId
+            ? [{ value: 'payment_dispute', label: 'Disputa de pago', description: 'Problemas relacionados con el pago del servicio' }]
+            : []),
+          { value: 'other', label: 'Otro', description: 'Otra razon no mencionada anteriormente' },
+        ]}
+        onSelect={handleReportCategorySelect}
+        onClose={() => setReportModal({ isOpen: false, type: null, category: null })}
+      />
     </div>
   )
 }

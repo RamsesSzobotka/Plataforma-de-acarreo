@@ -396,7 +396,8 @@ function Chat() {
 
       setProposalInfo(prev => prev ? { ...prev, status: 'accepted' } : null)
       setRideInfo(data.ride)
-      await showSuccess(t('chat.acceptPriceSuccess'))
+      // Show message from backend (e.g., "Propuesta aceptada y pago autorizado")
+      await showSuccess(data.message || t('chat.acceptPriceSuccess'))
     } catch (err) {
       console.error('Error accepting price:', err)
       await showError(t('chat.acceptPriceError'))

@@ -1,10 +1,12 @@
 import { Hono } from 'hono/tiny'
 import { Message } from '../models/message'
 import { Ride } from '../models/ride'
+import { Driver } from '../models/driver'
 import { DriverContact } from '../models/driverContact'
 import { broadcastToRide } from '../services/websocket'
 import { authMiddleware } from '../middleware/auth'
 import { createNotification } from '../services/notificationService'
+import { chargeClient } from '../services/payment.service'
 
 const messages = new Hono()
 
@@ -321,6 +323,41 @@ messages.post('/accept-price', authMiddleware, async (c) => {
     { new: true }
   )
 
+  // NEW: Charge the client (capture immediately - transfer happens at confirm-delivery)
+  try {
+    const driver = await Driver.findOne({ userId: driverId })
+    const chargeResult = await chargeClient(rideId, contact.proposedPrice, driver?.stripeAccountId)
+
+    // Update ride with payment info
+    await Ride.findByIdAndUpdate(rideId, {
+      paymentIntentId: chargeResult.paymentIntentId,
+      chargedAt: new Date(),
+      platformFee: Math.round(contact.proposedPrice * 0.10 * 100),
+      driverAmount: Math.round(contact.proposedPrice * 0.90 * 100),
+    })
+
+    // Refresh ride with payment info
+    const rideWithPayment = await Ride.findById(rideId)
+    if (rideWithPayment) {
+      Object.assign(updatedRide, rideWithPayment.toObject())
+    }
+  } catch (chargeError: any) {
+    // Revert: remove driver assignment and set status back to 'requested'
+    console.error(`Error capturing payment for ride ${rideId}: ${chargeError.message}`)
+
+    await Ride.findByIdAndUpdate(rideId, {
+      status: 'requested',
+      driverId: undefined,
+      finalPrice: undefined,
+      chatEnabled: false,
+    })
+
+    return c.json({
+      error: 'No se pudo procesar el pago. Fondos insuficientes o método de pago inválido.',
+      details: chargeError.message,
+    }, 402)
+  }
+
   // Desactivar todos los otros contacts
   await DriverContact.updateMany(
     { rideId, driverId: { $ne: driverId } },
@@ -370,8 +407,11 @@ messages.post('/accept-price', authMiddleware, async (c) => {
 
   return c.json({
     success: true,
+    message: 'Propuesta aceptada y pago capturado',
+    paymentIntentId: updatedRide.paymentIntentId,
+    platformFee: updatedRide.platformFee,
+    driverAmount: updatedRide.driverAmount,
     ride: updatedRide,
-    message
   })
 })
 
