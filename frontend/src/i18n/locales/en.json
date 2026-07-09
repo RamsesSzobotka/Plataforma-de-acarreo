@@ -442,6 +442,7 @@
   "mcp.generateTokenHasExisting": "This will invalidate the current token. Existing connections will stop working.",
   "mcp.generateTokenNew": "A new access token will be generated for MCP connections.",
   "mcp.generateTokenTitle": "Generate token?",
+  "mcp.regenerateTokenTitle": "Regenerate token?",
   "mcp.info": "Use this token in your MCP configuration file to connect agents to the platform",
   "mcp.lastUsedAt": "Last used",
   "mcp.loading": "Loading MCP configuration...",

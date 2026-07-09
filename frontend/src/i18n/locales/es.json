@@ -562,6 +562,7 @@
   "mcp.securityLabel": "Seguridad",
   "mcp.securityText": "Después de revocar el token, cierra sesión en todos los clientes MCP que lo estén usando. El token es personal e intransferible.",
   "mcp.generateTokenTitle": "¿Generar token?",
+  "mcp.regenerateTokenTitle": "¿Regenerar token?",
   "mcp.generateTokenHasExisting": "Esto invalidará el token actual. Las conexiones existentes dejarán de funcionar.",
   "mcp.generateTokenNew": "Se generará un nuevo token de acceso para conexiones MCP.",
   "mcp.revokeTokenTitle": "¿Revocar token?",
