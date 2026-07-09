@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { useTranslation } from 'react-i18next'
-import { hideLoading, showLoading } from '../services/alerts'
+import { hideLoading, showLoading, showConfirm } from '../services/alerts'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -35,8 +35,6 @@ function SettingsMcp() {
   const [copied, setCopied] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [revoking, setRevoking] = useState(false)
-  const [confirmGenerate, setConfirmGenerate] = useState(false)
-  const [confirmRevoke, setConfirmRevoke] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Detect role from Clerk publicMetadata
@@ -128,7 +126,6 @@ function SettingsMcp() {
       setCreatedAt(body.data?.createdAt || null)
       setLastUsedAt(null)
       setState('has_token')
-      setConfirmGenerate(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('mcp.errors.generate'))
     } finally {
@@ -155,7 +152,6 @@ function SettingsMcp() {
       setCreatedAt(null)
       setLastUsedAt(null)
       setState('no_token')
-      setConfirmRevoke(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('mcp.errors.revoke'))
     } finally {
@@ -321,11 +317,29 @@ function SettingsMcp() {
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => setConfirmGenerate(true)}>
+                <button className="btn btn-primary" onClick={async () => {
+                  const confirmed = await showConfirm({
+                    icon: 'warning',
+                    title: t('mcp.regenerateTokenTitle'),
+                    text: t('mcp.generateTokenHasExisting'),
+                    confirmText: t('common.confirm'),
+                    cancelText: t('common.cancel'),
+                  })
+                  if (confirmed) handleGenerate()
+                }}>
                   <span className="material-symbols-rounded">refresh</span>
                   {t('mcp.regenerate')}
                 </button>
-                <button className="btn btn-danger-outline" onClick={() => setConfirmRevoke(true)}>
+                <button className="btn btn-danger-outline" onClick={async () => {
+                  const confirmed = await showConfirm({
+                    icon: 'warning',
+                    title: t('mcp.revokeTokenTitle'),
+                    text: t('mcp.revokeTokenText') + ' ' + t('mcp.revokeTokenUndo'),
+                    confirmText: t('mcp.revoke'),
+                    cancelText: t('common.cancel'),
+                  })
+                  if (confirmed) handleRevoke()
+                }}>
                   <span className="material-symbols-rounded">delete_forever</span>
                   {t('mcp.revoke')}
                 </button>
@@ -336,10 +350,19 @@ function SettingsMcp() {
               <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                 {t('mcp.noToken')}
               </p>
-              <button className="btn btn-primary" onClick={() => setConfirmGenerate(true)}>
-                <span className="material-symbols-rounded">add</span>
-                {t('mcp.generateToken')}
-              </button>
+<button className="btn btn-primary" onClick={async () => {
+                const confirmed = await showConfirm({
+                  icon: 'info',
+                  title: t('mcp.generateTokenTitle'),
+                  text: t('mcp.generateTokenNew'),
+                  confirmText: t('common.confirm'),
+                  cancelText: t('common.cancel'),
+                })
+                if (confirmed) handleGenerate()
+              }}>
+                  <span className="material-symbols-rounded">add</span>
+                  {t('mcp.generateToken')}
+                </button>
             </div>
           )}
         </div>
@@ -656,57 +679,7 @@ function SettingsMcp() {
         </div>
       )}
 
-      {/* ── Confirm Generate Modal ─────────────────────────────────────────── */}
-      {confirmGenerate && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 'var(--z-modal)', padding: '1rem'
-        }}>
-          <div className="card animate-scale-in" style={{ maxWidth: '400px', width: '100%' }}>
-            <h3 style={{ marginBottom: '0.75rem' }}>{t('mcp.generateTokenTitle')}</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-              {state === 'has_token'
-                ? t('mcp.generateTokenHasExisting')
-                : t('mcp.generateTokenNew')}
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setConfirmGenerate(false)} disabled={generating}>
-                {t('common.cancel')}
-              </button>
-              <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
-                {generating ? <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} /> : null}
-                {t('common.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Confirm Revoke Modal ──────────────────────────────────────────── */}
-      {confirmRevoke && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 'var(--z-modal)', padding: '1rem'
-        }}>
-          <div className="card animate-scale-in" style={{ maxWidth: '400px', width: '100%' }}>
-            <h3 style={{ marginBottom: '0.75rem' }}>{t('mcp.revokeTokenTitle')}</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-              {t('mcp.revokeTokenText')}<strong> {t('mcp.revokeTokenUndo')}</strong>
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setConfirmRevoke(false)} disabled={revoking}>
-                {t('common.cancel')}
-              </button>
-              <button className="btn btn-danger" onClick={handleRevoke} disabled={revoking}>
-                {revoking ? <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} /> : null}
-                {t('mcp.revoke')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      
     </div>
   )
 }
