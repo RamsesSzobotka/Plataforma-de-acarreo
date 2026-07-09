@@ -33,8 +33,6 @@ function SettingsMcp() {
   const [lastUsedAt, setLastUsedAt] = useState<string | null>(null)
   const [rawToken, setRawToken] = useState<string | null>(null) // Only shown once
   const [copied, setCopied] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [revoking, setRevoking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Detect role from Clerk publicMetadata
@@ -104,7 +102,6 @@ function SettingsMcp() {
 
   async function handleGenerate() {
     try {
-      setGenerating(true)
       setError(null)
       const jwt = await getToken()
       const res = await fetch(`${API_URL}/api/auth/mcp-token`, {
@@ -129,7 +126,7 @@ function SettingsMcp() {
     } catch (err) {
       setError(err instanceof Error ? err.message : t('mcp.errors.generate'))
     } finally {
-      setGenerating(false)
+      // no state to clean up — SweetAlert handles loading
     }
   }
 
@@ -137,7 +134,6 @@ function SettingsMcp() {
 
   async function handleRevoke() {
     try {
-      setRevoking(true)
       setError(null)
       const jwt = await getToken()
       const res = await fetch(`${API_URL}/api/auth/mcp-token`, {
@@ -154,8 +150,6 @@ function SettingsMcp() {
       setState('no_token')
     } catch (err) {
       setError(err instanceof Error ? err.message : t('mcp.errors.revoke'))
-    } finally {
-      setRevoking(false)
     }
   }
 
