@@ -1753,4 +1753,151 @@ admin.get('/mcp-audit-logs', async (c) => {
   })
 })
 
+// === CSV EXPORT ===
+
+function toCSV(headers: string[], rows: string[][]): string {
+  const esc = (v: string | null | undefined) => {
+    if (v == null) return ''
+    const s = String(v)
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  return '\uFEFF' + [headers.join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n')
+}
+
+// Export rides
+admin.get('/export/rides', async (c) => {
+  const status = c.req.query('status')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+
+  const query: any = {}
+  if (status && status !== 'todos') query.status = status
+  if (from || to) {
+    query.createdAt = {}
+    if (from) query.createdAt.$gte = new Date(from)
+    if (to) query.createdAt.$lte = new Date(to)
+  }
+
+  const rides = await Ride.find(query).sort({ createdAt: -1 }).lean()
+
+  // Enrich with Clerk data
+  const allIds = [...new Set([
+    ...rides.map((r: any) => r.clientId).filter(Boolean),
+    ...rides.map((r: any) => r.driverId).filter(Boolean),
+  ])] as string[]
+  const profiles = allIds.length > 0 ? await getClerkUserProfiles(allIds) : new Map()
+
+  const headers = ['ID', 'Título', 'Tipo', 'Descripción', 'Cliente', 'Cliente Email', 'Conductor', 'Conductor Email', 'Dirección Origen', 'Dirección Destino', 'Precio Estimado', 'Precio Final', 'Estado', 'Creado', 'Pagado']
+  const rows = rides.map((r: any) => {
+    const c = r.clientId ? profiles.get(r.clientId) : null
+    const d = r.driverId ? profiles.get(r.driverId) : null
+    return [
+      r._id.toString(), r.title, r.type, r.description,
+      c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : '',
+      c?.email || '',
+      d ? `${d.firstName || ''} ${d.lastName || ''}`.trim() : '',
+      d?.email || '',
+      r.pickupLocation?.address || '',
+      r.dropoffLocation?.address || '',
+      String(r.estimatedPrice ?? ''),
+      String(r.finalPrice ?? ''),
+      r.status,
+      r.createdAt ? new Date(r.createdAt).toISOString() : '',
+      r.paidAt ? new Date(r.paidAt).toISOString() : '',
+    ]
+  })
+
+  c.header('Content-Type', 'text/csv; charset=utf-8')
+  c.header('Content-Disposition', 'attachment; filename="rides.csv"')
+  return c.body(toCSV(headers, rows))
+})
+
+// Export users
+admin.get('/export/users', async (c) => {
+  const role = c.req.query('role')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+
+  const query: any = {}
+  if (role && role !== 'todos') query.role = role
+  if (from || to) {
+    query.createdAt = {}
+    if (from) query.createdAt.$gte = new Date(from)
+    if (to) query.createdAt.$lte = new Date(to)
+  }
+
+  const users = await User.find(query).sort({ createdAt: -1 }).lean()
+
+  // Enrich with Clerk
+  const clerkIds = users.map((u: any) => u.clerkId).filter(Boolean) as string[]
+  const profiles = clerkIds.length > 0 ? await getClerkUserProfiles(clerkIds) : new Map()
+
+  const headers = ['Clerk ID', 'Email', 'Nombre', 'Apellido', 'Rol', 'Activo', 'Teléfono', 'Stripe Customer ID', 'Creado']
+  const rows = users.map((u: any) => {
+    const p = profiles.get(u.clerkId)
+    return [
+      u.clerkId || '',
+      p?.email || u.email || '',
+      p?.firstName || u.firstName || '',
+      p?.lastName || u.lastName || '',
+      u.role,
+      u.isActive ? 'Sí' : 'No',
+      u.phone || '',
+      u.stripeCustomerId || '',
+      u.createdAt ? new Date(u.createdAt).toISOString() : '',
+    ]
+  })
+
+  c.header('Content-Type', 'text/csv; charset=utf-8')
+  c.header('Content-Disposition', 'attachment; filename="usuarios.csv"')
+  return c.body(toCSV(headers, rows))
+})
+
+// Export payments (paid rides)
+admin.get('/export/payments', async (c) => {
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+
+  const query: any = { status: 'paid' }
+  if (from || to) {
+    query.paidAt = {}
+    if (from) query.paidAt.$gte = new Date(from)
+    if (to) query.paidAt.$lte = new Date(to)
+  }
+
+  const rides = await Ride.find(query).sort({ paidAt: -1 }).lean()
+
+  // Enrich with Clerk
+  const allIds = [...new Set([
+    ...rides.map((r: any) => r.clientId).filter(Boolean),
+    ...rides.map((r: any) => r.driverId).filter(Boolean),
+  ])] as string[]
+  const profiles = allIds.length > 0 ? await getClerkUserProfiles(allIds) : new Map()
+
+  const headers = ['Ride ID', 'Título', 'Cliente', 'Cliente Email', 'Conductor', 'Conductor Email', 'Precio Final', 'Comisión (10%)', 'Pago Conductor (90%)', 'Fecha Pago', 'Transfer ID', 'Reembolso ID', 'Método Pago']
+  const rows = rides.map((r: any) => {
+    const c = r.clientId ? profiles.get(r.clientId) : null
+    const d = r.driverId ? profiles.get(r.driverId) : null
+    return [
+      r._id.toString(),
+      r.title,
+      c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : '',
+      c?.email || '',
+      d ? `${d.firstName || ''} ${d.lastName || ''}`.trim() : '',
+      d?.email || '',
+      String(r.finalPrice ?? ''),
+      String(r.platformFee ?? ''),
+      String(r.driverAmount ?? ''),
+      r.paidAt ? new Date(r.paidAt).toISOString() : '',
+      r.transferId || '',
+      r.refundId || '',
+      r.stripePaymentMethodId || '',
+    ]
+  })
+
+  c.header('Content-Type', 'text/csv; charset=utf-8')
+  c.header('Content-Disposition', 'attachment; filename="pagos.csv"')
+  return c.body(toCSV(headers, rows))
+})
+
 export default admin
