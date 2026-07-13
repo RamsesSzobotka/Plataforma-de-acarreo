@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
 import { ridesAPI, usersAPI, ratingsAPI, reportsAPI } from '../services/api'
@@ -40,6 +40,7 @@ function RideDetails() {
   const { getToken } = useAuth()
   const { unreadCounts } = useNotifications()
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
@@ -642,8 +643,8 @@ function RideDetails() {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 var(--space-4)' }}>
       {/* Back button */}
-      <Link
-        to="/my-rides"
+      <button
+        onClick={() => navigate(-1)}
         className="btn btn-ghost"
         style={{
           display: 'inline-flex',
@@ -651,11 +652,17 @@ function RideDetails() {
           gap: 'var(--space-2)',
           marginBottom: 'var(--space-6)',
           color: 'var(--text-muted)',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 'inherit',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        {t('ride.detail.backToMyRides')}
-      </Link>
+        {t('common.back')}
+      </button>
 
       {/* Hero Section with Status */}
       <div

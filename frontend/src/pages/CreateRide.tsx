@@ -176,8 +176,8 @@ function CreateRide() {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       {/* Back button */}
-      <Link
-        to="/my-rides"
+      <button
+        onClick={() => navigate(-1)}
         className="btn btn-ghost"
         style={{
           display: 'inline-flex',
@@ -185,11 +185,17 @@ function CreateRide() {
           gap: 'var(--space-2)',
           marginBottom: 'var(--space-6)',
           color: 'var(--text-muted)',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 'inherit',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        {t('ride.detail.backToMyRides')}
-      </Link>
+        {t('common.back')}
+      </button>
 
       {/* Header */}
       <SectionHeader

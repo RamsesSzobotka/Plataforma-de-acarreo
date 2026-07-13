@@ -535,10 +535,10 @@ function Chat() {
           <p style={{ color: 'var(--error)', marginBottom: 'var(--space-5)' }}>{error}</p>
           <button
             className="btn btn-outline"
-            onClick={() => navigate(userRole === 'driver' ? '/driver' : '/my-rides')}
+            onClick={() => navigate(-1)}
           >
             <span className="material-symbols-rounded">arrow_back</span>
-            {userRole === 'driver' ? t('nav.driverPanel') : t('ride.list.title')}
+            {t('common.back')}
           </button>
         </div>
       </div>
@@ -563,7 +563,7 @@ function Chat() {
         gap: 'var(--space-3)',
       }}>
         <button
-          onClick={() => navigate(isDriver ? '/driver' : '/my-rides')}
+          onClick={() => navigate(-1)}
           className="btn btn-ghost"
           style={{ color: 'var(--text-muted)' }}
         >
