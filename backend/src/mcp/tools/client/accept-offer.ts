@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { db } from '../../../db/mongo';
 import { acceptOfferSchema } from '../../schemas';
 import { McpError } from '../../errors';
+import { removeRidePickupLocation } from '../../../services/redis';
 
 export async function handleAcceptOffer(
   input: z.infer<typeof acceptOfferSchema>,
@@ -194,6 +195,9 @@ export async function handleAcceptOffer(
     },
     { $set: { status: 'rejected', updatedAt: new Date() } }
   );
+
+  // Fire-and-forget: eliminar del GEO una vez aceptado (ya no disponible para otros conductores)
+  removeRidePickupLocation(result._id.toString());
 
   // --- Build response ---
   const rideData = {

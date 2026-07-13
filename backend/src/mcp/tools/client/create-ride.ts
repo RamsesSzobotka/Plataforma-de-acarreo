@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '../../../db/mongo';
 import { createRideSchema } from '../../schemas';
 import { McpError } from '../../errors';
+import { addRidePickupLocation } from '../../../services/redis';
 
 export async function handleCreateRide(
   input: z.infer<typeof createRideSchema>,
@@ -56,6 +57,13 @@ export async function handleCreateRide(
     };
 
     const result = await db.collection('rides').insertOne(rideData);
+
+    // Fire-and-forget: registrar en Redis GEO para búsqueda por cercanía
+    addRidePickupLocation(
+      result.insertedId.toString(),
+      input.pickupLng,
+      input.pickupLat,
+    );
 
     const ride = {
       id: result.insertedId.toString(),

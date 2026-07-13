@@ -5,6 +5,7 @@ import { cancelRideSchema } from '../../schemas';
 import { McpError } from '../../errors';
 import { refundPayment, cancelPaymentIntent } from '../../../services/stripeMarketplace';
 import { canCancel } from '../../../services/ride-machine';
+import { addRidePickupLocation, removeRidePickupLocation } from '../../../services/redis';
 
 export async function handleCancelRide(
   input: z.infer<typeof cancelRideSchema>,
@@ -50,6 +51,13 @@ export async function handleCancelRide(
       );
 
       if (!result) throw new McpError('NOT_FOUND', 'Acarreo no encontrado al retirarse', 404);
+
+      // Re-agregar al GEO porque el ride vuelve a estar disponible
+      addRidePickupLocation(
+        result._id.toString(),
+        result.pickupLocation.coordinates[0],
+        result.pickupLocation.coordinates[1],
+      );
 
       // Marcar la oferta aceptada del driver como cancelada
       await db.collection('offers').updateOne(
@@ -148,6 +156,9 @@ export async function handleCancelRide(
     );
 
     if (!result) throw new McpError('NOT_FOUND', 'Acarreo no encontrado al cancelar', 404);
+
+    // Eliminar del GEO porque el ride ya no está disponible
+    removeRidePickupLocation(result._id.toString());
 
     const rideCancelled = {
       id: result._id?.toString() ?? result.id,
