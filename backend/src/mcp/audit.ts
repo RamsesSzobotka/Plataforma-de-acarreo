@@ -32,7 +32,7 @@ export interface AuditEvent {
 
 export async function writeAuditEvent(event: AuditEvent): Promise<void> {
   // Fire and forget — don't await
-  db.collection('audit_logs').insertOne({
+  db.collection('mcpAuditLogs').insertOne({
     ...event,
     createdAt: new Date(),
   }).catch((err) => {

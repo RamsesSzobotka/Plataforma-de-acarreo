@@ -36,6 +36,16 @@ gdpr.post('/consent', async (c) => {
     userAgent: c.req.header('user-agent') || '',
   })
 
+  await logAudit({
+    action: 'gdpr.consent',
+    entityType: 'consent',
+    entityId: user.clerkId,
+    userId: user.clerkId,
+    details: { version, documents },
+    ip: c.req.header('x-forwarded-for') || '',
+    userAgent: c.req.header('user-agent') || '',
+  })
+
   return c.json({ status: 'ok' })
 })
 

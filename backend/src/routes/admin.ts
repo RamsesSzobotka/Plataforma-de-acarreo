@@ -5,6 +5,7 @@ import { Ride } from '../models/ride'
 import { AuditLog } from '../models/auditLog'
 import { logAudit } from '../services/audit'
 import { createNotification } from '../services/notificationService'
+import { mongoose } from '../db/mongo'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
 interface ClerkProfile {
@@ -1684,8 +1685,65 @@ admin.get('/audit-logs', async (c) => {
     AuditLog.countDocuments(filter),
   ])
 
+  // Normalizar al formato estándar del admin (data + pagination)
+  const data = JSON.parse(JSON.stringify(logs))
+
   return c.json({
-    logs,
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+  })
+})
+
+// === MCP AUDIT LOGS ===
+
+admin.get('/mcp-audit-logs', async (c) => {
+  const action = c.req.query('action')
+  const clerkId = c.req.query('clerkId')
+  const success = c.req.query('success')
+  const toolName = c.req.query('toolName')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+  const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '20')), 50)
+
+  const filter: Record<string, any> = {}
+
+  if (action) filter.action = action
+  if (clerkId) filter.clerkId = clerkId
+  if (toolName) filter.toolName = toolName
+  if (success === 'true') filter.success = true
+  else if (success === 'false') filter.success = false
+
+  // Date range filter on createdAt
+  if (from || to) {
+    filter.createdAt = {}
+    if (from) filter.createdAt.$gte = new Date(from)
+    if (to) filter.createdAt.$lte = new Date(to)
+  }
+
+  const skip = (page - 1) * limit
+  const dbInstance = mongoose.connection.db
+  if (!dbInstance) {
+    return c.json({ error: 'Database not connected' }, 500)
+  }
+  const mcpCollection = dbInstance.collection('mcpAuditLogs')
+
+  const [logs, total] = await Promise.all([
+    mcpCollection.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray(),
+    mcpCollection.countDocuments(filter),
+  ])
+
+  return c.json({
+    data: logs,
     pagination: {
       page,
       limit,
