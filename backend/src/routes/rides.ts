@@ -831,73 +831,49 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
 
   // ── Enviar factura por email después del pago ──
   if (updatedRide?.status === 'paid') {
+    console.log(`[Email] === INICIO envío factura ride ${updatedRide._id} ===`)
+    console.log(`[Email] Status del ride: ${updatedRide.status}`)
+    console.log(`[Email] ClientId: ${updatedRide.clientId}, DriverId: ${updatedRide.driverId}`)
     try {
       const { generateInvoicePDF } = await import('../services/invoice')
       const { sendEmail } = await import('../services/notifications/email')
       const { User } = await import('../models/user')
 
+      console.log(`[Email] Generando PDF factura para ride ${updatedRide._id}...`)
       const pdfBuffer = await generateInvoicePDF(updatedRide)
+      console.log(`[Email] PDF generado: ${pdfBuffer.length} bytes para ride ${updatedRide._id}`)
 
       // Send to client
+      console.log(`[Email] Buscando usuario cliente: ${updatedRide.clientId}`)
       const clientUser = await User.findOne({ clerkId: updatedRide.clientId })
+      console.log(`[Email] Cliente encontrado: ${clientUser?._id}, email: ${clientUser?.email || 'SIN EMAIL'}`)
       if (clientUser?.email) {
-        await sendEmail({
-          to: clientUser.email,
-          subject: `Factura Carglyn - ${updatedRide.title}`,
-          html: `
-            <div style="font-family: 'Plus Jakarta Sans', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-              <div style="background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%); color: white; padding: 32px 24px; border-radius: 12px 12px 0 0; text-align: center;">
-                <h1 style="margin: 0; font-size: 24px;">✅ ¡Pago Confirmado!</h1>
-                <p style="margin: 8px 0 0; opacity: 0.9;">Gracias por usar Carglyn</p>
-              </div>
-              <div style="padding: 32px 24px; background: #F8FAFC;">
-                <p style="margin: 0 0 16px; color: #0F172A; font-size: 16px;">Hola,</p>
-                <p style="margin: 0 0 24px; color: #334155; font-size: 16px; line-height: 1.6;">
-                  Tu pago por el acarreo <strong>"${updatedRide.title}"</strong> ha sido procesado exitosamente.
-                </p>
-                <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #E2E8F0;">
-                  <p style="margin: 8px 0; color: #334155; font-size: 14px;"><strong>Monto pagado:</strong> $${(updatedRide.finalPrice || updatedRide.estimatedPrice).toFixed(2)}</p>
-                  <p style="margin: 8px 0; color: #334155; font-size: 14px;"><strong>Recogida:</strong> ${updatedRide.pickupLocation.address}</p>
-                  <p style="margin: 8px 0; color: #334155; font-size: 14px;"><strong>Entrega:</strong> ${updatedRide.dropoffLocation.address}</p>
-                </div>
-                <p style="margin: 0 0 24px; color: #334155; font-size: 16px;">Encuentra tu factura adjunta en este correo y también disponible para descargar en la aplicación.</p>
-                <div style="text-align: center; margin-top: 24px;">
-                  <a href="${process.env.FRONTEND_URL || 'https://carglyn.com'}/ride/${updatedRide._id}" style="display: inline-block; background: #0D9488; color: white !important; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-                    Ver Detalles del Acarreo
-                  </a>
-                </div>
-              </div>
-              <div style="padding: 24px; text-align: center; color: #64748B; font-size: 14px; border-top: 1px solid #E2E8F0;">
-                <p style="margin: 0;">© ${new Date().getFullYear()} Carglyn. Todos los derechos reservados.</p>
-              </div>
-            </div>
-          `,
-        })
-        console.log(`[Email] Invoice sent to client: ${clientUser.email} for ride: ${updatedRide._id}`)
-      }
-
-      // Also send to driver
-      if (updatedRide.driverId) {
-        const driverUser = await User.findOne({ clerkId: updatedRide.driverId })
-        if (driverUser?.email) {
-          await sendEmail({
-            to: driverUser.email,
-            subject: `Resumen de pago Carglyn - ${updatedRide.title}`,
+        console.log(`[Email] Enviando factura a cliente ${clientUser.email}...`)
+        try {
+          const result = await sendEmail({
+            to: clientUser.email,
+            subject: `Factura Carglyn - ${updatedRide.title}`,
             html: `
               <div style="font-family: 'Plus Jakarta Sans', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
                 <div style="background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%); color: white; padding: 32px 24px; border-radius: 12px 12px 0 0; text-align: center;">
-                  <h1 style="margin: 0; font-size: 24px;">✅ ¡Pago Recibido!</h1>
-                  <p style="margin: 8px 0 0; opacity: 0.9;">Transferencia completada a tu cuenta</p>
+                  <h1 style="margin: 0; font-size: 24px;">✅ ¡Pago Confirmado!</h1>
+                  <p style="margin: 8px 0 0; opacity: 0.9;">Gracias por usar Carglyn</p>
                 </div>
                 <div style="padding: 32px 24px; background: #F8FAFC;">
                   <p style="margin: 0 0 16px; color: #0F172A; font-size: 16px;">Hola,</p>
                   <p style="margin: 0 0 24px; color: #334155; font-size: 16px; line-height: 1.6;">
-                    El pago por el acarreo <strong>"${updatedRide.title}"</strong> ha sido transferido a tu cuenta Stripe Connect.
+                    Tu pago por el acarreo <strong>"${updatedRide.title}"</strong> ha sido procesado exitosamente.
                   </p>
                   <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #E2E8F0;">
-                    <p style="margin: 0 0 16px; color: #64748B; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Monto recibido</p>
-                    <p style="margin: 0; color: #22C55E; font-size: 32px; font-weight: 700;">$${(updatedRide.driverAmount || (updatedRide.finalPrice || updatedRide.estimatedPrice) * 0.9).toFixed(2)}</p>
-                    <p style="margin: 8px 0 0; color: #64748B; font-size: 12px;">(Total: $${(updatedRide.finalPrice || updatedRide.estimatedPrice).toFixed(2)} - Comisión 10%)</p>
+                    <p style="margin: 8px 0; color: #334155; font-size: 14px;"><strong>Monto pagado:</strong> $${(updatedRide.finalPrice || updatedRide.estimatedPrice).toFixed(2)}</p>
+                    <p style="margin: 8px 0; color: #334155; font-size: 14px;"><strong>Recogida:</strong> ${updatedRide.pickupLocation.address}</p>
+                    <p style="margin: 8px 0; color: #334155; font-size: 14px;"><strong>Entrega:</strong> ${updatedRide.dropoffLocation.address}</p>
+                  </div>
+                  <p style="margin: 0 0 24px; color: #334155; font-size: 16px;">Encuentra tu factura adjunta en este correo y también disponible para descargar en la aplicación.</p>
+                  <div style="text-align: center; margin-top: 24px;">
+                    <a href="${process.env.FRONTEND_URL || 'https://carglyn.com'}/ride/${updatedRide._id}" style="display: inline-block; background: #0D9488; color: white !important; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+                      Ver Detalles del Acarreo
+                    </a>
                   </div>
                 </div>
                 <div style="padding: 24px; text-align: center; color: #64748B; font-size: 14px; border-top: 1px solid #E2E8F0;">
@@ -906,11 +882,60 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
               </div>
             `,
           })
-          console.log(`[Email] Payment summary sent to driver: ${driverUser.email} for ride: ${updatedRide._id}`)
+          console.log(`[Email] Factura enviada a cliente ${clientUser.email} para ride ${updatedRide._id}`, result ? `resultado: ${JSON.stringify(result)}` : '')
+        } catch (sendErr) {
+          console.error(`[Email] ERROR enviando factura a cliente ${clientUser.email}:`, sendErr)
+        }
+      } else {
+        console.warn(`[Email] Cliente ${updatedRide.clientId} no tiene email — saltando envío`)
+      }
+
+      // Also send to driver
+      if (updatedRide.driverId) {
+        console.log(`[Email] Buscando usuario conductor: ${updatedRide.driverId}`)
+        const driverUser = await User.findOne({ clerkId: updatedRide.driverId })
+        console.log(`[Email] Conductor encontrado: ${driverUser?._id}, email: ${driverUser?.email || 'SIN EMAIL'}`)
+        if (driverUser?.email) {
+          console.log(`[Email] Enviando resumen de pago a conductor ${driverUser.email}...`)
+          try {
+            const result = await sendEmail({
+              to: driverUser.email,
+              subject: `Resumen de pago Carglyn - ${updatedRide.title}`,
+              html: `
+                <div style="font-family: 'Plus Jakarta Sans', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+                  <div style="background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%); color: white; padding: 32px 24px; border-radius: 12px 12px 0 0; text-align: center;">
+                    <h1 style="margin: 0; font-size: 24px;">✅ ¡Pago Recibido!</h1>
+                    <p style="margin: 8px 0 0; opacity: 0.9;">Transferencia completada a tu cuenta</p>
+                  </div>
+                  <div style="padding: 32px 24px; background: #F8FAFC;">
+                    <p style="margin: 0 0 16px; color: #0F172A; font-size: 16px;">Hola,</p>
+                    <p style="margin: 0 0 24px; color: #334155; font-size: 16px; line-height: 1.6;">
+                      El pago por el acarreo <strong>"${updatedRide.title}"</strong> ha sido transferido a tu cuenta Stripe Connect.
+                    </p>
+                    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #E2E8F0;">
+                      <p style="margin: 0 0 16px; color: #64748B; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Monto recibido</p>
+                      <p style="margin: 0; color: #22C55E; font-size: 32px; font-weight: 700;">$${(updatedRide.driverAmount || (updatedRide.finalPrice || updatedRide.estimatedPrice) * 0.9).toFixed(2)}</p>
+                      <p style="margin: 8px 0 0; color: #64748B; font-size: 12px;">(Total: $${(updatedRide.finalPrice || updatedRide.estimatedPrice).toFixed(2)} - Comisión 10%)</p>
+                    </div>
+                  </div>
+                  <div style="padding: 24px; text-align: center; color: #64748B; font-size: 14px; border-top: 1px solid #E2E8F0;">
+                    <p style="margin: 0;">© ${new Date().getFullYear()} Carglyn. Todos los derechos reservados.</p>
+                  </div>
+                </div>
+              `,
+            })
+            console.log(`[Email] Resumen enviado a conductor ${driverUser.email} para ride ${updatedRide._id}`, result ? `resultado: ${JSON.stringify(result)}` : '')
+          } catch (sendErr) {
+            console.error(`[Email] ERROR enviando resumen a conductor ${driverUser.email}:`, sendErr)
+          }
+        } else {
+          console.warn(`[Email] Conductor ${updatedRide.driverId} no tiene email — saltando envío`)
         }
       }
+      console.log(`[Email] === FIN envío factura ride ${updatedRide._id} ===`)
     } catch (emailErr) {
-      console.error(`[Email] Failed to send invoice email for ride ${updatedRide._id}:`, emailErr)
+      console.error(`[Email] Error general en envío de factura para ride ${updatedRide._id}:`, emailErr)
+      console.log(`[Email] === FIN (con error) envío factura ride ${updatedRide._id} ===`)
     }
   }
 
