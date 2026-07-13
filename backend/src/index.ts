@@ -27,6 +27,7 @@ import ratings from './routes/ratings'
 import reports from './routes/reports'
 import oauth from './routes/oauth'
 import notifications from './routes/notifications'
+import gdpr from './routes/gdpr'
 
 // Session cache (5 min TTL)
 interface CachedSession { clerkId: string; expiresAt: number }
@@ -149,6 +150,7 @@ app.route('/', oauth)
 app.route('/api/ratings', ratings)
 app.route('/api/reports', reports)
 app.route('/api/notifications', notifications)
+app.route('/api/gdpr', gdpr)
 
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
 app.onError((err, c) => { console.error('Error:', err); return c.json({ error: 'Internal Server Error' }, 500) })

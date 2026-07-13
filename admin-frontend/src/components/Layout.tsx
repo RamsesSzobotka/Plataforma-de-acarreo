@@ -8,6 +8,7 @@ const navItems = [
   { to: '/drivers', label: 'Conductores', icon: 'local_shipping' },
   { to: '/rides', label: 'Pedidos', icon: 'inventory_2' },
   { to: '/disputes', label: 'Disputas', icon: 'gavel' },
+  { to: '/audit-logs', label: 'Auditoría', icon: 'history' },
 ]
 
 export default function Layout() {

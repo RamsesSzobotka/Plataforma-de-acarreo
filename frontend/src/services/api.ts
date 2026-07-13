@@ -629,3 +629,35 @@ export const paymentsAPI = {
       token
     ),
 }
+
+export const gdprAPI = {
+  giveConsent: (version = '1.0', token?: string) =>
+    fetchAPI<{ success: boolean }>('/api/gdpr/consent', {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }, token),
+
+  exportData: async (token?: string) => {
+    const response = await fetch(`${API_URL}/api/gdpr/export`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || error.message || 'Error al exportar datos')
+    }
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mis-datos-carglyn-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  },
+
+  deleteAccount: (token?: string) =>
+    fetchAPI<{ success: boolean }>('/api/gdpr/account', {
+      method: 'DELETE',
+    }, token),
+}

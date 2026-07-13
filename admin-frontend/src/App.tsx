@@ -11,6 +11,7 @@ import RideDetail from './pages/RideDetail'
 import Reports from './pages/Reports'
 import Disputes from './pages/Disputes'
 import UserDetail from './pages/UserDetail'
+import AuditLogs from './pages/AuditLogs'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="rides" element={<Rides />} />
           <Route path="rides/:id" element={<RideDetail />} />
           <Route path="disputes" element={<Disputes />} />
+          <Route path="audit-logs" element={<AuditLogs />} />
         </Route>
 
         {/* Fallback - redirect to dashboard */}

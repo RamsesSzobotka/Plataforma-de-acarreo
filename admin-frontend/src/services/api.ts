@@ -103,4 +103,25 @@ export const api = {
   // Pay driver
   payDriverRide: (rideId: string, data: { reportId?: string }) =>
     request(`/rides/${rideId}/pay-driver`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Audit Logs
+  getAuditLogs: async (params: {
+    action?: string
+    userId?: string
+    entityType?: string
+    from?: string
+    to?: string
+    page?: number
+    limit?: number
+  } = {}) => {
+    const query = new URLSearchParams()
+    if (params.action) query.set('action', params.action)
+    if (params.userId) query.set('userId', params.userId)
+    if (params.entityType) query.set('entityType', params.entityType)
+    if (params.from) query.set('from', params.from)
+    if (params.to) query.set('to', params.to)
+    if (params.page) query.set('page', params.page.toString())
+    if (params.limit) query.set('limit', params.limit.toString())
+    return request(`/audit-logs?${query.toString()}`)
+  },
 }
