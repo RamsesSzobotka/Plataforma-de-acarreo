@@ -622,7 +622,7 @@ function SettingsMcp() {
                   </div>
                 </div>
               </>
-            )}
+            ) : null}
           </div>
         </div>
 
