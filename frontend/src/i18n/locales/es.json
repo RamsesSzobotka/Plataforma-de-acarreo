@@ -695,5 +695,14 @@
   "tracking.title": "Seguimiento en vivo",
   "tracking.eta": "Tiempo estimado de llegada",
   "tracking.distance": "Distancia restante",
-  "tracking.driverLocation": "Ubicación del conductor"
+  "tracking.driverLocation": "Ubicación del conductor",
+
+  "consent.title": "Aceptación de Términos",
+  "consent.description": "Para usar Carglyn, necesitás aceptar nuestros documentos legales. Sin aceptarlos no podrás utilizar la plataforma.",
+  "consent.privacy": "Política de Privacidad",
+  "consent.privacyText": "He leído y acepto la {link} de Carglyn.",
+  "consent.terms": "Términos y Condiciones",
+  "consent.termsText": "He leído y acepto los {link} de Carglyn.",
+  "consent.accept": "Aceptar y continuar",
+  "consent.saving": "Guardando..."
 }

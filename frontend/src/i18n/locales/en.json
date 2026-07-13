@@ -612,5 +612,14 @@
   "tracking.title": "Live tracking",
   "tracking.eta": "Estimated time of arrival",
   "tracking.distance": "Remaining distance",
-  "tracking.driverLocation": "Driver location"
+  "tracking.driverLocation": "Driver location",
+
+  "consent.title": "Accept Terms",
+  "consent.description": "To use Carglyn, you must accept our legal documents. Without accepting them you will not be able to use the platform.",
+  "consent.privacy": "Privacy Policy",
+  "consent.privacyText": "I have read and accept the {link} of Carglyn.",
+  "consent.terms": "Terms & Conditions",
+  "consent.termsText": "I have read and accept the {link} of Carglyn.",
+  "consent.accept": "Accept and continue",
+  "consent.saving": "Saving..."
 }

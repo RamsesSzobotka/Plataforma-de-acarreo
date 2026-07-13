@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
+import { useTranslation } from 'react-i18next'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import AuthPage from './pages/AuthPage'
@@ -72,6 +73,7 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
 
 function ConsentOverlay() {
   const { isSignedIn, getToken } = useAuth()
+  const { t, i18n } = useTranslation()
   const [consented, setConsented] = useState(() => localStorage.getItem('gdpr_consent') === 'true')
   const [loading, setLoading] = useState(false)
   const [privacyChecked, setPrivacyChecked] = useState(false)
@@ -106,7 +108,7 @@ function ConsentOverlay() {
     <div style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(0, 0, 0, 0.6)',
+      background: '#0F172A',
       zIndex: 9999,
       display: 'flex',
       alignItems: 'center',
@@ -121,15 +123,49 @@ function ConsentOverlay() {
         width: '100%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
       }}>
+        {/* Language switcher */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button
+            onClick={() => i18n.changeLanguage('es')}
+            style={{
+              padding: '0.25rem 0.75rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: i18n.language?.startsWith('es') ? 'var(--primary)' : 'transparent',
+              color: i18n.language?.startsWith('es') ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+            }}
+          >
+            ES
+          </button>
+          <button
+            onClick={() => i18n.changeLanguage('en')}
+            style={{
+              padding: '0.25rem 0.75rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: i18n.language?.startsWith('en') ? 'var(--primary)' : 'transparent',
+              color: i18n.language?.startsWith('en') ? 'white' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+            }}
+          >
+            EN
+          </button>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: 'var(--primary)' }}>verified_user</span>
           <h2 style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: '1.5rem' }}>
-            Aceptación de Términos
+            {t('consent.title')}
           </h2>
         </div>
 
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
-          Para usar Carglyn, necesitás aceptar nuestros documentos legales. Sin aceptarlos no podrás utilizar la plataforma.
+          {t('consent.description')}
         </p>
 
         <label style={{
@@ -151,13 +187,13 @@ function ConsentOverlay() {
             style={{ marginTop: '3px', accentColor: 'var(--primary)', width: '18px', height: '18px', cursor: 'pointer' }}
           />
           <div>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Política de Privacidad</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('consent.privacy')}</span>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              He leído y acepto la{' '}
+              {t('consent.privacyText', { link: '' })}
+              {' '}
               <Link to="/privacy" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'underline' }} onClick={(e) => e.stopPropagation()}>
-                Política de Privacidad
+                {t('consent.privacy')}
               </Link>
-              {' '}de Carglyn.
             </p>
           </div>
         </label>
@@ -181,13 +217,13 @@ function ConsentOverlay() {
             style={{ marginTop: '3px', accentColor: 'var(--primary)', width: '18px', height: '18px', cursor: 'pointer' }}
           />
           <div>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Términos y Condiciones</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('consent.terms')}</span>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              He leído y acepto los{' '}
+              {t('consent.termsText', { link: '' })}
+              {' '}
               <Link to="/terms" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'underline' }} onClick={(e) => e.stopPropagation()}>
-                Términos y Condiciones
+                {t('consent.terms')}
               </Link>
-              {' '}de Carglyn.
             </p>
           </div>
         </label>
@@ -208,7 +244,7 @@ function ConsentOverlay() {
             transition: 'all 0.2s',
           }}
         >
-          {loading ? 'Guardando...' : 'Aceptar y continuar'}
+          {loading ? t('consent.saving') : t('consent.accept')}
         </button>
       </div>
     </div>
