@@ -209,8 +209,8 @@ export async function removeRidePickupLocation(rideId: string): Promise<void> {
 export async function getNearbyRides(
   lng: number,
   lat: number,
-  radiusKm: number = 100,
-  limit: number = 50,
+  radiusKm: number = 20000, // ~half the earth, effectively "all rides"
+  limit: number = 999,
 ): Promise<{ rideId: string; distance: number }[]> {
   try {
     const r = getRedis()

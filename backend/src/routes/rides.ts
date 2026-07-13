@@ -1,5 +1,6 @@
 import { Hono } from 'hono/tiny'
 import { Ride } from '../models/ride'
+import { Driver } from '../models/driver'
 import { Offer } from '../models/offer'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
@@ -75,7 +76,7 @@ rides.post('/driver-location', authMiddleware, async (c) => {
 })
 
 // Listar rides disponibles para driver (solo requested)
-// Soporta ordenamiento por cercanía si se envía lat/lng
+// Soporta ordenamiento por cercanía si se envía lat/lng o si el driver tiene ubicación guardada
 rides.get('/available', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
 
@@ -86,24 +87,44 @@ rides.get('/available', authMiddleware, async (c) => {
 
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '20')
-  const type = c.req.query('type') // opcional: filtrar por tipo
-  
-  // Parámetros opcionales para ordenamiento por cercanía
-  const lat = parseFloat(c.req.query('lat') || '')
-  const lng = parseFloat(c.req.query('lng') || '')
-  const radius = parseFloat(c.req.query('radius') || '100') // km, default 100
+  const type = c.req.query('type')
 
-  const hasGeo = !isNaN(lat) && !isNaN(lng)
+  const skip = (page - 1) * limit
 
   // Pedidos disponibles: solo requested
   const query: any = { status: 'requested' }
   if (type) query.type = type
 
-  const skip = (page - 1) * limit
+  // Determinar coordenadas para ordenamiento por cercanía:
+  // 1. Query params (enviados por el frontend) tienen prioridad
+  // 2. Fallback: ubicación guardada en MongoDB del driver
+  let geoLng: number | null = null
+  let geoLat: number | null = null
 
-  if (hasGeo) {
+  const paramLat = parseFloat(c.req.query('lat') || '')
+  const paramLng = parseFloat(c.req.query('lng') || '')
+
+  if (!isNaN(paramLat) && !isNaN(paramLng)) {
+    geoLat = paramLat
+    geoLng = paramLng
+  } else if (currentUser.role === 'driver') {
+    // Fallback: buscar ubicación guardada del driver en MongoDB
+    try {
+      const driver = await Driver.findOne({ userId: currentUser.clerkId }).select('currentLocation').lean()
+      if (driver?.currentLocation?.coordinates?.length === 2) {
+        geoLng = driver.currentLocation.coordinates[0]
+        geoLat = driver.currentLocation.coordinates[1]
+      }
+    } catch (err) {
+      console.warn('Error reading driver location from MongoDB:', err)
+    }
+  }
+
+  if (geoLng !== null && geoLat !== null) {
     // ── Ordenamiento por cercanía (Redis GEO) ──
-    const nearby = await getNearbyRides(lng, lat, radius, limit)
+    // Usamos un limit alto (999) para obtener TODOS los rides ordenados,
+    // luego aplicamos paginación del lado del servidor
+    const nearby = await getNearbyRides(geoLng, geoLat, 20000, 999)
     const rideIds = nearby.map(r => r.rideId)
     const distanceMap = new Map(nearby.map(r => [r.rideId, r.distance]))
 
@@ -114,7 +135,7 @@ rides.get('/available', authMiddleware, async (c) => {
       })
     }
 
-    // Obtener rides de MongoDB y mapear por ID
+    // Obtener rides de MongoDB
     const ridesDocs = await Ride.find({
       _id: { $in: rideIds },
       ...query,
@@ -122,7 +143,7 @@ rides.get('/available', authMiddleware, async (c) => {
 
     const rideMap = new Map(ridesDocs.map(r => [r._id.toString(), r]))
 
-    // Mantener el orden de Redis (ascendente por distancia)
+    // Mantener el orden de Redis (ascendente por distancia) y paginar
     const sorted = rideIds
       .filter(id => rideMap.has(id))
       .slice(skip, skip + limit)
@@ -142,7 +163,7 @@ rides.get('/available', authMiddleware, async (c) => {
     })
   }
 
-  // ── Comportamiento actual (ordenado por fecha) ──
+  // ── Sin coordenadas: ordenado por fecha (comportamiento original) ──
   const [ridesList, total] = await Promise.all([
     Ride.find(query)
       .select('-chatEnabled')
