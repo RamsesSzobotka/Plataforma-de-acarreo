@@ -497,17 +497,17 @@ export default function AddressInput({
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              gridTemplateColumns: '1fr 380px',
               gap: '1rem',
               padding: '1rem',
-              alignItems: 'stretch'
+              minHeight: '520px',
             }}>
-              <div style={{ position: 'relative', height: 'min(520px, 50vh)', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <MapContainer
                   center={mapCenter}
                   zoom={15}
                   scrollWheelZoom
-                  style={{ height: '520px', width: '100%' }}
+                  style={{ height: '100%', width: '100%', minHeight: '520px' }}
                 >
                   <MapRecenter center={mapCenter} />
                   <TileLayer
