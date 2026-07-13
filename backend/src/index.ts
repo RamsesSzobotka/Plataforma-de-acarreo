@@ -49,6 +49,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
+  'https://carglyn-frontend.onrender.com',
 ]
 
 function getAllowedOrigins() {
@@ -58,12 +59,15 @@ function getAllowedOrigins() {
     .filter(Boolean) ?? []
 
   const frontendUrl = process.env.FRONTEND_URL?.trim()
-  const devOrigins = process.env.NODE_ENV === 'production' ? [] : DEFAULT_ALLOWED_ORIGINS
   const origins = new Set([
-    ...devOrigins,
+    ...DEFAULT_ALLOWED_ORIGINS,
     ...configuredOrigins,
     ...(frontendUrl ? [frontendUrl] : []),
   ])
+
+  if (process.env.NODE_ENV === 'production' && origins.size === 1) {
+    console.warn('⚠️ CORS: Only default origins configured. Verify FRONTEND_URL or ALLOWED_ORIGINS.')
+  }
 
   return origins
 }

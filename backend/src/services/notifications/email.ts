@@ -22,11 +22,18 @@ transporter.verify()
   .then(() => console.log(`[Email] ✅ Transporter SMTP verificado correctamente: ${process.env.SMTP_USER}`))
   .catch(err => console.error(`[Email] ❌ Transporter SMTP falló verificación:`, err))
 
+interface Attachment {
+  filename: string
+  content: Buffer | string
+  contentType?: string
+}
+
 interface EmailOptions {
   to: string
   subject: string
   html: string
   text?: string
+  attachments?: Attachment[]
 }
 
 /**
@@ -52,6 +59,7 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       subject: options.subject,
       html: options.html,
       text: options.text,
+      attachments: options.attachments,
     })
     console.log(`[Email] ✅ Correo enviado exitosamente a ${options.to}: messageId=${info.messageId}, accepted=${JSON.stringify(info.accepted)}, rejected=${JSON.stringify(info.rejected)}`)
     if (info.rejected?.length > 0) {

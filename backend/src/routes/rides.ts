@@ -841,7 +841,8 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
 
       console.log(`[Email] Generando PDF factura para ride ${updatedRide._id}...`)
       const pdfBuffer = await generateInvoicePDF(updatedRide)
-      console.log(`[Email] PDF generado: ${pdfBuffer.length} bytes para ride ${updatedRide._id}`)
+      const invoiceFilename = `factura-${updatedRide._id.toString().slice(-8)}.pdf`
+      console.log(`[Email] PDF generado: ${pdfBuffer.length} bytes para ride ${updatedRide._id} (${invoiceFilename})`)
 
       // Send to client
       console.log(`[Email] Buscando usuario cliente: ${updatedRide.clientId}`)
@@ -853,6 +854,11 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
           const result = await sendEmail({
             to: clientUser.email,
             subject: `Factura Carglyn - ${updatedRide.title}`,
+            attachments: [{
+              filename: invoiceFilename,
+              content: pdfBuffer,
+              contentType: 'application/pdf',
+            }],
             html: `
               <div style="font-family: 'Plus Jakarta Sans', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
                 <div style="background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%); color: white; padding: 32px 24px; border-radius: 12px 12px 0 0; text-align: center;">
@@ -901,6 +907,11 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
             const result = await sendEmail({
               to: driverUser.email,
               subject: `Resumen de pago Carglyn - ${updatedRide.title}`,
+              attachments: [{
+                filename: invoiceFilename,
+                content: pdfBuffer,
+                contentType: 'application/pdf',
+              }],
               html: `
                 <div style="font-family: 'Plus Jakarta Sans', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
                   <div style="background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%); color: white; padding: 32px 24px; border-radius: 12px 12px 0 0; text-align: center;">

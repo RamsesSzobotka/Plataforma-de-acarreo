@@ -42,6 +42,17 @@ services:
         sync: false
       - key: CLERK_SIGN_IN_URL
         sync: false
+      # Email (SMTP) - configurar con Gmail App Password
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
     buildFilter:
       paths:
         - "backend/**"
