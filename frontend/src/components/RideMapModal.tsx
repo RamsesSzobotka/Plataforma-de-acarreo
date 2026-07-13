@@ -86,24 +86,24 @@ function MapContent({
         map.flyTo([driverLocation.lat, driverLocation.lng], 14)
       }}
       title="Mi ubicación"
-      style={{
-        position: 'absolute',
-        bottom: '12px',
-        right: '12px',
-        zIndex: 1000,
-        background: '#FFFFFF',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--text-primary, #0F172A)',
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
+        style={{
+          position: 'absolute',
+          bottom: '12px',
+          right: '12px',
+          zIndex: 1000,
+          background: 'var(--primary, #0D9488)',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#FFFFFF',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-hover, #0F766E)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--primary, #0D9488)' }}
     >
       <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
         my_location

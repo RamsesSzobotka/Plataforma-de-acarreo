@@ -248,7 +248,7 @@ function MapView({
             onClick={(e) => { e.stopPropagation(); handleLocationClick() }}
             title="Mi ubicación"
             style={{
-              background: '#FFFFFF',
+              background: 'var(--primary, #0D9488)',
               border: 'none',
               borderRadius: '8px',
               padding: '8px',
@@ -257,11 +257,11 @@ function MapView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--text-primary, #0F172A)',
+              color: '#FFFFFF',
               transition: 'background 0.2s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-hover, #0F766E)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--primary, #0D9488)' }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
               my_location
@@ -274,7 +274,7 @@ function MapView({
             onClick={(e) => { e.stopPropagation(); onResetView?.() }}
             title="Reiniciar vista"
             style={{
-              background: '#FFFFFF',
+              background: 'var(--primary, #0D9488)',
               border: 'none',
               borderRadius: '8px',
               padding: '8px',
@@ -283,11 +283,11 @@ function MapView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--text-primary, #0F172A)',
+              color: '#FFFFFF',
               transition: 'background 0.2s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-hover, #0F766E)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--primary, #0D9488)' }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
               center_focus_strong
