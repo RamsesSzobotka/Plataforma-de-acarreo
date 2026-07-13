@@ -2,8 +2,10 @@ import { Hono } from 'hono/tiny'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
+import { AuditLog } from '../models/auditLog'
 import { logAudit } from '../services/audit'
 import { createNotification } from '../services/notificationService'
+import { mongoose } from '../db/mongo'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
 interface ClerkProfile {
@@ -1647,6 +1649,108 @@ admin.patch('/reports/:id/status', async (c) => {
   }
 
   return c.json(report)
+})
+
+// === AUDIT LOGS ===
+
+admin.get('/audit-logs', async (c) => {
+  const action = c.req.query('action')
+  const userId = c.req.query('userId')
+  const entityType = c.req.query('entityType')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+  const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '20')), 50)
+
+  const filter: Record<string, any> = {}
+
+  if (action) filter.action = action
+  if (userId) filter.userId = userId
+  if (entityType) filter.entityType = entityType
+
+  // Date range filter on metadata.timestamp
+  if (from || to) {
+    filter['metadata.timestamp'] = {}
+    if (from) filter['metadata.timestamp'].$gte = new Date(from)
+    if (to) filter['metadata.timestamp'].$lte = new Date(to)
+  }
+
+  const skip = (page - 1) * limit
+
+  const [logs, total] = await Promise.all([
+    AuditLog.find(filter)
+      .sort({ 'metadata.timestamp': -1 })
+      .skip(skip)
+      .limit(limit),
+    AuditLog.countDocuments(filter),
+  ])
+
+  // Normalizar al formato estándar del admin (data + pagination)
+  const data = JSON.parse(JSON.stringify(logs))
+
+  return c.json({
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+  })
+})
+
+// === MCP AUDIT LOGS ===
+
+admin.get('/mcp-audit-logs', async (c) => {
+  const action = c.req.query('action')
+  const clerkId = c.req.query('clerkId')
+  const success = c.req.query('success')
+  const toolName = c.req.query('toolName')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+  const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '20')), 50)
+
+  const filter: Record<string, any> = {}
+
+  if (action) filter.action = action
+  if (clerkId) filter.clerkId = clerkId
+  if (toolName) filter.toolName = toolName
+  if (success === 'true') filter.success = true
+  else if (success === 'false') filter.success = false
+
+  // Date range filter on createdAt
+  if (from || to) {
+    filter.createdAt = {}
+    if (from) filter.createdAt.$gte = new Date(from)
+    if (to) filter.createdAt.$lte = new Date(to)
+  }
+
+  const skip = (page - 1) * limit
+  const dbInstance = mongoose.connection.db
+  if (!dbInstance) {
+    return c.json({ error: 'Database not connected' }, 500)
+  }
+  const mcpCollection = dbInstance.collection('mcpAuditLogs')
+
+  const [logs, total] = await Promise.all([
+    mcpCollection.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray(),
+    mcpCollection.countDocuments(filter),
+  ])
+
+  return c.json({
+    data: logs,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+  })
 })
 
 export default admin

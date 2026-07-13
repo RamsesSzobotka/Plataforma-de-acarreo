@@ -13,7 +13,7 @@ describe('MCP Audit', () => {
   });
 
   beforeEach(async () => {
-    await cleanupCollection('audit_logs');
+    await cleanupCollection('mcpAuditLogs');
   });
 
   describe('Audit Log Entry Creation', () => {
@@ -37,7 +37,7 @@ describe('MCP Audit', () => {
       // Give fire-and-forget time to complete
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const logs = await db.collection('audit_logs').find({ clerkId }).toArray();
+      const logs = await db.collection('mcpAuditLogs').find({ clerkId }).toArray();
       expect(logs.length).toBeGreaterThan(0);
 
       const log = logs[0];
@@ -70,7 +70,7 @@ describe('MCP Audit', () => {
       // Give fire-and-forget time to complete
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const logs = await db.collection('audit_logs').find({ clerkId }).toArray();
+      const logs = await db.collection('mcpAuditLogs').find({ clerkId }).toArray();
       expect(logs.length).toBeGreaterThan(0);
 
       const log = logs[0];
@@ -99,7 +99,7 @@ describe('MCP Audit', () => {
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const log = await db.collection('audit_logs').findOne({ clerkId });
+      const log = await db.collection('mcpAuditLogs').findOne({ clerkId });
       expect(log).not.toBeNull();
       expect(log?.clerkId).toBe(clerkId);
       expect(log?.toolName).toBe(toolName);
@@ -120,7 +120,7 @@ describe('MCP Audit', () => {
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const log = await db.collection('audit_logs').findOne({ clerkId });
+      const log = await db.collection('mcpAuditLogs').findOne({ clerkId });
       expect(log).not.toBeNull();
       expect(log?.success).toBe(false);
       expect(log?.errorCode).toBe('FORBIDDEN');

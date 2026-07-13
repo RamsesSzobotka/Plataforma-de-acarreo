@@ -229,6 +229,11 @@ function Layout() {
                         labelIcon={<span className="material-symbols-rounded">api</span>}
                         href="/settings/mcp"
                       />
+                      <UserButton.Link
+                        label={t('nav.gdpr', 'Privacidad y Datos')}
+                        labelIcon={<span className="material-symbols-rounded">privacy_tip</span>}
+                        href="/settings/gdpr"
+                      />
                     </UserButton.MenuItems>
                   </UserButton>
                 </div>
@@ -302,7 +307,37 @@ function Layout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <img src="/logos/Carglylogo.png" alt="Carglyn" style={{ height: '24px', width: 'auto' }} />
           </div>
-          <p>{t('layout.footer.copyright')}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+            <Link
+              to="/privacy"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                color: 'var(--text-muted)',
+                textDecoration: 'none',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>privacy_tip</span>
+              {t('footer.privacy', 'Privacidad')}
+            </Link>
+            <Link
+              to="/terms"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                color: 'var(--text-muted)',
+                textDecoration: 'none',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>description</span>
+              {t('footer.terms', 'Términos')}
+            </Link>
+            <p>{t('layout.footer.copyright')}</p>
+          </div>
         </div>
       </footer>
 
@@ -473,6 +508,34 @@ function Layout() {
                   </span>
                 )}
               </Link>
+              <Link
+                to="/settings/gdpr"
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-medium)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  borderRadius: 'var(--radius)',
+                  transition: 'all var(--duration-fast) var(--ease-out)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>privacy_tip</span>
+                Privacidad y Datos
+              </Link>
               <UserButton
                 afterSignOutUrl="/"
                 appearance={{
@@ -500,6 +563,11 @@ function Layout() {
                     label="Conexión MCP"
                     labelIcon={<span className="material-symbols-rounded">api</span>}
                     href="/settings/mcp"
+                  />
+                  <UserButton.Link
+                    label="Privacidad y Datos"
+                    labelIcon={<span className="material-symbols-rounded">privacy_tip</span>}
+                    href="/settings/gdpr"
                   />
                 </UserButton.MenuItems>
               </UserButton>
