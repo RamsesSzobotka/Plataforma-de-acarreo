@@ -360,11 +360,11 @@ export default function AuditLogs() {
                         {formatDate(log.createdAt)}
                       </td>
                       <td>
-                        {log.userName || log.userEmail || (
-                          <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                            {log.userId.slice(0, 12)}
-                          </code>
-                        )}
+                            {log.userName || log.userEmail || (
+                              <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
+                                {log.userId?.slice(0, 12) ?? '—'}
+                              </code>
+                            )}
                       </td>
                       <td>
                         <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
@@ -374,7 +374,7 @@ export default function AuditLogs() {
                       <td>{log.entityType}</td>
                       <td>
                         <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                          {log.entityId.slice(0, 12)}
+                            {log.entityId?.slice(0, 12) ?? '—'}
                         </code>
                       </td>
                     </tr>
@@ -518,7 +518,7 @@ export default function AuditLogs() {
                         </td>
                         <td>
                           <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                            {log.clerkId.slice(0, 12)}
+                            {log.clerkId?.slice(0, 12) ?? '—'}
                           </code>
                         </td>
                         <td>
