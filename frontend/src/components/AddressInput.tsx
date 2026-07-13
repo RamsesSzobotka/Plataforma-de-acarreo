@@ -496,12 +496,12 @@ export default function AddressInput({
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 0.9fr)',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
               gap: '1rem',
               padding: '1rem',
               alignItems: 'stretch'
             }}>
-              <div style={{ position: 'relative', height: '520px', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div style={{ position: 'relative', height: 'min(520px, 50vh)', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <MapContainer
                   center={mapCenter}
                   zoom={15}
