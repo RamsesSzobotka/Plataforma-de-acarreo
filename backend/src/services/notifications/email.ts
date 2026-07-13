@@ -54,6 +54,13 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     }))
   }
 
+  // Log payload (omit htmlContent y content de attachments para no ensuciar)
+  const logPayload = { ...payload, htmlContent: payload.htmlContent ? `${payload.htmlContent.length} chars` : undefined }
+  if (logPayload.attachment) {
+    logPayload.attachment = payload.attachment.map((a: any) => ({ name: a.name, content: `${a.content.length} base64 chars` }))
+  }
+  console.log(`[Email] 📤 Payload enviado a Brevo:`, JSON.stringify(logPayload, null, 2))
+
   try {
     const res = await fetch(BREVO_API_URL, {
       method: 'POST',
@@ -66,11 +73,12 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     })
 
     const body = await res.text()
+    console.log(`[Email] 📥 Respuesta de Brevo (status ${res.status}):`, body)
 
     if (!res.ok) {
-      console.error(`[Email] ❌ Brevo error ${res.status} enviando a ${options.to}: ${body}`)
+      console.error(`[Email] ❌ Brevo error ${res.status} enviando a ${options.to}`)
     } else {
-      console.log(`[Email] ✅ Correo enviado a ${options.to}: ${body}`)
+      console.log(`[Email] ✅ Correo enviado a ${options.to}`)
     }
   } catch (error: any) {
     console.error(`[Email] ❌ Error enviando correo a ${options.to}:`, error?.message || error)
