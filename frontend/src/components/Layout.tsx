@@ -322,6 +322,20 @@ function Layout() {
               <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>privacy_tip</span>
               {t('footer.privacy', 'Privacidad')}
             </Link>
+            <Link
+              to="/terms"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                color: 'var(--text-muted)',
+                textDecoration: 'none',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>description</span>
+              {t('footer.terms', 'Términos')}
+            </Link>
             <p>{t('layout.footer.copyright')}</p>
           </div>
         </div>

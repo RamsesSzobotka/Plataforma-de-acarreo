@@ -18,6 +18,7 @@ import SettingsMcp from './pages/SettingsMcp'
 import DriverPublicProfile from './pages/DriverPublicProfile'
 import Notifications from './pages/Notifications'
 import Privacy from './pages/Privacy'
+import TermsAndConditions from './pages/TermsAndConditions'
 import GdprSettings from './pages/GdprSettings'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { NotificationBadgeProvider } from './contexts/NotificationBadgeContext'
@@ -69,21 +70,26 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function ConsentBanner() {
+function ConsentOverlay() {
   const { isSignedIn, getToken } = useAuth()
   const [consented, setConsented] = useState(() => localStorage.getItem('gdpr_consent') === 'true')
   const [loading, setLoading] = useState(false)
+  const [privacyChecked, setPrivacyChecked] = useState(false)
+  const [termsChecked, setTermsChecked] = useState(false)
 
   if (consented || !isSignedIn) return null
 
+  const allChecked = privacyChecked && termsChecked
+
   const handleAccept = async () => {
+    if (!allChecked) return
     setLoading(true)
     try {
       const token = await getToken()
       const response = await fetch(`${API_URL}/api/gdpr/consent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ version: '1.0' }),
+        body: JSON.stringify({ version: '2.0', documents: ['privacy', 'terms'] }),
       })
       if (response.ok) {
         localStorage.setItem('gdpr_consent', 'true')
@@ -99,44 +105,110 @@ function ConsentBanner() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      background: 'var(--bg-primary)',
-      borderTop: '2px solid var(--border)',
-      padding: '1rem 2rem',
-      zIndex: 1000,
-      boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+      inset: 0,
+      background: 'rgba(0, 0, 0, 0.6)',
+      zIndex: 9999,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem',
     }}>
       <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem',
+        background: 'var(--bg-primary)',
+        borderRadius: 'var(--radius)',
+        padding: '2.5rem',
+        maxWidth: '520px',
+        width: '100%',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
       }}>
-        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-          Utilizamos tus datos solo para el funcionamiento de la plataforma. Al aceptar, confirmas que has leído nuestra{' '}
-          <Link to="/privacy" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>Política de Privacidad</Link>.
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: 'var(--primary)' }}>verified_user</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: '1.5rem' }}>
+            Aceptación de Términos
+          </h2>
+        </div>
+
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+          Para usar Carglyn, necesitás aceptar nuestros documentos legales. Sin aceptarlos no podrás utilizar la plataforma.
         </p>
+
+        <label style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.75rem',
+          padding: '1rem',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--bg-secondary)',
+          marginBottom: '0.75rem',
+          cursor: 'pointer',
+          border: privacyChecked ? '2px solid var(--primary)' : '2px solid transparent',
+          transition: 'border-color 0.2s',
+        }}>
+          <input
+            type="checkbox"
+            checked={privacyChecked}
+            onChange={(e) => setPrivacyChecked(e.target.checked)}
+            style={{ marginTop: '3px', accentColor: 'var(--primary)', width: '18px', height: '18px', cursor: 'pointer' }}
+          />
+          <div>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Política de Privacidad</span>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              He leído y acepto la{' '}
+              <Link to="/privacy" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'underline' }} onClick={(e) => e.stopPropagation()}>
+                Política de Privacidad
+              </Link>
+              {' '}de Carglyn.
+            </p>
+          </div>
+        </label>
+
+        <label style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.75rem',
+          padding: '1rem',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--bg-secondary)',
+          marginBottom: '1.5rem',
+          cursor: 'pointer',
+          border: termsChecked ? '2px solid var(--primary)' : '2px solid transparent',
+          transition: 'border-color 0.2s',
+        }}>
+          <input
+            type="checkbox"
+            checked={termsChecked}
+            onChange={(e) => setTermsChecked(e.target.checked)}
+            style={{ marginTop: '3px', accentColor: 'var(--primary)', width: '18px', height: '18px', cursor: 'pointer' }}
+          />
+          <div>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Términos y Condiciones</span>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              He leído y acepto los{' '}
+              <Link to="/terms" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'underline' }} onClick={(e) => e.stopPropagation()}>
+                Términos y Condiciones
+              </Link>
+              {' '}de Carglyn.
+            </p>
+          </div>
+        </label>
+
         <button
           onClick={handleAccept}
-          disabled={loading}
+          disabled={!allChecked || loading}
           style={{
-            background: 'var(--primary)',
-            color: 'white',
+            width: '100%',
+            background: allChecked ? 'var(--primary)' : 'var(--border)',
+            color: allChecked ? 'white' : 'var(--text-muted)',
             border: 'none',
-            padding: '0.5rem 1.5rem',
+            padding: '0.85rem',
             borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            opacity: loading ? 0.7 : 1,
+            cursor: allChecked ? 'pointer' : 'not-allowed',
+            fontWeight: 700,
+            fontSize: '1rem',
+            transition: 'all 0.2s',
           }}
         >
-          {loading ? 'Guardando...' : 'Aceptar'}
+          {loading ? 'Guardando...' : 'Aceptar y continuar'}
         </button>
       </div>
     </div>
@@ -245,8 +317,9 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Privacy / GDPR */}
+        {/* Privacy / Terms / GDPR */}
         <Route path="privacy" element={<Privacy />} />
+        <Route path="terms" element={<TermsAndConditions />} />
         <Route path="settings/gdpr" element={
           <ProtectedRoute>
             <GdprSettings />
@@ -258,7 +331,7 @@ function App() {
       </Route>
     </Routes>
       </PageTransition>
-      <ConsentBanner />
+      <ConsentOverlay />
       <ToastContainer />
     </ErrorBoundary>
   )

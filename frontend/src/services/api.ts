@@ -631,10 +631,10 @@ export const paymentsAPI = {
 }
 
 export const gdprAPI = {
-  giveConsent: (version = '1.0', token?: string) =>
+  giveConsent: (version = '2.0', documents: string[] = ['privacy', 'terms'], token?: string) =>
     fetchAPI<{ success: boolean }>('/api/gdpr/consent', {
       method: 'POST',
-      body: JSON.stringify({ version }),
+      body: JSON.stringify({ version, documents }),
     }, token),
 
   exportData: async (token?: string) => {

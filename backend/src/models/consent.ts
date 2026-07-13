@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 const consentSchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
   version: { type: String, required: true },
+  documents: { type: [String], default: [] },
   acceptedAt: { type: Date, default: Date.now },
   ipAddress: { type: String },
   userAgent: { type: String },

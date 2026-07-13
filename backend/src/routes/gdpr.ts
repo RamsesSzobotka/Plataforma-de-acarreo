@@ -15,18 +15,23 @@ const gdpr = new Hono()
 // All routes require authentication
 gdpr.use('*', authMiddleware)
 
-// POST /api/gdpr/consent — Save user consent to a terms version
+// POST /api/gdpr/consent — Save user consent to terms and/or privacy policy
 gdpr.post('/consent', async (c) => {
   const user = c.get('user') as { clerkId: string }
-  const { version } = await c.req.json()
+  const { version, documents } = await c.req.json()
 
   if (!version) {
     return c.json({ error: 'version is required' }, 400)
   }
 
+  if (!Array.isArray(documents) || documents.length === 0) {
+    return c.json({ error: 'documents array is required' }, 400)
+  }
+
   await Consent.create({
     userId: user.clerkId,
     version,
+    documents,
     ipAddress: c.req.header('x-forwarded-for') || '',
     userAgent: c.req.header('user-agent') || '',
   })

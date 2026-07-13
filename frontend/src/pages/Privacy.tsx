@@ -5,7 +5,7 @@ export default function Privacy() {
   const { t } = useTranslation()
 
   return (
-    <div className="page-container" style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem 1rem' }}>
+    <div className="page-container" style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem 1rem', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', minHeight: '60vh' }}>
       <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--primary)' }}>
         <span className="material-symbols-rounded">arrow_back</span>
         {t('common.back', 'Volver al inicio')}
