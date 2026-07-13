@@ -1,26 +1,7 @@
 /**
- * Email notification service using Gmail SMTP with Nodemailer
+ * Email notification service using Brevo (Sendinblue) REST API
+ * Uses HTTPS (port 443) — works on Render free tier unlike SMTP
  */
-
-import nodemailer from 'nodemailer'
-
-console.log(`[Email] Inicializando transporter SMTP: host=${process.env.SMTP_HOST}, port=${process.env.SMTP_PORT}, user=${process.env.SMTP_USER ? process.env.SMTP_USER.substring(0, 5) + '...' : 'NO CONFIGURADO'}`)
-
-// Create transporter from env vars
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
-
-// Verify SMTP connection on startup (fire-and-forget, logs result)
-transporter.verify()
-  .then(() => console.log(`[Email] ✅ Transporter SMTP verificado correctamente: ${process.env.SMTP_USER}`))
-  .catch(err => console.error(`[Email] ❌ Transporter SMTP falló verificación:`, err))
 
 interface Attachment {
   filename: string
@@ -36,43 +17,63 @@ interface EmailOptions {
   attachments?: Attachment[]
 }
 
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email'
+
 /**
- * Send email via Gmail SMTP
+ * Send email via Brevo REST API
  * Fire-and-forget: logs errors but doesn't throw
  */
 export async function sendEmail(options: EmailOptions): Promise<void> {
-  const smtpUser = process.env.SMTP_USER
-  const smtpPass = process.env.SMTP_PASS
-  const smtpConfigured = smtpUser && smtpPass
+  const apiKey = process.env.BREVO_API_KEY
+  const configured = !!apiKey
 
-  console.log(`[Email] sendEmail llamado: to="${options.to}", subject="${options.subject}", smtpConfigured=${smtpConfigured}`)
+  console.log(`[Email] sendEmail: to="${options.to}", subject="${options.subject}", brevoConfigured=${configured}`)
 
-  if (!smtpConfigured) {
-    console.warn(`[Email] SMTP no configurado (SMTP_USER=${!!smtpUser}, SMTP_PASS=${!!smtpPass}), saltando envío a ${options.to}`)
+  if (!configured) {
+    console.warn(`[Email] BREVO_API_KEY no configurado, saltando envío a ${options.to}`)
     return
   }
 
+  const fromEmail = process.env.EMAIL_FROM || 'Carglyn.noreply@gmail.com'
+
+  const payload: Record<string, any> = {
+    sender: { name: 'Carglyn', email: fromEmail },
+    to: [{ email: options.to }],
+    subject: options.subject,
+    htmlContent: options.html,
+  }
+
+  if (options.text) {
+    payload.textContent = options.text
+  }
+
+  if (options.attachments?.length) {
+    payload.attachment = options.attachments.map(a => ({
+      name: a.filename,
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content,
+    }))
+  }
+
   try {
-    // EMAIL_FROM debe coincidir con SMTP_USER (Gmail exige que from sea el usuario autenticado o un alias verificado)
-    const fromAddress = process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@carglyn.com'
-    const info = await transporter.sendMail({
-      from: fromAddress,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
-      attachments: options.attachments,
+    const res = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        'accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
     })
-    console.log(`[Email] ✅ Correo enviado exitosamente a ${options.to}: messageId=${info.messageId}, accepted=${JSON.stringify(info.accepted)}, rejected=${JSON.stringify(info.rejected)}`)
-    if (info.rejected?.length > 0) {
-      console.warn(`[Email] ⚠️  Correo rechazado para: ${JSON.stringify(info.rejected)}`)
+
+    const body = await res.text()
+
+    if (!res.ok) {
+      console.error(`[Email] ❌ Brevo error ${res.status} enviando a ${options.to}: ${body}`)
+    } else {
+      console.log(`[Email] ✅ Correo enviado a ${options.to}: ${body}`)
     }
   } catch (error: any) {
-    // Log but don't throw - email failure shouldn't break the main flow
     console.error(`[Email] ❌ Error enviando correo a ${options.to}:`, error?.message || error)
-    if (error?.code) console.error(`[Email] Código de error: ${error.code}`)
-    if (error?.response) console.error(`[Email] Respuesta SMTP: ${error.response}`)
-    if (error?.command) console.error(`[Email] Comando SMTP: ${error.command}`)
   }
 }
 
