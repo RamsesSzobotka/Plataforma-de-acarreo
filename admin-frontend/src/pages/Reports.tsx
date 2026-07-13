@@ -5,6 +5,21 @@ import {
 } from 'recharts'
 import { api } from '../services/api'
 
+function downloadCSV(url: string) {
+  const token = localStorage.getItem('adminToken')
+  if (!token) return
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = url.includes('/rides') ? 'rides.csv' : url.includes('/users') ? 'usuarios.csv' : 'pagos.csv'
+      a.click()
+      URL.revokeObjectURL(a.href)
+    })
+    .catch(console.error)
+}
+
 function fmtMoney(n: number) {
   return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -96,6 +111,10 @@ export default function Reports() {
     <div>
       <div className="page-header">
         <h2>Informes</h2>
+        <button className="action-btn secondary" onClick={() => downloadCSV('/api/admin/export/payments')}>
+          <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>
+          Exportar Pagos CSV
+        </button>
       </div>
 
       {/* Time filter */}
