@@ -53,8 +53,10 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
   }
 
   try {
+    // EMAIL_FROM debe coincidir con SMTP_USER (Gmail exige que from sea el usuario autenticado o un alias verificado)
+    const fromAddress = process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@carglyn.com'
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@carglyn.com',
+      from: fromAddress,
       to: options.to,
       subject: options.subject,
       html: options.html,
