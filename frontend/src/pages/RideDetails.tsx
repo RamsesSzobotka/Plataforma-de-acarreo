@@ -441,6 +441,43 @@ function RideDetails() {
     setReportModal((prev) => ({ ...prev, isOpen: false, category }))
   }
 
+  async function handleDownloadInvoice() {
+    if (!id || !ride) return
+    try {
+      const token = await getToken()
+      if (!token) {
+        console.error('No token available')
+        return
+      }
+
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const response = await fetch(`${apiUrl}/api/rides/${id}/invoice`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Error al descargar factura' }))
+        throw new Error(error.error || 'Error al descargar factura')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `factura-carglyn-${ride._id.slice(-8)}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading invoice:', err)
+      const { showError } = await import('../services/alerts')
+      showError(err instanceof Error ? err.message : 'Error al descargar factura')
+    }
+  }
+
   async function handleReportDriver() {
     const token = await getToken()
     if (!token || !ride?.driverId) return
@@ -1609,19 +1646,36 @@ function RideDetails() {
               )}
 
               {(ride.status === 'paid' || ride.paidAt) && isClientOwner && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 'var(--space-2)',
-                  padding: 'var(--space-4)',
-                  background: 'var(--success-subtle)',
-                  borderRadius: 'var(--radius)',
-                  color: 'var(--success)',
-                  fontWeight: 'var(--font-semibold)',
-                }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
-                  {t('ride.detail.paymentConfirmed')}
+                <div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 'var(--space-2)',
+                    padding: 'var(--space-4)',
+                    background: 'var(--success-subtle)',
+                    borderRadius: 'var(--radius)',
+                    color: 'var(--success)',
+                    fontWeight: 'var(--font-semibold)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
+                    {t('ride.detail.paymentConfirmed')}
+                  </div>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    className="btn btn-secondary"
+                    style={{
+                      width: '100%',
+                      marginTop: 'var(--space-3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 'var(--space-2)',
+                    }}
+                  >
+                    <span className="material-symbols-rounded">description</span>
+                    Descargar Factura
+                  </button>
                 </div>
               )}
             </div>
@@ -2006,6 +2060,33 @@ function RideDetails() {
                   </button>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Driver Invoice Download */}
+          {ride.status === 'paid' && isDriverOwner && (
+            <div className="card" style={{ animation: 'fadeInUp var(--duration-normal) var(--ease-out)', animationDelay: '350ms', animationFillMode: 'both' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--success-subtle)', color: 'var(--success)', borderRadius: 'var(--radius)' }}>
+                  <span className="material-symbols-rounded">description</span>
+                </div>
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-semibold)', margin: 0 }}>
+                    Factura
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    Descarga el comprobante de pago
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleDownloadInvoice}
+                className="btn btn-secondary"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}
+              >
+                <span className="material-symbols-rounded">download</span>
+                Descargar Factura
+              </button>
             </div>
           )}
         </div>
