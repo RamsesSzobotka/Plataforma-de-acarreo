@@ -448,8 +448,8 @@ export default function AddressInput({
           padding: '1rem'
         }}>
           <div style={{
-            width: 'min(1100px, 100%)',
-            maxHeight: 'min(92vh, 920px)',
+            width: 'min(1200px, 100%)',
+            maxHeight: 'min(95vh, 960px)',
             overflow: 'auto',
             background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98))',
             border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -501,7 +501,7 @@ export default function AddressInput({
               padding: '1rem',
               alignItems: 'stretch'
             }}>
-              <div style={{ position: 'relative', height: 'min(520px, 50vh)', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div style={{ position: 'relative', height: 'min(560px, 55vh)', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <MapContainer
                   center={mapCenter}
                   zoom={15}
