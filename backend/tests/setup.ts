@@ -148,11 +148,13 @@ export async function createTestRide(clientId: string, overrides: Partial<any> =
     images: [],
     pickupLocation: {
       address: 'Test Pickup',
-      coordinates: { type: 'Point', coordinates: [-79.5, 8.9] }
+      type: 'Point',
+      coordinates: [-79.5, 8.9]
     },
     dropoffLocation: {
       address: 'Test Dropoff',
-      coordinates: { type: 'Point', coordinates: [-79.4, 8.95] }
+      type: 'Point',
+      coordinates: [-79.4, 8.95]
     },
     estimatedPrice: 100,
     status: 'requested',

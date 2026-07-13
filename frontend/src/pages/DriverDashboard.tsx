@@ -9,6 +9,7 @@ import { ridesAPI, usersAPI, paymentsAPI, userWsService } from '../services/api'
 import { showConfirm } from '../services/alerts'
 import { useDriverLocation } from '../hooks/useDriverLocation'
 import { useTranslation } from 'react-i18next'
+import RideMapModal from '../components/RideMapModal'
 
 interface Driver {
   _id: string
@@ -47,6 +48,12 @@ function DriverDashboard() {
   }, [myRides, mineFilter])
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showMapModal, setShowMapModal] = useState(false)
+
+  function handleRideNavigate(rideId: string) {
+    setShowMapModal(false)
+    navigate(`/ride/${rideId}`)
+  }
 
   // ── Tracking automático cuando hay un viaje activo ──
   const activeRide = myRides.find(r => r.status === 'in_progress')
@@ -91,11 +98,16 @@ function DriverDashboard() {
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setDriverLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
+        async (position) => {
+          const lat = position.coords.latitude
+          const lng = position.coords.longitude
+          setDriverLocation({ lat, lng })
+          try {
+            const token = await getToken()
+            if (token) {
+              await ridesAPI.sendDriverLocation(lat, lng, token)
+            }
+          } catch {}
         },
         () => {},
         { enableHighAccuracy: true }
@@ -150,6 +162,11 @@ function DriverDashboard() {
       if (tab === 'available') {
         const params: any = { page, limit: 20 }
         if (typeFilter) params.type = typeFilter
+        if (driverLocation) {
+          params.lat = driverLocation.lat
+          params.lng = driverLocation.lng
+          params.radius = 100
+        }
 
         const data = await ridesAPI.listAvailable(params, token || undefined)
         setAvailableRides(data.data || [])
@@ -751,6 +768,41 @@ function DriverDashboard() {
             </select>
           </div>
 
+          {availableRides.length > 0 && (
+            <button
+              onClick={() => setShowMapModal(true)}
+              className="btn btn-outline"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-4)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--font-medium)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                transition: 'all var(--duration-fast) var(--ease-out)',
+                marginLeft: 'auto',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--primary)'
+                e.currentTarget.style.color = 'white'
+                e.currentTarget.style.borderColor = 'var(--primary)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)'
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.borderColor = 'var(--border)'
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>map</span>
+              Mapa
+            </button>
+          )}
+
           {driverLocation && (
             <div style={{
               display: 'flex',
@@ -930,6 +982,23 @@ function DriverDashboard() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>inventory_2</span>
                           {ride.packages} bultos
+                        </span>
+                      )}
+                      {ride.distance !== undefined && (
+                        <span style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '3px',
+                          padding: '1px 6px',
+                          background: 'var(--primary-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontWeight: 'var(--font-medium)',
+                          color: 'var(--primary)',
+                        }}>
+                          <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>location_on</span>
+                          {ride.distance < 1 
+                            ? `${(ride.distance * 1000).toFixed(0)} m` 
+                            : `${ride.distance.toFixed(1)} km`}
                         </span>
                       )}
                       {ride.type && (
@@ -1176,6 +1245,15 @@ function DriverDashboard() {
             )
           })}
         </div>
+      )}
+
+      {showMapModal && (
+        <RideMapModal
+          rides={availableRides}
+          driverLocation={driverLocation}
+          onClose={() => setShowMapModal(false)}
+          onNavigate={handleRideNavigate}
+        />
       )}
     </div>
   )

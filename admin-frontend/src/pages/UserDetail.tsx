@@ -102,9 +102,9 @@ export default function UserDetail() {
       <div className="empty-state">
         <span className="material-symbols-rounded">person_off</span>
         <p>Usuario no encontrado</p>
-        <Link to="/users" className="action-btn secondary" style={{ marginTop: '1rem' }}>
-          Volver a Usuarios
-        </Link>
+        <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ marginTop: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
+          Volver
+        </button>
       </div>
     )
   }
@@ -113,12 +113,12 @@ export default function UserDetail() {
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link to="/users" className="action-btn secondary">
+          <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
               arrow_back
             </span>
             Volver
-          </Link>
+          </button>
           <h2>Detalle del Usuario</h2>
         </div>
       </div>

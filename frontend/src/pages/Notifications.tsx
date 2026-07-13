@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { notificationsAPI } from '../services/api'
 import type { AppNotification } from '../types'
 import { useNotificationBadge } from '../contexts/NotificationBadgeContext'
@@ -29,6 +29,7 @@ function timeAgo(dateStr: string): string {
 export default function Notifications() {
   const { getToken } = useAuth()
   const { refreshUnreadCount } = useNotificationBadge()
+  const navigate = useNavigate()
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -71,13 +72,13 @@ export default function Notifications() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <Link
-          to="/my-rides"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: 'var(--text-secondary)' }}
+        <button
+          onClick={() => navigate(-1)}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontSize: 'inherit', padding: 0 }}
         >
           <span className="material-symbols-rounded">arrow_back</span>
           Volver
-        </Link>
+        </button>
         <h1 style={{ flex: 1, fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
           Notificaciones
         </h1>

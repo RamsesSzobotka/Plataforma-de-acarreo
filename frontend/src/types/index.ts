@@ -27,6 +27,7 @@ export interface Ride {
   refundId?: string
   refundedAt?: string
   refundReason?: string
+  distance?: number
   createdAt: string
   updatedAt: string
 }

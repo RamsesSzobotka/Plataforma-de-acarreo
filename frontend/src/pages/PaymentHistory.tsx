@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { useTranslation } from 'react-i18next'
 import { paymentsAPI } from '../services/api'
@@ -26,6 +26,7 @@ interface PaymentHistoryResponse {
 function PaymentHistory() {
   const { t, i18n } = useTranslation()
   const { getToken } = useAuth()
+  const navigate = useNavigate()
   const [history, setHistory] = useState<PaymentHistoryItem[]>([])
   const [summary, setSummary] = useState({ totalEarnings: 0, totalRides: 0 })
   const [loading, setLoading] = useState(true)
@@ -83,10 +84,10 @@ function PaymentHistory() {
 
   return (
     <div>
-      <Link to="/driver" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+      <button onClick={() => navigate(-1)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 'inherit', padding: 0 }}>
         <span className="material-symbols-rounded">arrow_back</span>
-        {t('driver.payment.back')}
-      </Link>
+        {t('common.back')}
+      </button>
 
       <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <span className="material-symbols-rounded">account_balance_wallet</span>
@@ -118,9 +119,9 @@ function PaymentHistory() {
           <p style={{ color: 'var(--text-muted)' }}>
             {t('driver.payment.empty')}
           </p>
-          <Link to="/driver" className="btn btn-outline" style={{ marginTop: '1rem' }}>
-            {t('driver.payment.back')}
-          </Link>
+          <button onClick={() => navigate(-1)} className="btn btn-outline" style={{ marginTop: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 'inherit' }}>
+            {t('common.back')}
+          </button>
         </div>
       ) : (
         <>

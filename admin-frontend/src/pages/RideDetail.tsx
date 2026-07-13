@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 
 interface RideDetail {
@@ -28,6 +28,7 @@ interface RideDetail {
 
 export default function RideDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [ride, setRide] = useState<RideDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -173,9 +174,9 @@ export default function RideDetail() {
       <div className="empty-state">
         <span className="material-symbols-rounded">inventory_2</span>
         <p>Pedido no encontrado</p>
-        <Link to="/rides" className="action-btn secondary" style={{ marginTop: '1rem' }}>
+        <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ marginTop: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
           Volver
-        </Link>
+        </button>
       </div>
     )
   }
@@ -184,12 +185,12 @@ export default function RideDetail() {
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link to="/rides" className="action-btn secondary">
+          <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
               arrow_back
             </span>
             Volver
-          </Link>
+          </button>
           <h2>Detalle del Pedido</h2>
         </div>
       </div>

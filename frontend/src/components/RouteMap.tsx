@@ -120,6 +120,28 @@ function MapBoundsFitter({
 }
 
 /**
+ * Vuela a la ubicación del usuario cuando se detecta.
+ * Se renderiza dentro de MapContainer para acceder a useMap().
+ */
+function LocationFlyTo({ location }: { location: [number, number] | null }) {
+  const map = useMap()
+  const prevLocation = useRef(location)
+
+  useEffect(() => {
+    if (location && (
+      !prevLocation.current ||
+      prevLocation.current[0] !== location[0] ||
+      prevLocation.current[1] !== location[1]
+    )) {
+      map.flyTo(location, 15, { duration: 1 })
+    }
+    prevLocation.current = location
+  }, [location, map])
+
+  return null
+}
+
+/**
  * Extracted map content — used in both the inline map and the modal.
  * Renders MapContainer with all children (tiles, markers, polyline, user location).
  */
@@ -187,6 +209,9 @@ function MapView({
         resetKey={resetKey}
       />
 
+      {/* Vuela a la ubicación del usuario cuando se detecta */}
+      <LocationFlyTo location={userLocation} />
+
       <Marker position={[pickup.coordinates.lat, pickup.coordinates.lng]} icon={pickupIcon} />
       <Marker position={[dropoff.coordinates.lat, dropoff.coordinates.lng]} icon={dropoffIcon} />
 
@@ -248,7 +273,7 @@ function MapView({
             onClick={(e) => { e.stopPropagation(); handleLocationClick() }}
             title="Mi ubicación"
             style={{
-              background: '#FFFFFF',
+              background: 'var(--primary, #0D9488)',
               border: 'none',
               borderRadius: '8px',
               padding: '8px',
@@ -257,11 +282,11 @@ function MapView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--text-primary, #0F172A)',
+              color: '#FFFFFF',
               transition: 'background 0.2s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-hover, #0F766E)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--primary, #0D9488)' }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
               my_location
@@ -274,7 +299,7 @@ function MapView({
             onClick={(e) => { e.stopPropagation(); onResetView?.() }}
             title="Reiniciar vista"
             style={{
-              background: '#FFFFFF',
+              background: 'var(--primary, #0D9488)',
               border: 'none',
               borderRadius: '8px',
               padding: '8px',
@@ -283,11 +308,11 @@ function MapView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--text-primary, #0F172A)',
+              color: '#FFFFFF',
               transition: 'background 0.2s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-hover, #0F766E)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--primary, #0D9488)' }}
           >
             <span className="material-symbols-rounded" style={{ fontSize: '20px', fontFamily: "'Material Symbols Rounded'" }}>
               center_focus_strong

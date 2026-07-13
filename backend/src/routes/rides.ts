@@ -1,5 +1,6 @@
 import { Hono } from 'hono/tiny'
 import { Ride } from '../models/ride'
+import { Driver } from '../models/driver'
 import { Offer } from '../models/offer'
 import { DriverContact } from '../models/driverContact'
 import { authMiddleware } from '../middleware'
@@ -8,7 +9,13 @@ import { createMarketplaceCharge, MarketplaceStripeError, transferToDriver, refu
 import { broadcastToRide } from '../services/websocket'
 import { canTransition, canCancel } from '../services/ride-machine'
 import { logAudit } from '../services/audit'
-import { getDriverLocation } from '../services/redis'
+import { 
+  getDriverLocation,
+  saveDriverAvailabilityLocation,
+  addRidePickupLocation,
+  removeRidePickupLocation,
+  getNearbyRides,
+} from '../services/redis'
 import { createRatingAndUpdateAverage } from '../services/rating'
 import { createNotification } from '../services/notificationService'
 
@@ -36,44 +43,139 @@ async function processAutoCharge(rideId: string, update: Record<string, any>): P
 
 const rides = new Hono()
 
+// Guardar ubicación de disponibilidad del conductor (para búsqueda por cercanía)
+// El frontend llama esto cuando el driver abre el dashboard de rides disponibles.
+// Se guarda en Redis con TTL 5 min, NO en MongoDB.
+rides.post('/driver-location', authMiddleware, async (c) => {
+  const currentUser = (c as any).get('user') as AuthUser
+  
+  if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
+    return c.json({ error: 'Solo conductores pueden enviar ubicación' }, 403)
+  }
+  
+  const { latitude, longitude } = await c.req.json()
+  
+  if (!latitude || !longitude) {
+    return c.json({ error: 'latitude y longitude requeridos' }, 400)
+  }
+  
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return c.json({ error: 'latitude y longitude deben ser números' }, 400)
+  }
+  
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return c.json({ error: 'Coordenadas inválidas' }, 400)
+  }
+  
+  const result = await saveDriverAvailabilityLocation(currentUser.clerkId, longitude, latitude)
+  
+  return c.json({
+    success: result.success,
+    message: result.success ? 'Ubicación guardada' : 'Error al guardar ubicación',
+  })
+})
+
 // Listar rides disponibles para driver (solo requested)
-// Este endpoint es para que drivers puedan ver pedidos cercanos disponibles
+// Soporta ordenamiento por cercanía si se envía lat/lng o si el driver tiene ubicación guardada
 rides.get('/available', authMiddleware, async (c) => {
   const currentUser = (c as any).get('user') as AuthUser
 
   // Solo drivers y admins pueden ver pedidos disponibles
   if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
-    return c.json({ error: 'Solo conductors pueden ver pedidos disponibles' }, 403)
+    return c.json({ error: 'Solo conductores pueden ver pedidos disponibles' }, 403)
   }
 
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '20')
-  const type = c.req.query('type') // opcional: filtrar por tipo
+  const type = c.req.query('type')
+
+  const skip = (page - 1) * limit
 
   // Pedidos disponibles: solo requested
-  const query: any = {
-    status: 'requested'
+  const query: any = { status: 'requested' }
+  if (type) query.type = type
+
+  // Determinar coordenadas para ordenamiento por cercanía:
+  // 1. Query params (enviados por el frontend) tienen prioridad
+  // 2. Fallback: ubicación guardada en MongoDB del driver
+  let geoLng: number | null = null
+  let geoLat: number | null = null
+
+  const paramLat = parseFloat(c.req.query('lat') || '')
+  const paramLng = parseFloat(c.req.query('lng') || '')
+
+  if (!isNaN(paramLat) && !isNaN(paramLng)) {
+    geoLat = paramLat
+    geoLng = paramLng
+  } else if (currentUser.role === 'driver') {
+    // Fallback: buscar ubicación guardada del driver en MongoDB
+    try {
+      const driver = await Driver.findOne({ userId: currentUser.clerkId }).select('currentLocation').lean()
+      if (driver?.currentLocation?.coordinates?.length === 2) {
+        geoLng = driver.currentLocation.coordinates[0]
+        geoLat = driver.currentLocation.coordinates[1]
+      }
+    } catch (err) {
+      console.warn('Error reading driver location from MongoDB:', err)
+    }
   }
-  
-  // Filtrar por tipo si se especifica
-  if (type) {
-    query.type = type
+
+  if (geoLng !== null && geoLat !== null) {
+    // ── Ordenamiento por cercanía (Redis GEO) ──
+    // Usamos un limit alto (999) para obtener TODOS los rides ordenados,
+    // luego aplicamos paginación del lado del servidor
+    const nearby = await getNearbyRides(geoLng, geoLat, 20000, 999)
+    const rideIds = nearby.map(r => r.rideId)
+    const distanceMap = new Map(nearby.map(r => [r.rideId, r.distance]))
+
+    if (rideIds.length === 0) {
+      return c.json({
+        data: [],
+        pagination: { page, limit, total: 0, pages: 0 },
+      })
+    }
+
+    // Obtener rides de MongoDB
+    const ridesDocs = await Ride.find({
+      _id: { $in: rideIds },
+      ...query,
+    }).select('-chatEnabled').lean()
+
+    const rideMap = new Map(ridesDocs.map(r => [r._id.toString(), r]))
+
+    // Mantener el orden de Redis (ascendente por distancia) y paginar
+    const sorted = rideIds
+      .filter(id => rideMap.has(id))
+      .slice(skip, skip + limit)
+      .map(id => ({
+        ...rideMap.get(id),
+        distance: distanceMap.get(id),
+      }))
+
+    return c.json({
+      data: sorted,
+      pagination: {
+        page,
+        limit,
+        total: rideIds.length,
+        pages: Math.ceil(rideIds.length / limit),
+      },
+    })
   }
-  
-  const skip = (page - 1) * limit
-  
+
+  // ── Sin coordenadas: ordenado por fecha (comportamiento original) ──
   const [ridesList, total] = await Promise.all([
     Ride.find(query)
-      .select('-chatEnabled') // No necesario para lista
+      .select('-chatEnabled')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
-    Ride.countDocuments(query)
+    Ride.countDocuments(query),
   ])
-  
+
   return c.json({
     data: ridesList,
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   })
 })
 
@@ -198,6 +300,14 @@ rides.post('/', authMiddleware, async (c) => {
     })
 
     await ride.save()
+
+    // Fire-and-forget: registrar en Redis GEO para búsqueda por cercanía
+    // Si Redis falla, el ride se crea igual (funcionalidad sin geo排序)
+    addRidePickupLocation(
+      ride._id.toString(),
+      ride.pickupLocation.coordinates[0],
+      ride.pickupLocation.coordinates[1],
+    )
 
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
     const userAgent = c.req.header('user-agent') || ''
@@ -414,6 +524,9 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'El pedido ya fue aceptado por otro conductor' }, 409)
   }
 
+  // Limpiar de Redis GEO (ya no está disponible para otros drivers)
+  removeRidePickupLocation(id)
+
   // Desactivar todos los contacts excepto el del driver que aceptó
   await DriverContact.updateMany(
     { rideId: id, driverId: { $ne: driverId } },
@@ -441,6 +554,16 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
         chatEnabled: false,
         finalPrice: undefined,
       })
+
+      // Re-agregar a Redis GEO porque el ride volvió a requested
+      const revertedRide = await Ride.findById(ride._id)
+      if (revertedRide) {
+        addRidePickupLocation(
+          revertedRide._id.toString(),
+          revertedRide.pickupLocation.coordinates[0],
+          revertedRide.pickupLocation.coordinates[1],
+        )
+      }
       
       return c.json({
         error: 'No se pudo procesar el pago. Fondos insuficientes o método de pago inválido.',
@@ -756,6 +879,9 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
       { $set: { status: 'cancelled', updatedAt: new Date() } }
     )
 
+    // Re-agregar a Redis GEO porque el ride volvió a requested
+    addRidePickupLocation(id, ride.pickupLocation.coordinates[0], ride.pickupLocation.coordinates[1])
+
     broadcastToRide(id, {
       type: 'ride_status_changed',
       data: {
@@ -819,6 +945,9 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
   }
 
   const updatedRide = await Ride.findByIdAndUpdate(id, updateBase, { new: true })
+
+  // Limpiar de Redis GEO (ride cancelado definitivamente)
+  removeRidePickupLocation(id)
 
   // Emitir via WebSocket
   broadcastToRide(id, {

@@ -1,4 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -437,13 +438,12 @@ export default function AddressInput({
         </div>
       )}
 
-      {isMapOpen && (
+      {isMapOpen && createPortal((
         <div style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 3000,
+          zIndex: 9999,
           background: 'rgba(2, 6, 23, 0.72)',
-          backdropFilter: 'blur(8px)',
           display: 'grid',
           placeItems: 'center',
           padding: '1rem'
@@ -497,12 +497,12 @@ export default function AddressInput({
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 0.9fr)',
+              gridTemplateColumns: '1fr 380px',
               gap: '1rem',
               padding: '1rem',
-              alignItems: 'stretch'
+              minHeight: '520px',
             }}>
-              <div style={{ position: 'relative', minHeight: '520px', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <MapContainer
                   center={mapCenter}
                   zoom={15}
@@ -539,7 +539,7 @@ export default function AddressInput({
                 )}
               </div>
 
-              <div style={{ display: 'grid', gap: '1rem' }}>
+              <div style={{ display: 'grid', gap: '1rem', maxHeight: '520px', overflowY: 'auto' }}>
                 <div style={{
                   padding: '1rem',
                   borderRadius: '20px',
@@ -622,7 +622,7 @@ export default function AddressInput({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       <style>{`\n        @keyframes spin {\n          from { transform: rotate(0deg); }\n          to { transform: rotate(360deg); }\n        }\n      `}</style>
     </div>

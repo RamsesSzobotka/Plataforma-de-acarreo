@@ -280,11 +280,14 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: stri
 
 export const ridesAPI = {
   // Listar pedidos disponibles (para drivers)
-  listAvailable: (params?: { type?: string; page?: number; limit?: number }, token?: string) => {
+  listAvailable: (params?: { type?: string; page?: number; limit?: number; lat?: number; lng?: number; radius?: number }, token?: string) => {
     const searchParams = new URLSearchParams()
     if (params?.type) searchParams.set('type', params.type)
     if (params?.page) searchParams.set('page', String(params.page))
     if (params?.limit) searchParams.set('limit', String(params.limit))
+    if (params?.lat !== undefined) searchParams.set('lat', String(params.lat))
+    if (params?.lng !== undefined) searchParams.set('lng', String(params.lng))
+    if (params?.radius !== undefined) searchParams.set('radius', String(params.radius))
     const query = searchParams.toString()
     return fetchAPI<PaginatedResponse<Ride>>(`/api/rides/available${query ? `?${query}` : ''}`, {}, token)
   },
@@ -359,6 +362,13 @@ export const ridesAPI = {
       {},
       token
     ),
+
+  // Enviar ubicación del conductor al backend
+  sendDriverLocation: (latitude: number, longitude: number, token?: string) =>
+    fetchAPI<{ success: boolean; message: string }>('/api/rides/driver-location', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude }),
+    }, token),
 }
 
 export const messagesAPI = {
