@@ -61,7 +61,7 @@ function SettingsMcp() {
 
   // Active environment for snippet
   const [env, setEnv] = useState<'localhost' | 'production'>('localhost')
-  const [agentTab, setAgentTab] = useState<'opencode' | 'github' | 'claude' | 'codex'>('opencode')
+  const [agentTab, setAgentTab] = useState<'opencode' | 'claude' | 'codex'>('opencode')
   const baseUrl = env === 'localhost' ? 'http://localhost:3000' : 'https://carglyn-backend.onrender.com'
 
   // ── Fetch token status ────────────────────────────────────────────────────
@@ -439,13 +439,7 @@ function SettingsMcp() {
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>terminal</span>
                 {t('mcp.tab.opencode')}
               </button>
-              <button
-                className={`tab ${agentTab === 'github' ? 'active' : ''}`}
-                onClick={() => setAgentTab('github')}
-              >
-                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>code</span>
-                {t('mcp.tab.github')}
-              </button>
+              
               <button
                 className={`tab ${agentTab === 'claude' ? 'active' : ''}`}
                 onClick={() => setAgentTab('claude')}
@@ -628,27 +622,6 @@ function SettingsMcp() {
                   </div>
                 </div>
               </>
-            ) : (
-              /* Placeholder for GitHub (not yet implemented) */
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '3rem 1rem',
-                textAlign: 'center',
-                color: 'var(--text-muted)'
-              }}>
-                <span className="material-symbols-rounded" style={{ fontSize: '2.5rem', marginBottom: '0.75rem', opacity: 0.5 }}>
-                  code
-                </span>
-                <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  {t('mcp.comingSoon')}
-                </p>
-                <p style={{ fontSize: '0.8125rem' }}>
-                  {t('mcp.comingSoonText', { tool: t('mcp.tab.github') })}
-                </p>
-              </div>
             )}
           </div>
         </div>

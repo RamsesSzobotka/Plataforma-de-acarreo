@@ -554,7 +554,7 @@
   "mcp.revokeTokenUndo": "Esta acción no se puede deshacer.",
   "mcp.tab.claude": "Claude",
   "mcp.tab.codex": "Codex CLI",
-  "mcp.tab.github": "GitHub Copilot",
+  
   "mcp.tab.opencode": "OpenCode",
   "mcp.claude.instructions": "Sigue estos pasos para conectar Claude:",
   "mcp.claude.step1": "1. Abre Claude Desktop o Claude Code",

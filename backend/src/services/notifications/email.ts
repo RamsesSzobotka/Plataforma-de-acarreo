@@ -1,50 +1,87 @@
 /**
- * Email notification service using Gmail SMTP with Nodemailer
+ * Email notification service using Brevo (Sendinblue) REST API
+ * Uses HTTPS (port 443) — works on Render free tier unlike SMTP
  */
 
-import nodemailer from 'nodemailer'
-
-// Create transporter from env vars
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
+interface Attachment {
+  filename: string
+  content: Buffer | string
+  contentType?: string
+}
 
 interface EmailOptions {
   to: string
   subject: string
   html: string
   text?: string
+  attachments?: Attachment[]
 }
 
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email'
+
 /**
- * Send email via Gmail SMTP
+ * Send email via Brevo REST API
  * Fire-and-forget: logs errors but doesn't throw
  */
 export async function sendEmail(options: EmailOptions): Promise<void> {
-  const smtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS
+  const apiKey = process.env.BREVO_API_KEY
+  const configured = !!apiKey
 
-  if (!smtpConfigured) {
-    console.warn('[Email] SMTP not configured (SMTP_USER/SMTP_PASS missing), skipping email send')
+  console.log(`[Email] sendEmail: to="${options.to}", subject="${options.subject}", brevoConfigured=${configured}`)
+
+  if (!configured) {
+    console.warn(`[Email] BREVO_API_KEY no configurado, saltando envío a ${options.to}`)
     return
   }
 
+  const fromEmail = process.env.EMAIL_FROM || 'Carglyn.noreply@gmail.com'
+
+  const payload: Record<string, any> = {
+    sender: { name: 'Carglyn', email: fromEmail },
+    to: [{ email: options.to }],
+    subject: options.subject,
+    htmlContent: options.html,
+  }
+
+  if (options.text) {
+    payload.textContent = options.text
+  }
+
+  if (options.attachments?.length) {
+    payload.attachment = options.attachments.map(a => ({
+      name: a.filename,
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : a.content,
+    }))
+  }
+
+  // Log payload (omit htmlContent y content de attachments para no ensuciar)
+  const logPayload = { ...payload, htmlContent: payload.htmlContent ? `${payload.htmlContent.length} chars` : undefined }
+  if (logPayload.attachment) {
+    logPayload.attachment = payload.attachment.map((a: any) => ({ name: a.name, content: `${a.content.length} base64 chars` }))
+  }
+  console.log(`[Email] 📤 Payload enviado a Brevo:`, JSON.stringify(logPayload, null, 2))
+
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@carglyn.com',
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
+    const res = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        'accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
     })
-  } catch (error) {
-    // Log but don't throw - email failure shouldn't break the main flow
-    console.error('[Email] Failed to send email:', error)
+
+    const body = await res.text()
+    console.log(`[Email] 📥 Respuesta de Brevo (status ${res.status}):`, body)
+
+    if (!res.ok) {
+      console.error(`[Email] ❌ Brevo error ${res.status} enviando a ${options.to}`)
+    } else {
+      console.log(`[Email] ✅ Correo enviado a ${options.to}`)
+    }
+  } catch (error: any) {
+    console.error(`[Email] ❌ Error enviando correo a ${options.to}:`, error?.message || error)
   }
 }
 

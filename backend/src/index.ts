@@ -28,6 +28,7 @@ import reports from './routes/reports'
 import oauth from './routes/oauth'
 import notifications from './routes/notifications'
 import gdpr from './routes/gdpr'
+import debug from './routes/debug'
 
 // Session cache (5 min TTL)
 interface CachedSession { clerkId: string; expiresAt: number }
@@ -49,6 +50,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
+  'https://carglyn-frontend.onrender.com',
 ]
 
 function getAllowedOrigins() {
@@ -58,12 +60,15 @@ function getAllowedOrigins() {
     .filter(Boolean) ?? []
 
   const frontendUrl = process.env.FRONTEND_URL?.trim()
-  const devOrigins = process.env.NODE_ENV === 'production' ? [] : DEFAULT_ALLOWED_ORIGINS
   const origins = new Set([
-    ...devOrigins,
+    ...DEFAULT_ALLOWED_ORIGINS,
     ...configuredOrigins,
     ...(frontendUrl ? [frontendUrl] : []),
   ])
+
+  if (process.env.NODE_ENV === 'production' && origins.size === 1) {
+    console.warn('⚠️ CORS: Only default origins configured. Verify FRONTEND_URL or ALLOWED_ORIGINS.')
+  }
 
   return origins
 }
@@ -151,6 +156,7 @@ app.route('/api/ratings', ratings)
 app.route('/api/reports', reports)
 app.route('/api/notifications', notifications)
 app.route('/api/gdpr', gdpr)
+app.route('/api/debug', debug)
 
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
 app.onError((err, c) => { console.error('Error:', err); return c.json({ error: 'Internal Server Error' }, 500) })
