@@ -700,9 +700,9 @@
   "consent.title": "Aceptación de Términos",
   "consent.description": "Para usar Carglyn, necesitás aceptar nuestros documentos legales. Sin aceptarlos no podrás utilizar la plataforma.",
   "consent.privacy": "Política de Privacidad",
-  "consent.privacyText": "He leído y acepto la {link} de Carglyn.",
+  "consent.privacyText": "He leído y acepto la <1>Política de Privacidad</1> de Carglyn.",
   "consent.terms": "Términos y Condiciones",
-  "consent.termsText": "He leído y acepto los {link} de Carglyn.",
+  "consent.termsText": "He leído y acepto los <1>Términos y Condiciones</1> de Carglyn.",
   "consent.accept": "Aceptar y continuar",
   "consent.saving": "Guardando..."
 }

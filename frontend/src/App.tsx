@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate, Link } from 'react-router-dom'
+import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import AuthPage from './pages/AuthPage'
@@ -74,12 +74,14 @@ function PublicAuthRoute({ children }: { children: React.ReactNode }) {
 function ConsentOverlay() {
   const { isSignedIn, getToken } = useAuth()
   const { t, i18n } = useTranslation()
+  const location = useLocation()
   const [consented, setConsented] = useState(() => localStorage.getItem('gdpr_consent') === 'true')
   const [loading, setLoading] = useState(false)
   const [privacyChecked, setPrivacyChecked] = useState(false)
   const [termsChecked, setTermsChecked] = useState(false)
 
-  if (consented || !isSignedIn) return null
+  // Don't show overlay on standalone pages (privacy, terms)
+  if (consented || !isSignedIn || location.pathname === '/privacy' || location.pathname === '/terms') return null
 
   const allChecked = privacyChecked && termsChecked
 
@@ -189,11 +191,9 @@ function ConsentOverlay() {
           <div>
             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('consent.privacy')}</span>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {t('consent.privacyText', { link: '' })}
-              {' '}
-              <Link to="/privacy" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'underline' }} onClick={(e) => e.stopPropagation()}>
-                {t('consent.privacy')}
-              </Link>
+              <Trans i18nKey="consent.privacyText">
+                He leído y acepto la <Link to="/privacy" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>Política de Privacidad</Link> de Carglyn.
+              </Trans>
             </p>
           </div>
         </label>
@@ -219,11 +219,9 @@ function ConsentOverlay() {
           <div>
             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('consent.terms')}</span>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              {t('consent.termsText', { link: '' })}
-              {' '}
-              <Link to="/terms" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'underline' }} onClick={(e) => e.stopPropagation()}>
-                {t('consent.terms')}
-              </Link>
+              <Trans i18nKey="consent.termsText">
+                He leído y acepto los <Link to="/terms" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>Términos y Condiciones</Link> de Carglyn.
+              </Trans>
             </p>
           </div>
         </label>
@@ -270,7 +268,11 @@ function App() {
       {/* OAuth bridge — Claude Desktop redirige aqui, esta pagina obtiene el
           session_token de Clerk y redirige al backend para completar el authorize */}
       <Route path="/oauth/login" element={<OAuthLogin />} />
-      
+
+      {/* Standalone pages (sin Layout, sin ConsentOverlay) */}
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<TermsAndConditions />} />
+
       {/* Rutas protegidas con Layout */}
       <Route path="/" element={
         <NotificationsProvider>
@@ -353,9 +355,7 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Privacy / Terms / GDPR */}
-        <Route path="privacy" element={<Privacy />} />
-        <Route path="terms" element={<TermsAndConditions />} />
+        {/* GDPR */}
         <Route path="settings/gdpr" element={
           <ProtectedRoute>
             <GdprSettings />

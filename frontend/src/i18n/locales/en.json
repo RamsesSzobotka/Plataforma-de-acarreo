@@ -617,9 +617,9 @@
   "consent.title": "Accept Terms",
   "consent.description": "To use Carglyn, you must accept our legal documents. Without accepting them you will not be able to use the platform.",
   "consent.privacy": "Privacy Policy",
-  "consent.privacyText": "I have read and accept the {link} of Carglyn.",
+  "consent.privacyText": "I have read and accept the <1>Privacy Policy</1> of Carglyn.",
   "consent.terms": "Terms & Conditions",
-  "consent.termsText": "I have read and accept the {link} of Carglyn.",
+  "consent.termsText": "I have read and accept the <1>Terms and Conditions</1> of Carglyn.",
   "consent.accept": "Accept and continue",
   "consent.saving": "Saving..."
 }
