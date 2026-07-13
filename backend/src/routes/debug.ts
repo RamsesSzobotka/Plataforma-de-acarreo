@@ -6,7 +6,7 @@ const debug = new Hono()
 
 /**
  * POST /api/debug/test-email
- * Envía un correo de prueba para verificar configuración SMTP.
+ * Envía un correo de prueba para verificar configuración de email (Brevo API).
  * Solo accesible para el usuario autenticado a su propio email.
  */
 debug.post('/test-email', authMiddleware, async (c) => {
@@ -14,8 +14,7 @@ debug.post('/test-email', authMiddleware, async (c) => {
 
   const { sendEmail } = await import('../services/notifications/email')
 
-  const smtpUser = process.env.SMTP_USER
-  const smtpPass = process.env.SMTP_PASS
+  const apiKey = process.env.BREVO_API_KEY
 
   await sendEmail({
     to: currentUser.email,
@@ -27,13 +26,10 @@ debug.post('/test-email', authMiddleware, async (c) => {
         </div>
         <div style="padding: 32px; background: #F8FAFC;">
           <p style="color: #334155;">Este es un correo de prueba desde Carglyn.</p>
-          <p style="color: #334155;">Si recibes esto, la configuración SMTP funciona correctamente.</p>
+          <p style="color: #334155;">Si recibes esto, la configuración de email funciona correctamente.</p>
           <div style="background: #F1F5F9; border-radius: 8px; padding: 16px; margin-top: 16px; font-family: monospace; font-size: 12px;">
-            <p style="margin: 4px 0;"><strong>SMTP_HOST:</strong> ${process.env.SMTP_HOST || 'no configurado'}</p>
-            <p style="margin: 4px 0;"><strong>SMTP_PORT:</strong> ${process.env.SMTP_PORT || 'no configurado'}</p>
-            <p style="margin: 4px 0;"><strong>SMTP_USER:</strong> ${smtpUser ? smtpUser.substring(0, 5) + '...' : 'no configurado'}</p>
-            <p style="margin: 4px 0;"><strong>SMTP_PASS:</strong> ${smtpPass ? '✓ configurado' : 'no configurado'}</p>
-            <p style="margin: 4px 0;"><strong>EMAIL_FROM:</strong> ${process.env.EMAIL_FROM || 'usando SMTP_USER'}</p>
+            <p style="margin: 4px 0;"><strong>BREVO_API_KEY:</strong> ${apiKey ? apiKey.substring(0, 12) + '...' : 'no configurado'}</p>
+            <p style="margin: 4px 0;"><strong>EMAIL_FROM:</strong> ${process.env.EMAIL_FROM || 'Carglyn.noreply@gmail.com'}</p>
           </div>
         </div>
       </div>
@@ -44,11 +40,8 @@ debug.post('/test-email', authMiddleware, async (c) => {
     success: true,
     message: `Correo de prueba enviado a ${currentUser.email}. Revisa tu bandeja de entrada.`,
     config: {
-      host: process.env.SMTP_HOST || 'no configurado',
-      port: process.env.SMTP_PORT || 'no configurado',
-      user: smtpUser ? `${smtpUser.substring(0, 5)}...` : 'no configurado',
-      passConfigured: !!smtpPass,
-      emailFrom: process.env.EMAIL_FROM || 'usando SMTP_USER',
+      brevoConfigured: !!apiKey,
+      emailFrom: process.env.EMAIL_FROM || 'Carglyn.noreply@gmail.com',
     },
   })
 })
