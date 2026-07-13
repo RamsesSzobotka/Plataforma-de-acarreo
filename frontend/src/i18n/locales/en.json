@@ -464,7 +464,7 @@
   "mcp.subtitle": "Connect the platform with external tools like OpenCode using the MCP protocol.",
   "mcp.tab.claude": "Claude",
   "mcp.tab.codex": "Codex CLI",
-  "mcp.tab.github": "GitHub Copilot",
+  
   "mcp.tab.opencode": "OpenCode",
   "mcp.claude.instructions": "Follow these steps to connect Claude:",
   "mcp.claude.step1": "1. Open Claude Desktop or Claude Code",
