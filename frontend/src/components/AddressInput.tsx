@@ -441,9 +441,8 @@ export default function AddressInput({
         <div style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 3000,
+          zIndex: 9999,
           background: 'rgba(2, 6, 23, 0.72)',
-          backdropFilter: 'blur(8px)',
           display: 'grid',
           placeItems: 'center',
           padding: '1rem'
@@ -502,12 +501,12 @@ export default function AddressInput({
               padding: '1rem',
               alignItems: 'stretch'
             }}>
-              <div style={{ position: 'relative', minHeight: '520px', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div style={{ position: 'relative', height: '520px', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <MapContainer
                   center={mapCenter}
                   zoom={15}
                   scrollWheelZoom
-                  style={{ height: '100%', width: '100%', minHeight: '520px' }}
+                  style={{ height: '520px', width: '100%' }}
                 >
                   <MapRecenter center={mapCenter} />
                   <TileLayer
@@ -539,7 +538,7 @@ export default function AddressInput({
                 )}
               </div>
 
-              <div style={{ display: 'grid', gap: '1rem' }}>
+              <div style={{ display: 'grid', gap: '1rem', maxHeight: '520px', overflowY: 'auto' }}>
                 <div style={{
                   padding: '1rem',
                   borderRadius: '20px',

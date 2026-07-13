@@ -120,6 +120,28 @@ function MapBoundsFitter({
 }
 
 /**
+ * Vuela a la ubicación del usuario cuando se detecta.
+ * Se renderiza dentro de MapContainer para acceder a useMap().
+ */
+function LocationFlyTo({ location }: { location: [number, number] | null }) {
+  const map = useMap()
+  const prevLocation = useRef(location)
+
+  useEffect(() => {
+    if (location && (
+      !prevLocation.current ||
+      prevLocation.current[0] !== location[0] ||
+      prevLocation.current[1] !== location[1]
+    )) {
+      map.flyTo(location, 15, { duration: 1 })
+    }
+    prevLocation.current = location
+  }, [location, map])
+
+  return null
+}
+
+/**
  * Extracted map content — used in both the inline map and the modal.
  * Renders MapContainer with all children (tiles, markers, polyline, user location).
  */
@@ -186,6 +208,9 @@ function MapView({
         dropoff={dropoff.coordinates}
         resetKey={resetKey}
       />
+
+      {/* Vuela a la ubicación del usuario cuando se detecta */}
+      <LocationFlyTo location={userLocation} />
 
       <Marker position={[pickup.coordinates.lat, pickup.coordinates.lng]} icon={pickupIcon} />
       <Marker position={[dropoff.coordinates.lat, dropoff.coordinates.lng]} icon={dropoffIcon} />
