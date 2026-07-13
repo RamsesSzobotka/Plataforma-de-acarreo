@@ -91,11 +91,16 @@ function DriverDashboard() {
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setDriverLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
+        async (position) => {
+          const lat = position.coords.latitude
+          const lng = position.coords.longitude
+          setDriverLocation({ lat, lng })
+          try {
+            const token = await getToken()
+            if (token) {
+              await ridesAPI.sendDriverLocation(lat, lng, token)
+            }
+          } catch {}
         },
         () => {},
         { enableHighAccuracy: true }
@@ -150,6 +155,11 @@ function DriverDashboard() {
       if (tab === 'available') {
         const params: any = { page, limit: 20 }
         if (typeFilter) params.type = typeFilter
+        if (driverLocation) {
+          params.lat = driverLocation.lat
+          params.lng = driverLocation.lng
+          params.radius = 100
+        }
 
         const data = await ridesAPI.listAvailable(params, token || undefined)
         setAvailableRides(data.data || [])
@@ -930,6 +940,23 @@ function DriverDashboard() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>inventory_2</span>
                           {ride.packages} bultos
+                        </span>
+                      )}
+                      {ride.distance !== undefined && (
+                        <span style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '3px',
+                          padding: '1px 6px',
+                          background: 'var(--primary-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontWeight: 'var(--font-medium)',
+                          color: 'var(--primary)',
+                        }}>
+                          <span className="material-symbols-rounded" style={{ fontSize: '0.75rem' }}>location_on</span>
+                          {ride.distance < 1 
+                            ? `${(ride.distance * 1000).toFixed(0)} m` 
+                            : `${ride.distance.toFixed(1)} km`}
                         </span>
                       )}
                       {ride.type && (
