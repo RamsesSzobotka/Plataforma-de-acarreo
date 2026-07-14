@@ -14,7 +14,7 @@ import { ReportCategoryModal } from '../components/ReportCategoryModal'
 import Swal from 'sweetalert2'
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
-import DriverProfilePopup from '../components/DriverProfilePopup'
+
 import { useTranslation } from 'react-i18next'
 
 interface Driver {
@@ -47,7 +47,6 @@ function RideDetails() {
   const [contacts, setContacts] = useState<DriverContact[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
-  const [driverPopup, setDriverPopup] = useState<{ driverUser: any; driver: any; rideId?: string; element: HTMLElement } | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -608,18 +607,49 @@ function RideDetails() {
     setReportModal({ isOpen: false, type: null, category: null })
   }
 
-  const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
-    const driverData = {
-      clerkId: contact.driverId,
-      firstName: contact.driver?.firstName,
-      lastName: contact.driver?.lastName,
-      imageUrl: contact.driver?.imageUrl,
-    }
-    setDriverPopup({
-      driverUser: driverData,
-      driver: null,
-      rideId: `${id}?contactId=${contact._id}&driverId=${contact.driverId}`,
-      element: e.currentTarget as HTMLElement,
+  function showDriverSwal(driverUser: any, driverInfo: any, rideIdForChat?: string) {
+    const rating = driverInfo?.rating
+    const totalRides = driverInfo?.totalRides
+
+    Swal.fire({
+      background: '#1E293B',
+      color: '#F1F5F9',
+      width: 340,
+      padding: '24px',
+      showConfirmButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Ver Perfil',
+      cancelButtonText: 'Enviar Mensaje',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#F97316',
+      reverseButtons: true,
+      html: `
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;text-align:left">
+          ${driverUser?.imageUrl
+            ? `<img src="${driverUser.imageUrl}" alt="${driverUser.firstName || ''}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #0D9488;flex-shrink:0" />`
+            : `<div style="width:56px;height:56px;border-radius:50%;background:#0D9488;color:white;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0">${(driverUser?.firstName?.[0] || 'D').toUpperCase()}</div>`
+          }
+          <div style="min-width:0;flex:1">
+            <div style="font-size:16px;font-weight:600;color:#F1F5F9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${driverUser?.firstName || ''} ${driverUser?.lastName || ''}</div>
+            ${rating ? `
+              <div style="display:flex;align-items:center;gap:4px;font-size:13px;color:#94A3B8;margin-top:4px">
+                <span style="display:flex">
+                  ${Array.from({ length: 5 }, (_, i) =>
+                    `<span class="material-symbols-rounded" style="font-size:14px;color:${i < Math.round(rating) ? '#F59E0B' : '#475569'};font-variation-settings:'FILL' ${i < Math.round(rating) ? 1 : 0}">star</span>`
+                  ).join('')}
+                </span>
+                <span>${rating} (${totalRides || 0})</span>
+              </div>
+            ` : '<div style="font-size:13px;color:#94A3B8;margin-top:4px">Sin calificaciones</div>'}
+          </div>
+        </div>
+      `,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        navigate(`/profile/${driverUser?.clerkId}`)
+      } else if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+        if (rideIdForChat) navigate(`/chat/${rideIdForChat}`)
+      }
     })
   }
 
@@ -1202,12 +1232,7 @@ function RideDetails() {
                   <img
                     src={driverUser.imageUrl}
                     alt={driverUser.firstName}
-                    onClick={(e) => setDriverPopup({
-                      driverUser,
-                      driver,
-                      rideId: ride?._id,
-                      element: e.currentTarget,
-                    })}
+                    onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
                       style={{
                         width: '64px',
                         height: '64px',
@@ -1222,12 +1247,7 @@ function RideDetails() {
                     />
                   ) : (
 <div
-                      onClick={(e) => setDriverPopup({
-                      driverUser,
-                      driver,
-                      rideId: ride?._id,
-                      element: e.currentTarget,
-                    })}
+                      onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
                     style={{
                       width: '64px',
                       height: '64px',
@@ -1378,7 +1398,11 @@ function RideDetails() {
                 {contacts.map((contact) => (
                   <div
                     key={contact._id}
-                    onClick={(e) => handleContactClick(contact, e)}
+                    onClick={() => showDriverSwal(
+                      { clerkId: contact.driverId, firstName: contact.driver?.firstName, lastName: contact.driver?.lastName, imageUrl: contact.driver?.imageUrl },
+                      null,
+                      `${id}?contactId=${contact._id}&driverId=${contact.driverId}`
+                    )}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -2142,17 +2166,6 @@ function RideDetails() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
-      )}
-
-      {/* Driver Profile Popup */}
-      {driverPopup && (
-        <DriverProfilePopup
-          driverUser={driverPopup.driverUser}
-          driver={driverPopup.driver}
-          rideId={driverPopup.rideId}
-          element={driverPopup.element}
-          onClose={() => setDriverPopup(null)}
-        />
       )}
 
       {/* Report Category Modal */}
