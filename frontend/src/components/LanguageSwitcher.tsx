@@ -35,6 +35,10 @@ export default function LanguageSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         aria-label={t('nav.language')}
+        aria-expanded={isOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setIsOpen(false)
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -72,6 +76,10 @@ export default function LanguageSwitcher() {
 
       {isOpen && (
         <div
+          role="listbox"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setIsOpen(false)
+          }}
           style={{
             position: 'absolute',
             top: '100%',
@@ -89,6 +97,8 @@ export default function LanguageSwitcher() {
           {languages.map((lang) => (
             <button
               key={lang.code}
+              role="option"
+              aria-selected={lang.code === currentLanguage}
               onClick={() => handleLanguageChange(lang.code)}
               style={{
                 display: 'flex',

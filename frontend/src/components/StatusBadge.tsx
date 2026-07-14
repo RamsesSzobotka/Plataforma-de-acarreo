@@ -29,27 +29,27 @@ const statusConfig: Record<string, { label: string; icon: string; variant: strin
 const variantStyles: Record<string, React.CSSProperties> = {
   primary: {
     background: 'var(--primary-subtle)',
-    color: 'var(--primary-light)',
+    color: '#0F766E',
     border: '1px solid var(--primary-glow)',
   },
   success: {
     background: 'var(--success-subtle)',
-    color: 'var(--success)',
+    color: '#16A34A',
     border: '1px solid rgba(34, 197, 94, 0.3)',
   },
   warning: {
     background: 'var(--warning-subtle)',
-    color: 'var(--warning)',
+    color: '#D97706',
     border: '1px solid rgba(245, 158, 11, 0.3)',
   },
   error: {
     background: 'var(--error-subtle)',
-    color: 'var(--error)',
+    color: '#DC2626',
     border: '1px solid rgba(239, 68, 68, 0.3)',
   },
   info: {
     background: 'var(--info-subtle)',
-    color: 'var(--info)',
+    color: '#2563EB',
     border: '1px solid rgba(59, 130, 246, 0.3)',
   },
   neutral: {
@@ -85,7 +85,7 @@ export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
         transition: 'all 0.2s var(--ease-out)',
       }}
     >
-      <span className="material-symbols-rounded" style={{ fontSize: 'inherit' }}>
+      <span className="material-symbols-rounded" style={{ fontSize: 'inherit' }} aria-hidden="true">
         {config.icon}
       </span>
       {config.label}

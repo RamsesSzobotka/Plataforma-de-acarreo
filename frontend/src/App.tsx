@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -80,6 +80,38 @@ function ConsentOverlay() {
   const [privacyChecked, setPrivacyChecked] = useState(false)
   const [termsChecked, setTermsChecked] = useState(false)
 
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dialogRef.current) return
+    const dialog = dialogRef.current
+    const firstCheckbox = dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')
+    firstCheckbox?.focus()
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && allChecked) {
+        setConsented(true)
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    dialog.addEventListener('keydown', handleKeyDown)
+    return () => dialog.removeEventListener('keydown', handleKeyDown)
+  }, [allChecked])
+
   // Don't show overlay on standalone pages (privacy, terms)
   if (consented || !isSignedIn || location.pathname === '/privacy' || location.pathname === '/terms') return null
 
@@ -107,7 +139,12 @@ function ConsentOverlay() {
   }
 
   return (
-    <div style={{
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="consent-title"
+      style={{
       position: 'fixed',
       inset: 0,
       background: '#0F172A',
@@ -161,7 +198,7 @@ function ConsentOverlay() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
           <span className="material-symbols-rounded" style={{ fontSize: '2rem', color: 'var(--primary)' }}>verified_user</span>
-          <h2 style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: '1.5rem' }}>
+          <h2 id="consent-title" style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: '1.5rem' }}>
             {t('consent.title')}
           </h2>
         </div>
@@ -252,6 +289,39 @@ function ConsentOverlay() {
 function App() {
   return (
     <ErrorBoundary>
+      <a href="#main-content" style={{
+        position: 'absolute',
+        left: '-9999px',
+        width: '1px',
+        height: '1px',
+        overflow: 'hidden',
+        zIndex: 9999,
+      }} 
+        onFocus={(e) => {
+          e.currentTarget.style.position = 'fixed'
+          e.currentTarget.style.top = '0'
+          e.currentTarget.style.left = '0'
+          e.currentTarget.style.width = 'auto'
+          e.currentTarget.style.height = 'auto'
+          e.currentTarget.style.padding = '1rem'
+          e.currentTarget.style.background = 'var(--primary)'
+          e.currentTarget.style.color = 'white'
+          e.currentTarget.style.zIndex = '9999'
+          e.currentTarget.style.fontSize = '1rem'
+          e.currentTarget.style.textDecoration = 'none'
+          e.currentTarget.style.outline = 'none'
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.position = 'absolute'
+          e.currentTarget.style.left = '-9999px'
+          e.currentTarget.style.width = '1px'
+          e.currentTarget.style.height = '1px'
+          e.currentTarget.style.overflow = 'hidden'
+          e.currentTarget.style.padding = ''
+          e.currentTarget.style.background = ''
+          e.currentTarget.style.color = ''
+        }}
+      >Ir al contenido principal</a>
       <PageTransition>
         <Routes>
       {/* Rutas publicas de autenticacion - SIN Layout */}

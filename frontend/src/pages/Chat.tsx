@@ -668,25 +668,40 @@ function Chat() {
         >
           {/* Driver avatar - clickable */}
           {chatDriverUser.imageUrl ? (
-            <img
-              src={chatDriverUser.imageUrl}
-              alt={chatDriverUser.firstName}
+            <button
+              type="button"
+              aria-label="Ver perfil del conductor"
               onClick={(e) => setDriverPopupPos(e.currentTarget)}
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2px solid var(--primary-subtle)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
                 cursor: 'pointer',
-                transition: 'opacity 0.2s',
+                borderRadius: '50%',
+                display: 'inline-flex',
                 flexShrink: 0,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            />
+            >
+              <img
+                src={chatDriverUser.imageUrl}
+                alt={chatDriverUser.firstName}
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid var(--primary-subtle)',
+                  transition: 'opacity 0.2s',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              />
+            </button>
           ) : (
-            <div
+            <button
+              type="button"
+              aria-label="Ver perfil del conductor"
               onClick={(e) => setDriverPopupPos(e.currentTarget)}
               style={{
                 width: '44px',
@@ -699,12 +714,14 @@ function Chat() {
                 justifyContent: 'center',
                 fontSize: 'var(--text-base)',
                 fontWeight: 'var(--font-bold)',
+                border: 'none',
+                padding: 0,
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
             >
               {chatDriverUser.firstName?.charAt(0) || 'C'}
-            </div>
+            </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
@@ -735,6 +752,7 @@ function Chat() {
             className="btn btn-ghost"
             style={{ padding: 'var(--space-2)', color: 'var(--text-muted)', flexShrink: 0 }}
             title={t('chat.viewDriverProfile')}
+            aria-label={t('chat.viewDriverProfile')}
           >
             <span className="material-symbols-rounded">person</span>
           </button>
@@ -1023,6 +1041,9 @@ function Chat() {
 
       {/* Messages Container */}
       <div
+        role="log"
+        aria-live="polite"
+        aria-label="Mensajes del chat"
         style={{
           height: 'min(450px, 50vh)',
           maxHeight: '50vh',
@@ -1120,7 +1141,9 @@ function Chat() {
       {/* Input */}
       {canChat ? (
         <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 'var(--space-3)' }}>
+          <label htmlFor="chat-input" className="sr-only">{t('chat.inputLabel') || 'Mensaje'}</label>
           <input
+            id="chat-input"
             type="text"
             className="input"
             placeholder={isDriver ? t('chat.placeholderDriver') : t('chat.placeholder')}
@@ -1128,7 +1151,7 @@ function Chat() {
             onChange={(e) => setNewMessage(e.target.value)}
             style={{ flex: 1 }}
           />
-          <button type="submit" className="btn btn-primary btn-icon" disabled={!isConnected}>
+          <button type="submit" className="btn btn-primary btn-icon" disabled={!isConnected} aria-label={t('chat.sendMessage') || 'Enviar mensaje'}>
             <span className="material-symbols-rounded">send</span>
           </button>
         </form>
