@@ -53,7 +53,7 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
 
   if (orientation === 'vertical') {
     return (
-      <div style={{
+      <div role="list" style={{
         display: 'flex',
         flexDirection: 'column',
         gap: 0,
@@ -67,6 +67,8 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
           return (
             <div
               key={step.status}
+              role="listitem"
+              aria-current={state === 'active' ? 'step' : undefined}
               style={{
                 display: 'flex',
                 gap: 'var(--space-4)',
@@ -118,7 +120,7 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
                   transition: 'all var(--duration-normal) var(--ease-out)',
                 }}
               >
-                <span className="material-symbols-rounded" style={{
+                <span className="material-symbols-rounded" aria-hidden="true" style={{
                   fontSize: '1rem',
                   animation: state === 'active' && step.status === 'in_progress'
                     ? 'truck-bounce 1.2s ease-in-out infinite'
@@ -178,7 +180,7 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
 
   // Horizontal orientation
   return (
-    <div style={{
+    <div role="list" style={{
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'space-between',
@@ -194,6 +196,8 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
         return (
           <div
             key={step.status}
+            role="listitem"
+            aria-current={state === 'active' ? 'step' : undefined}
             className={state === 'active' ? 'timeline-step-appear' : ''}
             style={{
               display: 'flex',
@@ -247,7 +251,7 @@ export function TimelineStepper({ steps, currentStatus, orientation = 'horizonta
                 transition: 'all var(--duration-normal) var(--ease-out)',
               }}
             >
-              <span className="material-symbols-rounded" style={{
+              <span className="material-symbols-rounded" aria-hidden="true" style={{
                 fontSize: '0.875rem',
                 animation: state === 'active' && step.status === 'in_progress'
                   ? 'truck-bounce 1.2s ease-in-out infinite'

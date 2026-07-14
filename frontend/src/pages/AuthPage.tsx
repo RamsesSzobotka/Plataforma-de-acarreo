@@ -293,8 +293,8 @@ function AuthPage() {
             display: 'flex',
             gap: '1rem',
           }}>
-            <a 
-              href="#" 
+            <Link
+              to="/terms"
               style={{
                 fontFamily: '"Inter", sans-serif',
                 fontSize: '0.75rem',
@@ -303,9 +303,9 @@ function AuthPage() {
               }}
             >
               Terminos de Servicio
-            </a>
-            <a 
-              href="#" 
+            </Link>
+            <Link
+              to="/privacy"
               style={{
                 fontFamily: '"Inter", sans-serif',
                 fontSize: '0.75rem',
@@ -314,7 +314,7 @@ function AuthPage() {
               }}
             >
               Politica de Privacidad
-            </a>
+            </Link>
           </div>
         </div>
       </footer>

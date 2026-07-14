@@ -804,6 +804,7 @@ function RideDetails() {
                 <button
                   onClick={handleReportClient}
                   title="Reportar cliente"
+                  aria-label="Reportar cliente"
                   style={{
                     background: 'none',
                     border: 'none',
@@ -902,17 +903,20 @@ function RideDetails() {
                 gap: 'var(--space-3)',
               }}>
                 {ride.images.map((img, idx) => (
-                  <div
+                  <button
                     key={idx}
+                    type="button"
+                    aria-label={`Ver imagen ${idx + 1}`}
                     onClick={() => setSelectedImage(img.url)}
                     style={{
                       position: 'relative',
                       borderRadius: 'var(--radius)',
                       overflow: 'hidden',
-                      cursor: 'pointer',
                       aspectRatio: '4/3',
                       background: 'var(--surface-1)',
                       transition: 'transform var(--duration-fast) var(--ease-out)',
+                      border: 'none',
+                      padding: 0,
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -926,7 +930,7 @@ function RideDetails() {
                         objectFit: 'cover',
                       }}
                     />
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -1229,25 +1233,39 @@ function RideDetails() {
 
               <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {driverUser.imageUrl ? (
-                  <img
-                    src={driverUser.imageUrl}
-                    alt={driverUser.firstName}
+                  <button
+                    type="button"
+                    aria-label="Ver perfil del conductor"
                     onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      borderRadius: '50%',
+                      display: 'inline-flex',
+                    }}
+                  >
+                    <img
+                      src={driverUser.imageUrl}
+                      alt={driverUser.firstName}
                       style={{
                         width: '64px',
                         height: '64px',
                         borderRadius: '50%',
                         objectFit: 'cover',
                         border: '3px solid var(--primary-subtle)',
-                        cursor: 'pointer',
                         transition: 'opacity 0.2s',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
                       onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
                     />
+                  </button>
                   ) : (
-<div
-                      onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
+                  <button
+                    type="button"
+                    aria-label="Ver perfil del conductor"
+                    onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
                     style={{
                       width: '64px',
                       height: '64px',
@@ -1260,11 +1278,12 @@ function RideDetails() {
                       fontSize: 'var(--text-xl)',
                       fontWeight: 'var(--font-bold)',
                       border: '3px solid var(--primary-subtle)',
+                      padding: 0,
                       cursor: 'pointer',
                     }}
                   >
                     {driverUser.firstName?.charAt(0) || 'D'}
-                  </div>
+                  </button>
                 )}
                 <div style={{ flex: 1 }}>
                   <div style={{
@@ -1279,6 +1298,7 @@ function RideDetails() {
                     <button
                       onClick={handleReportDriver}
                       title="Reportar conductor"
+                      aria-label="Reportar conductor"
                       style={{
                         background: 'none',
                         border: 'none',

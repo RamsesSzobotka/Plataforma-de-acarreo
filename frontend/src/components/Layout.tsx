@@ -94,6 +94,14 @@ function Layout() {
                     e.currentTarget.style.color = 'var(--text-secondary)'
                     e.currentTarget.style.background = 'transparent'
                   }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>dashboard</span>
                   {t('nav.driverPanel')}
@@ -122,6 +130,14 @@ function Layout() {
                     e.currentTarget.style.color = 'var(--text-secondary)'
                     e.currentTarget.style.background = 'transparent'
                   }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>local_shipping</span>
                   {t('nav.myRides')}
@@ -145,6 +161,7 @@ function Layout() {
                 {/* Notifications Bell */}
                 <Link
                   to="/notifications"
+                  aria-label={t('nav.notifications')}
                   style={{
                     position: 'relative',
                     display: 'flex',
@@ -271,7 +288,7 @@ function Layout() {
       </header>
 
       {/* Main Content */}
-      <main style={{
+      <main id="main-content" style={{
         flex: 1,
         padding: 'var(--space-8) 0',
         background: 'var(--surface-0)',
@@ -346,6 +363,8 @@ function Layout() {
         <>
           <div
             onClick={() => setMobileMenuOpen(false)}
+            role="presentation"
+            aria-label="Cerrar menú"
             style={{
               position: 'fixed',
               inset: 0,
@@ -415,6 +434,14 @@ function Layout() {
                 e.currentTarget.style.color = 'var(--text-secondary)'
                 e.currentTarget.style.background = 'transparent'
               }}
+              onFocus={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)'
+                e.currentTarget.style.background = 'var(--surface-2)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.background = 'transparent'
+              }}
             >
               <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>dashboard</span>
               Panel Conductor
@@ -441,6 +468,14 @@ function Layout() {
                 e.currentTarget.style.background = 'var(--surface-2)'
               }}
               onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)'
+                e.currentTarget.style.background = 'var(--surface-2)'
+              }}
+              onBlur={(e) => {
                 e.currentTarget.style.color = 'var(--text-secondary)'
                 e.currentTarget.style.background = 'transparent'
               }}
@@ -491,6 +526,14 @@ function Layout() {
                   e.currentTarget.style.color = 'var(--text-secondary)'
                   e.currentTarget.style.background = 'transparent'
                 }}
+                onFocus={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>notifications</span>
                 Notificaciones
@@ -529,6 +572,14 @@ function Layout() {
                   e.currentTarget.style.background = 'var(--surface-2)'
                 }}
                 onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onBlur={(e) => {
                   e.currentTarget.style.color = 'var(--text-secondary)'
                   e.currentTarget.style.background = 'transparent'
                 }}

@@ -176,8 +176,9 @@ function CreateRide() {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       {/* Back button */}
-      <button
-        onClick={() => navigate(-1)}
+      <Link
+        to=".."
+        relative="path"
         className="btn btn-ghost"
         style={{
           display: 'inline-flex',
@@ -191,11 +192,12 @@ function CreateRide() {
           padding: 0,
           fontFamily: 'var(--font-body)',
           fontSize: 'inherit',
+          textDecoration: 'none',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
         {t('common.back')}
-      </button>
+      </Link>
 
       {/* Header */}
       <SectionHeader
@@ -413,6 +415,7 @@ function CreateRide() {
               <Link
                 to="/add-payment-method?redirect=create-ride"
                 className="btn btn-sm"
+                aria-label={t('ride.create.addPaymentMethod')}
                 style={{
                   background: 'var(--error)',
                   color: 'white',
@@ -497,6 +500,7 @@ function CreateRide() {
                   <button
                     key={type.value}
                     type="button"
+                    aria-pressed={formData.type === type.value}
                     onClick={() => updateFormField('type', type.value as RideFormData['type'])}
                     style={{
                       display: 'flex',
@@ -739,6 +743,7 @@ function CreateRide() {
                   value={formData.estimatedPrice || ''}
                   onChange={(e) => updateFormField('estimatedPrice', Number(e.target.value))}
                   required
+                  aria-label={t('ride.create.formPrice')}
                   style={{ paddingLeft: 'var(--space-8)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)' }}
                 />
               </div>

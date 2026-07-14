@@ -22,7 +22,7 @@ function Home() {
   return (
     <div style={{ background: '#0F172A', minHeight: '100vh' }}>
       {/* Hero Section - Impactante */}
-      <div style={{
+      <div role="banner" style={{
         position: 'relative',
         padding: '5rem 0 6rem',
         background: 'linear-gradient(180deg, #0F172A 0%, #1E293B 100%)',
@@ -217,7 +217,7 @@ function Home() {
             </p>
           </div>
 
-          <div style={{
+          <ol style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: '1.5rem',
@@ -248,7 +248,7 @@ function Home() {
                 description: t('home.step4.desc')
               },
             ].map((item, index) => (
-              <div key={index} style={{
+              <li key={index} style={{
                 background: 'rgba(255,255,255,0.03)',
                 borderRadius: '20px',
                 padding: '2rem',
@@ -281,7 +281,7 @@ function Home() {
                   marginBottom: '1.25rem',
                   marginTop: '0.5rem',
                 }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: '1.75rem', color: '#0D9488' }}>
+                  <span className="material-symbols-rounded" aria-hidden="true" style={{ fontSize: '1.75rem', color: '#0D9488' }}>
                     {item.icon}
                   </span>
                 </div>
@@ -304,14 +304,14 @@ function Home() {
                 }}>
                   {item.description}
                 </p>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </div>
 
       {/* Features Grid */}
-      <div style={{
+      <section aria-label="Características" style={{
         padding: '5rem 0',
         background: '#0F172A',
       }}>
@@ -359,8 +359,9 @@ function Home() {
                 color: '#3B82F6',
               },
             ].map((feature, index) => (
-              <div 
+              <article
                 key={index} 
+                aria-labelledby={`feature-title-${index}`}
                 style={{
                   background: 'rgba(255,255,255,0.03)',
                   borderRadius: '20px',
@@ -387,11 +388,11 @@ function Home() {
                   justifyContent: 'center',
                   marginBottom: '1.25rem',
                 }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', color: feature.color }}>
+                  <span className="material-symbols-rounded" aria-hidden="true" style={{ fontSize: '1.5rem', color: feature.color }}>
                     {feature.icon}
                   </span>
                 </div>
-                <h3 style={{
+                <h3 id={`feature-title-${index}`} style={{
                   fontFamily: '"Plus Jakarta Sans", sans-serif',
                   fontWeight: '700',
                   fontSize: '1.1rem',
@@ -409,14 +410,14 @@ function Home() {
                 }}>
                   {feature.description}
                 </p>
-              </div>
+              </article>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Seccion PARA CLIENTES */}
-      <div style={{
+      <section aria-label="Para clientes" style={{
         padding: '5rem 0',
         background: '#0F172A',
       }}>
@@ -578,10 +579,10 @@ function Home() {
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Seccion PARA CONDUCTORES */}
-      <div style={{
+      <section aria-label="Para conductores" style={{
         padding: '5rem 0',
         background: 'rgba(249, 115, 22, 0.05)',
         borderTop: '1px solid rgba(249, 115, 22, 0.1)',
@@ -745,10 +746,10 @@ function Home() {
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* CTA Final */}
-      <div style={{
+      <section aria-label="Registro" style={{
         padding: '5rem 0',
         background: 'linear-gradient(180deg, #1E293B 0%, #0F172A 100%)',
         textAlign: 'center',
@@ -796,7 +797,7 @@ function Home() {
             </button>
           </SignUpButton>
         </div>
-      </div>
+      </section>
 
       {/* Si es usuario logueado y aun no es conductor */}
       {isSignedIn && (
