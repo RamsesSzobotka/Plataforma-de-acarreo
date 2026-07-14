@@ -15,6 +15,7 @@ const navItems = [
 export default function Layout() {
   const navigate = useNavigate()
   const [user, setUser] = useState<any>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
 
   useEffect(() => {
@@ -41,9 +42,20 @@ export default function Layout() {
     navigate('/login')
   }
 
+  function handleNavClick() {
+    setSidebarOpen(false)
+  }
+
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      {/* Overlay */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
           <span className="material-symbols-rounded icon">local_shipping</span>
           <h1>
@@ -56,7 +68,9 @@ export default function Layout() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/dashboard'}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              onClick={handleNavClick}
             >
               <span className="material-symbols-rounded">{item.icon}</span>
               {item.label}
@@ -64,17 +78,25 @@ export default function Layout() {
           ))}
         </nav>
       </aside>
+
       <main className="main-content">
-        {/* Header con usuario y logout */}
+        {/* Header con toggle, health y usuario */}
         <header style={{ 
           display: 'flex', 
-          justifyContent: 'flex-end', 
           alignItems: 'center', 
-          gap: '1rem',
+          gap: '0.75rem',
           padding: '1rem',
           borderBottom: '1px solid #E2E8F0',
           marginBottom: '1.5rem'
         }}>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(v => !v)}>
+            <span className="material-symbols-rounded">
+              {sidebarOpen ? 'close' : 'menu'}
+            </span>
+          </button>
+
+          <div style={{ flex: 1 }} />
+
           {/* Health indicator */}
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             Servidor:
