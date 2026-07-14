@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 interface DriverProfilePopupProps {
@@ -17,52 +17,14 @@ interface DriverProfilePopupProps {
   element: HTMLElement
 }
 
-interface Position {
-  top: number
-  left: number
-  arrowUp: boolean
-}
-
-function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: DriverProfilePopupProps) {
+function DriverProfilePopup({ driverUser, driver, rideId, onClose }: DriverProfilePopupProps) {
   const navigate = useNavigate()
-  const popupRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<Position | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  // ── Calcular posición después del primer render (cuando el DOM existe) ──
-  useEffect(() => {
-    const popup = popupRef.current
-    if (!popup) return
-
-    const viewportW = window.innerWidth
-    const viewportH = window.innerHeight
-    const elRect = element.getBoundingClientRect()
-    const popupW = popup.offsetWidth
-    const popupH = popup.offsetHeight
-    const gap = 8
-
-    // Por defecto: abajo del elemento
-    let top = elRect.bottom + gap
-    let arrowUp = true
-
-    // Si no cabe abajo, arriba del elemento
-    if (top + popupH > viewportH) {
-      top = elRect.top - popupH - gap
-      arrowUp = false
-    }
-
-    // Centrar horizontalmente respecto al elemento, sin salirse del viewport
-    let left = elRect.left + elRect.width / 2 - popupW / 2
-    const padding = 12
-    if (left < padding) left = padding
-    if (left + popupW > viewportW - padding) left = viewportW - popupW - padding
-
-    setPosition({ top, left, arrowUp })
-  }, [element])
-
-  // ── Cerrar al hacer click fuera ──
+  // Close on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
@@ -75,7 +37,7 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
     }
   }, [onClose])
 
-  // ── Cerrar con Escape ──
+  // Close on Escape
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -83,20 +45,6 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
-
-  // ── Recalcular al hacer scroll/resize ──
-  useEffect(() => {
-    function handleReposition() {
-      setPosition(null)
-      // El useEffect de arriba se corre de nuevo porque position cambió
-    }
-    window.addEventListener('scroll', handleReposition, true)
-    window.addEventListener('resize', handleReposition)
-    return () => {
-      window.removeEventListener('scroll', handleReposition, true)
-      window.removeEventListener('resize', handleReposition)
-    }
-  }, [element])
 
   if (!driverUser) return null
 
@@ -106,22 +54,6 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
     .join('')
     .toUpperCase() || 'D'
 
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i}
-        className="material-symbols-rounded"
-        style={{
-          fontSize: '0.75rem',
-          color: i < Math.round(rating) ? 'var(--warning)' : 'var(--border)',
-          fontVariationSettings: i < Math.round(rating) ? "'FILL' 1" : "'FILL' 0",
-        }}
-      >
-        star
-      </span>
-    ))
-  }
-
   return (
     <>
       {/* Backdrop */}
@@ -130,76 +62,61 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
           position: 'fixed',
           inset: 0,
           zIndex: 999,
+          background: 'rgba(0,0,0,0.3)',
+          animation: 'fadeIn 0.15s ease-out',
         }}
         onClick={onClose}
       />
 
-      {/* Popup */}
+      {/* Card centrada */}
       <div
-        ref={popupRef}
+        ref={menuRef}
         style={{
           position: 'fixed',
-          top: position ? `${position.top}px` : '-9999px',
-          left: position ? `${position.left}px` : '-9999px',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
           zIndex: 1000,
-          minWidth: '200px',
-          maxWidth: '280px',
+          width: '280px',
           background: 'var(--surface-card)',
-          borderRadius: 'var(--radius)',
+          borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--border)',
           boxShadow: 'var(--shadow-lg)',
-          opacity: position ? 1 : 0,
-          transition: 'opacity 0.15s ease-out',
+          animation: 'scaleIn 0.15s ease-out',
+          overflow: 'hidden',
         }}
       >
-        {/* Arrow */}
-        <div
-          style={{
-            position: 'absolute',
-            width: '12px',
-            height: '12px',
-            background: 'var(--surface-card)',
-            borderLeft: '1px solid var(--border)',
-            borderTop: '1px solid var(--border)',
-            transform: 'rotate(45deg)',
-            zIndex: -1,
-            left: '20px',
-            top: position?.arrowUp ? '-6px' : undefined,
-            bottom: !position?.arrowUp ? '-6px' : undefined,
-          }}
-        />
-
         {/* Driver preview */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 'var(--space-3)',
-          padding: 'var(--space-3) var(--space-4)',
-          borderBottom: '1px solid var(--border-subtle)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-5) var(--space-5) var(--space-3)',
         }}>
           {driverUser.imageUrl ? (
             <img
               src={driverUser.imageUrl}
               alt={driverUser.firstName}
               style={{
-                width: '40px',
-                height: '40px',
+                width: '52px',
+                height: '52px',
                 borderRadius: '50%',
                 objectFit: 'cover',
                 flexShrink: 0,
+                border: '2px solid var(--primary-subtle)',
               }}
             />
           ) : (
             <div style={{
-              width: '40px',
-              height: '40px',
+              width: '52px',
+              height: '52px',
               borderRadius: '50%',
               background: 'var(--primary)',
               color: 'white',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 'var(--text-base)',
+              fontSize: 'var(--text-xl)',
               fontWeight: 'var(--font-bold)',
               flexShrink: 0,
             }}>
@@ -209,60 +126,50 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
           <div style={{ minWidth: 0 }}>
             <div style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 'var(--text-sm)',
+              fontSize: 'var(--text-base)',
               fontWeight: 'var(--font-semibold)',
+              marginBottom: '2px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}>
               {driverUser.firstName} {driverUser.lastName}
             </div>
-            {driver ? (
+            {driver && (
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 'var(--space-1)',
+                gap: '4px',
                 fontSize: 'var(--text-xs)',
                 color: 'var(--text-muted)',
               }}>
-                <div style={{ display: 'flex' }}>
-                  {renderStars(driver.rating || 0)}
-                </div>
-                <span>{driver.rating || 0} ({driver.totalRides || 0})</span>
-              </div>
-            ) : (
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Sin calificaciones
+                <span className="material-symbols-rounded" style={{ fontSize: '0.875rem', color: 'var(--warning)' }}>
+                  star
+                </span>
+                <span>{driver.rating || 0} ({driver.totalRides || 0} viajes)</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Actions */}
-        <div style={{ padding: 'var(--space-2)' }}>
+        {/* Acciones */}
+        <div style={{ padding: 'var(--space-2) var(--space-3) var(--space-3)' }}>
           <button
             onClick={() => {
               onClose()
               navigate(`/profile/${driverUser.clerkId}`)
             }}
+            className="btn btn-secondary"
             style={{
+              width: '100%',
               display: 'flex',
               alignItems: 'center',
-              gap: 'var(--space-3)',
-              width: '100%',
-              padding: 'var(--space-2) var(--space-3)',
-              background: 'transparent',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-primary)',
-              fontSize: 'var(--text-sm)',
-              cursor: 'pointer',
-              transition: 'background 0.15s',
+              justifyContent: 'center',
+              gap: 'var(--space-2)',
+              marginBottom: 'var(--space-2)',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: '1.125rem', color: 'var(--primary)' }}>person</span>
+            <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>person</span>
             Ver Perfil
           </button>
 
@@ -272,24 +179,16 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
                 onClose()
                 navigate(`/chat/${rideId}`)
               }}
+              className="btn btn-primary"
               style={{
+                width: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 'var(--space-3)',
-                width: '100%',
-                padding: 'var(--space-2) var(--space-3)',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: 'var(--text-sm)',
-                cursor: 'pointer',
-                transition: 'background 0.15s',
+                justifyContent: 'center',
+                gap: 'var(--space-2)',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: '1.125rem', color: 'var(--secondary)' }}>chat</span>
+              <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>chat</span>
               Enviar Mensaje
             </button>
           )}
