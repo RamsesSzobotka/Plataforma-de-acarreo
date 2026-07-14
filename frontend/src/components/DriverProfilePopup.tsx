@@ -21,6 +21,34 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, position }: D
   const navigate = useNavigate()
   const menuRef = useRef<HTMLDivElement>(null)
 
+  const popupHeight = 280
+  const popupWidth = 260
+  const arrowHeight = 8
+  const padding = 12
+
+  const adjustedPosition = (() => {
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+    let x = position.x
+    let y = position.y
+
+    if (x + popupWidth + padding > viewportWidth) {
+      x = viewportWidth - popupWidth - padding
+    }
+    if (x < padding) {
+      x = padding
+    }
+
+    if (y + popupHeight + arrowHeight > viewportHeight) {
+      y = position.y - popupHeight - arrowHeight
+    }
+    if (y < padding) {
+      y = padding
+    }
+
+    return { x, y }
+  })()
+
   // Close on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -87,8 +115,8 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, position }: D
         ref={menuRef}
         style={{
           position: 'fixed',
-          top: `${position.y}px`,
-          left: `${position.x}px`,
+          top: `${adjustedPosition.y}px`,
+          left: `${adjustedPosition.x}px`,
           zIndex: 1000,
           minWidth: '200px',
           maxWidth: '260px',
@@ -99,16 +127,18 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, position }: D
           animation: 'fadeIn 0.15s ease-out',
         }}
       >
-        {/* Arrow pointing up */}
+        {/* Arrow */}
         <div style={{
           position: 'absolute',
-          top: '-6px',
+          ...(adjustedPosition.y < position.y ? { bottom: '-6px' } : { top: '-6px' }),
           left: '24px',
           width: '12px',
           height: '12px',
           background: 'var(--surface-card)',
           borderLeft: '1px solid var(--border)',
-          borderTop: '1px solid var(--border)',
+          borderBottom: adjustedPosition.y < position.y ? '1px solid var(--border)' : 'none',
+          borderRight: 'none',
+          borderTop: adjustedPosition.y < position.y ? 'none' : '1px solid var(--border)',
           transform: 'rotate(45deg)',
           zIndex: -1,
         }} />
