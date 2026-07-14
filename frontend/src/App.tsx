@@ -110,7 +110,7 @@ function ConsentOverlay() {
     }
     dialog.addEventListener('keydown', handleKeyDown)
     return () => dialog.removeEventListener('keydown', handleKeyDown)
-  }, [allChecked])
+  }, [])
 
   // Don't show overlay on standalone pages (privacy, terms)
   if (consented || !isSignedIn || location.pathname === '/privacy' || location.pathname === '/terms') return null
