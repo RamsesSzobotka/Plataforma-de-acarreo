@@ -5,7 +5,7 @@ import AddressInput from '../components/AddressInput'
 import MultiFileUpload from '../components/MultiFileUpload'
 import { ridesAPI, usersAPI } from '../services/api'
 import { SectionHeader } from '../components/SectionHeader'
-import { showError, showWarning } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 import { useTranslation } from 'react-i18next'
 
 interface UploadedImage {
@@ -109,16 +109,19 @@ function CreateRide() {
     if (!user) return
 
     if (!formData.pickupCoordinates || !formData.dropoffCoordinates) {
+      const { showWarning } = await import('../services/alerts')
       await showWarning(t('ride.create.validation.pickup'))
       return
     }
 
     if (formData.images.length === 0) {
+      const { showWarning } = await import('../services/alerts')
       await showWarning(t('ride.create.validation.images'))
       return
     }
 
     if (!formData.type) {
+      const { showWarning } = await import('../services/alerts')
       await showWarning(t('ride.create.validation.type'))
       return
     }
@@ -163,6 +166,7 @@ function CreateRide() {
       navigate('/my-rides')
     } catch (error) {
       const message = error instanceof Error ? error.message : t('ride.create.validation.error')
+      const { showError } = await import('../services/alerts')
       await showError(message)
     } finally {
       setLoading(false)

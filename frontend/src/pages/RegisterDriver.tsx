@@ -4,7 +4,7 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import { usersAPI } from '../services/api'
 import FileUpload from '../components/FileUpload'
 import AddressInput from '../components/AddressInput'
-import { hideLoading, showLoading } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 import { useTranslation } from 'react-i18next'
 
 interface DriverProfile {
@@ -110,13 +110,13 @@ export default function RegisterDriver() {
 
   useEffect(() => {
     if (isLoadingStatus) {
-      showLoading('Verificando tu estado...')
+      import('../services/alerts').then(({ showLoading }) => showLoading('Verificando tu estado...'))
     } else {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
 
     return () => {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
   }, [isLoadingStatus])
 

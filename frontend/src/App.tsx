@@ -1,41 +1,39 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Trans, useTranslation } from 'react-i18next'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import AuthPage from './pages/AuthPage'
-import OAuthLogin from './pages/OAuthLogin'
-import CreateRide from './pages/CreateRide'
-import MyRides from './pages/MyRides'
-import RideDetails from './pages/RideDetails'
-import DriverDashboard from './pages/DriverDashboard'
-import DriverProfile from './pages/DriverProfile'
-import Chat from './pages/Chat'
-import RegisterDriver from './pages/RegisterDriver'
-import AddPaymentMethodPage from './pages/AddPaymentMethod'
-import PaymentHistory from './pages/PaymentHistory'
-import SettingsMcp from './pages/SettingsMcp'
-import DriverPublicProfile from './pages/DriverPublicProfile'
-import Notifications from './pages/Notifications'
-import Privacy from './pages/Privacy'
-import TermsAndConditions from './pages/TermsAndConditions'
-import GdprSettings from './pages/GdprSettings'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { NotificationBadgeProvider } from './contexts/NotificationBadgeContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import PageTransition from './components/PageTransition'
-import { hideLoading, showLoading } from './services/alerts'
 import ToastContainer from './components/Toast'
+
+const Home = lazy(() => import('./pages/Home'))
+const AuthPage = lazy(() => import('./pages/AuthPage'))
+const OAuthLogin = lazy(() => import('./pages/OAuthLogin'))
+const CreateRide = lazy(() => import('./pages/CreateRide'))
+const MyRides = lazy(() => import('./pages/MyRides'))
+const RideDetails = lazy(() => import('./pages/RideDetails'))
+const DriverDashboard = lazy(() => import('./pages/DriverDashboard'))
+const DriverProfile = lazy(() => import('./pages/DriverProfile'))
+const Chat = lazy(() => import('./pages/Chat'))
+const RegisterDriver = lazy(() => import('./pages/RegisterDriver'))
+const AddPaymentMethodPage = lazy(() => import('./pages/AddPaymentMethod'))
+const PaymentHistory = lazy(() => import('./pages/PaymentHistory'))
+const SettingsMcp = lazy(() => import('./pages/SettingsMcp'))
+const DriverPublicProfile = lazy(() => import('./pages/DriverPublicProfile'))
+const Notifications = lazy(() => import('./pages/Notifications'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'))
+const GdprSettings = lazy(() => import('./pages/GdprSettings'))
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
 function SessionLoading({ message }: { message: string }) {
   useEffect(() => {
-    showLoading(message)
-    return () => {
-      hideLoading()
-    }
+    import('./services/alerts').then(({ showLoading }) => showLoading(message))
+    return () => { import('./services/alerts').then(({ hideLoading }) => hideLoading()) }
   }, [message])
 
   return null
@@ -323,6 +321,7 @@ function App() {
         }}
       >Ir al contenido principal</a>
       <PageTransition>
+        <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>}>
         <Routes>
       {/* Rutas publicas de autenticacion - SIN Layout */}
       {/* Usar path="/sign-in/*" para que Clerk pueda manejar subrutas como /sign-in/sso-callback */}
@@ -436,6 +435,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+      </Suspense>
       </PageTransition>
       <ConsentOverlay />
       <ToastContainer />

@@ -9,9 +9,9 @@ import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact, RatingWithRater } from '../types'
 import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
-import { showConfirm, showError, showSuccess } from '../services/alerts'
 import { ReportCategoryModal } from '../components/ReportCategoryModal'
 import Swal from 'sweetalert2'
+// ponytail: showConfirm/showError/showSuccess use dynamic import below
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
 
@@ -270,6 +270,7 @@ function RideDetails() {
 
     if (isDriver) {
       // Driver unassign: no refund, vuelve a requested
+      const { showConfirm } = await import('../services/alerts')
       const confirmed = await showConfirm({
         title: '¿Retirarte de este acarreo?',
         text: 'Tu oferta será cancelada y la publicación volverá a estar disponible para otros conductores.',
@@ -291,6 +292,7 @@ function RideDetails() {
     const cancelText = hasAuthorizedPayment
       ? t('ride.detail.cancelConfirmTextWithRefund', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })
       : t('ride.detail.cancelConfirmText')
+    const { showConfirm } = await import('../services/alerts')
     const confirmed = await showConfirm({
       title: t('ride.detail.cancelConfirmTitle'),
       text: cancelText,
@@ -316,6 +318,7 @@ function RideDetails() {
       ? t('ride.detail.confirmDeliveryWithPayment', { amount: amount.toLocaleString() })
       : t('ride.detail.confirmDeliveryWithoutPayment')
 
+    const { showConfirm } = await import('../services/alerts')
     const confirmed = await showConfirm({
       title: t('ride.detail.confirmDelivery'),
       text: confirmMessage,
@@ -341,15 +344,17 @@ function RideDetails() {
       }
 
       const result = await response.json()
+      const mod = await import('../services/alerts')
 
       if (result.message?.includes('pagado')) {
-        await showSuccess(t('ride.detail.confirmDeliverySuccessPaid'))
+        await mod.showSuccess(t('ride.detail.confirmDeliverySuccessPaid'))
       } else {
-        await showSuccess(t('ride.detail.confirmDeliverySuccess'))
+        await mod.showSuccess(t('ride.detail.confirmDeliverySuccess'))
       }
 
       loadRide()
     } catch (error) {
+      const { showError } = await import('../services/alerts')
       await showError(error instanceof Error ? error.message : t('ride.detail.confirmDeliveryError'))
     }
   }
@@ -381,19 +386,20 @@ function RideDetails() {
           raterId: user.id,
         }),
       })
+      const mod = await import('../services/alerts')
       if (response.ok) {
-        await showSuccess(t('ride.detail.ratingSent'))
+        await mod.showSuccess(t('ride.detail.ratingSent'))
         setRating(0)
         setComment('')
         loadRide()
       } else if (response.status === 409) {
-        // Intento de duplicar calificación — el backend rechaza correctamente
         const data = await response.json()
-        await showError(data.error || t('ride.detail.ratingAlreadyRated'))
+        await mod.showError(data.error || t('ride.detail.ratingAlreadyRated'))
       } else {
-        await showError(t('ride.detail.ratingError'))
+        await mod.showError(t('ride.detail.ratingError'))
       }
     } catch (err) {
+      const { showError } = await import('../services/alerts')
       await showError((err as Error).message || t('ride.detail.ratingError'))
     }
   }
@@ -415,18 +421,20 @@ function RideDetails() {
           raterId: user.id,
         }),
       })
+      const mod = await import('../services/alerts')
       if (response.ok) {
-        await showSuccess(t('ride.detail.ratingSent'))
+        await mod.showSuccess(t('ride.detail.ratingSent'))
         setDriverRating(0)
         setDriverComment('')
         loadRide()
       } else if (response.status === 409) {
         const data = await response.json()
-        await showError(data.error || t('ride.detail.ratingAlreadyRated'))
+        await mod.showError(data.error || t('ride.detail.ratingAlreadyRated'))
       } else {
-        await showError(t('ride.detail.ratingError'))
+        await mod.showError(t('ride.detail.ratingError'))
       }
     } catch (err) {
+      const { showError } = await import('../services/alerts')
       await showError((err as Error).message || t('ride.detail.ratingError'))
     }
   }
