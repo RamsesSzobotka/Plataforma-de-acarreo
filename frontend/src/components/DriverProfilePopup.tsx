@@ -31,7 +31,7 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
   const adjustedPosition = (() => {
     const viewportWidth = window.innerWidth
     let x = rect.left
-    let y = rect.top - popupHeight - arrowHeight
+    let y = rect.top - popupHeight
 
     if (y < padding) {
       y = rect.bottom + arrowHeight
