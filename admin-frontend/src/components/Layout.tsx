@@ -7,6 +7,7 @@ const navItems = [
   { to: '/users', label: 'Usuarios', icon: 'group' },
   { to: '/drivers', label: 'Conductores', icon: 'local_shipping' },
   { to: '/rides', label: 'Pedidos', icon: 'inventory_2' },
+  { to: '/payments', label: 'Pagos', icon: 'payments' },
   { to: '/disputes', label: 'Disputas', icon: 'gavel' },
   { to: '/audit-logs', label: 'Auditoría', icon: 'history' },
 ]

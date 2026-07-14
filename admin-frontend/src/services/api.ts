@@ -97,6 +97,17 @@ export const api = {
     request(`/reports/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
   // Refunds
+  getPayments: (params?: { status?: string; from?: string; to?: string; search?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.status) query.set('status', params.status)
+    if (params?.from) query.set('from', params.from)
+    if (params?.to) query.set('to', params.to)
+    if (params?.search) query.set('search', params.search)
+    if (params?.page) query.set('page', params.page.toString())
+    if (params?.limit) query.set('limit', params.limit.toString())
+    return request(`/payments?${query.toString()}`)
+  },
+
   refundRide: (rideId: string, data: { reportId?: string; reason: string }) =>
     request(`/rides/${rideId}/refund`, { method: 'POST', body: JSON.stringify(data) }),
 
