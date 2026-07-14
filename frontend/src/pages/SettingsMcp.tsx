@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { useTranslation } from 'react-i18next'
-import { hideLoading, showLoading, showConfirm } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -91,11 +91,11 @@ function SettingsMcp() {
 
   useEffect(() => {
     if (state === 'loading') {
-      showLoading(t('mcp.loading'))
+      import('../services/alerts').then(({ showLoading }) => showLoading(t('mcp.loading')))
     } else {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
-    return () => hideLoading()
+    return () => { import('../services/alerts').then(({ hideLoading }) => hideLoading()) }
   }, [state])
 
   // ── Generate token ─────────────────────────────────────────────────────────
@@ -312,6 +312,7 @@ function SettingsMcp() {
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary" onClick={async () => {
+                  const { showConfirm } = await import('../services/alerts')
                   const confirmed = await showConfirm({
                     icon: 'warning',
                     title: t('mcp.regenerateTokenTitle'),
@@ -325,6 +326,7 @@ function SettingsMcp() {
                   {t('mcp.regenerate')}
                 </button>
                 <button className="btn btn-danger-outline" onClick={async () => {
+                  const { showConfirm } = await import('../services/alerts')
                   const confirmed = await showConfirm({
                     icon: 'warning',
                     title: t('mcp.revokeTokenTitle'),
@@ -345,6 +347,7 @@ function SettingsMcp() {
                 {t('mcp.noToken')}
               </p>
 <button className="btn btn-primary" onClick={async () => {
+                const { showConfirm } = await import('../services/alerts')
                 const confirmed = await showConfirm({
                   icon: 'info',
                   title: t('mcp.generateTokenTitle'),

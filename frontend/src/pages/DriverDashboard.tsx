@@ -6,7 +6,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { EmptyState } from '../components/EmptyState'
 import type { Ride } from '../types'
 import { ridesAPI, usersAPI, paymentsAPI, userWsService } from '../services/api'
-import { showConfirm } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 import { useDriverLocation } from '../hooks/useDriverLocation'
 import { useTranslation } from 'react-i18next'
 import RideMapModal from '../components/RideMapModal'
@@ -1128,6 +1128,7 @@ function DriverDashboard() {
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={async () => {
+                          const { showConfirm } = await import('../services/alerts')
                           const confirmed = await showConfirm({
                             title: 'Confirmar carga',
                             text: '¿Confirmas que tienes la mercancia cargada?'

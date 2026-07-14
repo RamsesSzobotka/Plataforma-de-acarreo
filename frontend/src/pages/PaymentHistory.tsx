@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { useTranslation } from 'react-i18next'
 import { paymentsAPI } from '../services/api'
-import { hideLoading, showLoading } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 
 interface PaymentHistoryItem {
   _id: string
@@ -39,13 +39,13 @@ function PaymentHistory() {
 
   useEffect(() => {
     if (loading) {
-      showLoading(t('common.loading'))
+      import('../services/alerts').then(({ showLoading }) => showLoading(t('common.loading')))
     } else {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
 
     return () => {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
   }, [loading])
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
-import { showConfirm, showError, showSuccess, showWarning } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 import type { UserRole, Ride } from '../types'
 import { StatusBadge } from '../components/StatusBadge'
 import DriverProfilePopup from '../components/DriverProfilePopup'
@@ -326,6 +326,7 @@ function Chat() {
 
     const price = parseFloat(proposedPrice)
     if (isNaN(price) || price <= 0) {
+      const { showWarning } = await import('../services/alerts')
       await showWarning('Ingresa un precio valido')
       return
     }
@@ -345,10 +346,11 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
+        const { showError } = await import('../services/alerts')
         await showError(data.error || t('chat.proposalError'))
         return
       }
-
+ 
       setProposedPrice('')
       setProposalInfo({
         driverId: user.id,
@@ -360,6 +362,7 @@ function Chat() {
       })
     } catch (err) {
       console.error('Error proposing price:', err)
+      const { showError } = await import('../services/alerts')
       await showError(t('chat.proposalError'))
     } finally {
       setSubmittingProposal(false)
@@ -369,7 +372,8 @@ function Chat() {
   async function handleAcceptPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
-    const accepted = await showConfirm({
+    const { showConfirm: sc } = await import('../services/alerts')
+    const accepted = await sc({
       title: t('chat.confirmPriceTitle'),
       text: t('chat.confirmPriceText')
     })
@@ -390,16 +394,18 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
+        const { showError } = await import('../services/alerts')
         await showError(data.error || t('chat.acceptPriceError'))
         return
       }
 
       setProposalInfo(prev => prev ? { ...prev, status: 'accepted' } : null)
       setRideInfo(data.ride)
-      // Show message from backend (e.g., "Propuesta aceptada y pago autorizado")
+      const { showSuccess } = await import('../services/alerts')
       await showSuccess(data.message || t('chat.acceptPriceSuccess'))
     } catch (err) {
       console.error('Error accepting price:', err)
+      const { showError } = await import('../services/alerts')
       await showError(t('chat.acceptPriceError'))
     }
   }
@@ -407,6 +413,7 @@ function Chat() {
   async function handleRejectPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
+    const { showConfirm } = await import('../services/alerts')
     const rejected = await showConfirm({
       title: t('chat.rejectPriceTitle'),
       text: t('chat.rejectPriceText')
@@ -428,6 +435,7 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
+        const { showError } = await import('../services/alerts')
         await showError(data.error || t('chat.rejectPriceError'))
         return
       }
@@ -440,6 +448,7 @@ function Chat() {
       } : null)
     } catch (err) {
       console.error('Error rejecting price:', err)
+      const { showError } = await import('../services/alerts')
       await showError(t('chat.rejectPriceError'))
     }
   }
