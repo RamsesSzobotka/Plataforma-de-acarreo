@@ -1900,4 +1900,115 @@ admin.get('/export/payments', async (c) => {
   return c.body(toCSV(headers, rows))
 })
 
+// Payments dashboard
+admin.get('/payments', async (c) => {
+  const statusFilter = c.req.query('status')
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  const search = c.req.query('search')
+  const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+  const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '20')), 50)
+
+  const query: any = {
+    $or: [
+      { paymentIntentId: { $exists: true, $ne: null } },
+      { transferId: { $exists: true, $ne: null } },
+      { refundId: { $exists: true, $ne: null } },
+      { status: 'paid' },
+    ],
+  }
+
+  if (search) {
+    query.title = { $regex: search, $options: 'i' }
+  }
+  if (from || to) {
+    query.paidAt = {}
+    if (from) query.paidAt.$gte = new Date(from)
+    if (to) query.paidAt.$lte = new Date(to)
+  }
+
+  const skip = (page - 1) * limit
+
+  const rides = await Ride.find(query).sort({ createdAt: -1 }).lean()
+
+  // Derive payment status and detect discrepancies
+  for (const ride of rides) {
+    ;(ride as any).paymentStatus = derivePaymentStatus(ride)
+    const discrepancies: any[] = []
+    if ((ride as any).paymentIntentId && !(ride as any).transferId && (ride as any).status !== 'cancelled') {
+      discrepancies.push({ type: 'transfer_pending', severity: 'warning' })
+    }
+    if ((ride as any).status === 'paid' && !(ride as any).transferId) {
+      discrepancies.push({ type: 'transfer_missing', severity: 'critical' })
+    }
+    if ((ride as any).refundId && (ride as any).status !== 'cancelled') {
+      discrepancies.push({ type: 'refund_pending', severity: 'warning' })
+    }
+    if ((ride as any).status === 'completed' && !(ride as any).paymentIntentId) {
+      discrepancies.push({ type: 'payment_missing', severity: 'critical' })
+    }
+    ;(ride as any).discrepancies = discrepancies
+  }
+
+  // Apply derived status filter (post-query since it's computed)
+  let filtered = rides
+  if (statusFilter && statusFilter !== 'todos') {
+    if (statusFilter === 'discrepancy') {
+      filtered = filtered.filter((r: any) => r.discrepancies.length > 0)
+    } else {
+      filtered = filtered.filter((r: any) => r.paymentStatus === statusFilter)
+    }
+  }
+
+  const total = filtered.length
+  const paginated = filtered.slice(skip, skip + limit)
+
+  // Enrich with Clerk profiles
+  const clientIds = [...new Set(paginated.map((r: any) => r.clientId).filter(Boolean))] as string[]
+  const driverIds = [...new Set(paginated.map((r: any) => r.driverId).filter(Boolean))] as string[]
+  const allClerkIds = [...new Set([...clientIds, ...driverIds])]
+
+  let clerkProfiles = new Map<string, any>()
+  if (allClerkIds.length > 0) {
+    clerkProfiles = await getClerkUserProfiles(allClerkIds)
+  }
+
+  const enriched = paginated.map((ride: any) => {
+    const clientData = ride.clientId ? clerkProfiles.get(ride.clientId) : null
+    const driverData = ride.driverId ? clerkProfiles.get(ride.driverId) : null
+    return {
+      ...ride,
+      client: ride.clientId ? {
+        clerkId: ride.clientId,
+        firstName: clientData?.firstName || null,
+        lastName: clientData?.lastName || null,
+        imageUrl: clientData?.imageUrl || null,
+        email: clientData?.email || null,
+      } : null,
+      driver: ride.driverId ? {
+        clerkId: ride.driverId,
+        firstName: driverData?.firstName || null,
+        lastName: driverData?.lastName || null,
+        imageUrl: driverData?.imageUrl || null,
+      } : null,
+    }
+  })
+
+  const summary = {
+    totalProcessed: total,
+    totalRevenue: enriched.reduce((s: number, r: any) => s + (r.finalPrice || 0), 0),
+    totalFees: enriched.reduce((s: number, r: any) => s + (r.platformFee || 0), 0),
+    totalPendingTransfers: enriched.filter((r: any) =>
+      r.discrepancies?.some((d: any) => d.type === 'transfer_pending')
+    ).length,
+    discrepancyCount: enriched.filter((r: any) => r.discrepancies?.length > 0).length,
+  }
+
+  return c.json({
+    data: enriched,
+    summary,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  })
+})
+
 export default admin

@@ -12,6 +12,7 @@ import Reports from './pages/Reports'
 import Disputes from './pages/Disputes'
 import UserDetail from './pages/UserDetail'
 import AuditLogs from './pages/AuditLogs'
+import Payments from './pages/Payments'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="drivers/:userId" element={<DriverDetail />} />
           <Route path="rides" element={<Rides />} />
           <Route path="rides/:id" element={<RideDetail />} />
+          <Route path="payments" element={<Payments />} />
           <Route path="disputes" element={<Disputes />} />
           <Route path="audit-logs" element={<AuditLogs />} />
         </Route>
