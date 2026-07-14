@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 interface DriverProfilePopupProps {
@@ -17,44 +17,55 @@ interface DriverProfilePopupProps {
   element: HTMLElement
 }
 
+interface Position {
+  top: number
+  left: number
+  arrowUp: boolean
+}
+
 function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: DriverProfilePopupProps) {
   const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<Position | null>(null)
 
-  const popupHeight = 280
-  const popupWidth = 260
-  const arrowHeight = 8
-  const padding = 12
+  // ── Calcular posición después del primer render (cuando el DOM existe) ──
+  useEffect(() => {
+    const popup = popupRef.current
+    if (!popup) return
 
-  const rect = element.getBoundingClientRect()
+    const viewportW = window.innerWidth
+    const viewportH = window.innerHeight
+    const elRect = element.getBoundingClientRect()
+    const popupW = popup.offsetWidth
+    const popupH = popup.offsetHeight
+    const gap = 8
 
-  const adjustedPosition = (() => {
-    const viewportWidth = window.innerWidth
-    let x = rect.left
-    let y = rect.top - popupHeight
+    // Por defecto: abajo del elemento
+    let top = elRect.bottom + gap
+    let arrowUp = true
 
-    if (y < padding) {
-      y = rect.bottom + arrowHeight
+    // Si no cabe abajo, arriba del elemento
+    if (top + popupH > viewportH) {
+      top = elRect.top - popupH - gap
+      arrowUp = false
     }
 
-    if (x + popupWidth > viewportWidth) {
-      x = viewportWidth - popupWidth - padding
-    }
-    if (x < padding) {
-      x = padding
-    }
+    // Centrar horizontalmente respecto al elemento, sin salirse del viewport
+    let left = elRect.left + elRect.width / 2 - popupW / 2
+    const padding = 12
+    if (left < padding) left = padding
+    if (left + popupW > viewportW - padding) left = viewportW - popupW - padding
 
-    return { x, y, opensUpward: y < rect.top }
-  })()
+    setPosition({ top, left, arrowUp })
+  }, [element])
 
-  // Close on click outside
+  // ── Cerrar al hacer click fuera ──
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    // Delay to avoid the same click that opened it
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside)
     }, 0)
@@ -64,7 +75,7 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
     }
   }, [onClose])
 
-  // Close on Escape
+  // ── Cerrar con Escape ──
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -72,6 +83,20 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
+
+  // ── Recalcular al hacer scroll/resize ──
+  useEffect(() => {
+    function handleReposition() {
+      setPosition(null)
+      // El useEffect de arriba se corre de nuevo porque position cambió
+    }
+    window.addEventListener('scroll', handleReposition, true)
+    window.addEventListener('resize', handleReposition)
+    return () => {
+      window.removeEventListener('scroll', handleReposition, true)
+      window.removeEventListener('resize', handleReposition)
+    }
+  }, [element])
 
   if (!driverUser) return null
 
@@ -99,7 +124,7 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
 
   return (
     <>
-      {/* Backdrop to capture clicks */}
+      {/* Backdrop */}
       <div
         style={{
           position: 'fixed',
@@ -108,38 +133,41 @@ function DriverProfilePopup({ driverUser, driver, rideId, onClose, element }: Dr
         }}
         onClick={onClose}
       />
-      {/* Menu card */}
+
+      {/* Popup */}
       <div
-        ref={menuRef}
+        ref={popupRef}
         style={{
           position: 'fixed',
-          top: `${adjustedPosition.y}px`,
-          left: `${adjustedPosition.x}px`,
+          top: position ? `${position.top}px` : '-9999px',
+          left: position ? `${position.left}px` : '-9999px',
           zIndex: 1000,
           minWidth: '200px',
-          maxWidth: '260px',
+          maxWidth: '280px',
           background: 'var(--surface-card)',
           borderRadius: 'var(--radius)',
           border: '1px solid var(--border)',
           boxShadow: 'var(--shadow-lg)',
-          animation: 'fadeIn 0.15s ease-out',
+          opacity: position ? 1 : 0,
+          transition: 'opacity 0.15s ease-out',
         }}
       >
         {/* Arrow */}
-        <div style={{
-          position: 'absolute',
-          ...(adjustedPosition.opensUpward ? { bottom: '-6px' } : { top: '-6px' }),
-          left: '24px',
-          width: '12px',
-          height: '12px',
-          background: 'var(--surface-card)',
-          borderLeft: '1px solid var(--border)',
-          borderBottom: adjustedPosition.opensUpward ? '1px solid var(--border)' : 'none',
-          borderRight: 'none',
-          borderTop: adjustedPosition.opensUpward ? 'none' : '1px solid var(--border)',
-          transform: 'rotate(45deg)',
-          zIndex: -1,
-        }} />
+        <div
+          style={{
+            position: 'absolute',
+            width: '12px',
+            height: '12px',
+            background: 'var(--surface-card)',
+            borderLeft: '1px solid var(--border)',
+            borderTop: '1px solid var(--border)',
+            transform: 'rotate(45deg)',
+            zIndex: -1,
+            left: '20px',
+            top: position?.arrowUp ? '-6px' : undefined,
+            bottom: !position?.arrowUp ? '-6px' : undefined,
+          }}
+        />
 
         {/* Driver preview */}
         <div style={{
