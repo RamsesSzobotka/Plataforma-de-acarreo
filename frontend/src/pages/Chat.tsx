@@ -45,7 +45,7 @@ function Chat() {
   const [submittingProposal, setSubmittingProposal] = useState(false)
   const [chatDriverUser, setChatDriverUser] = useState<any>(null)
   const [chatDriverProfile, setChatDriverProfile] = useState<any>(null)
-  const [driverPopupPos, setDriverPopupPos] = useState<{ x: number; y: number } | null>(null)
+  const [driverPopupPos, setDriverPopupPos] = useState<HTMLElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const contactId = searchParams.get('contactId')
@@ -671,7 +671,7 @@ function Chat() {
             <img
               src={chatDriverUser.imageUrl}
               alt={chatDriverUser.firstName}
-              onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+              onClick={(e) => setDriverPopupPos(e.currentTarget)}
               style={{
                 width: '44px',
                 height: '44px',
@@ -687,7 +687,7 @@ function Chat() {
             />
           ) : (
             <div
-              onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+              onClick={(e) => setDriverPopupPos(e.currentTarget)}
               style={{
                 width: '44px',
                 height: '44px',
@@ -731,7 +731,7 @@ function Chat() {
             )}
           </div>
           <button
-            onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+            onClick={(e) => setDriverPopupPos(e.currentTarget)}
             className="btn btn-ghost"
             style={{ padding: 'var(--space-2)', color: 'var(--text-muted)', flexShrink: 0 }}
             title={t('chat.viewDriverProfile')}
@@ -1151,7 +1151,7 @@ function Chat() {
           driverUser={chatDriverUser}
           driver={chatDriverProfile}
           rideId={rideId}
-          position={driverPopupPos}
+          element={driverPopupPos}
           onClose={() => setDriverPopupPos(null)}
         />
       )}

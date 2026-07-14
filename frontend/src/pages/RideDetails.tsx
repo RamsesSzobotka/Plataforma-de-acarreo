@@ -47,7 +47,7 @@ function RideDetails() {
   const [contacts, setContacts] = useState<DriverContact[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
-  const [driverPopup, setDriverPopup] = useState<{ driverUser: any; driver: any; rideId?: string; position: { x: number; y: number } } | null>(null)
+  const [driverPopup, setDriverPopup] = useState<{ driverUser: any; driver: any; rideId?: string; element: HTMLElement } | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -619,7 +619,7 @@ function RideDetails() {
       driverUser: driverData,
       driver: null,
       rideId: `${id}?contactId=${contact._id}&driverId=${contact.driverId}`,
-      position: { x: e.clientX, y: e.clientY },
+      element: e.currentTarget as HTMLElement,
     })
   }
 
@@ -1206,7 +1206,7 @@ function RideDetails() {
                       driverUser,
                       driver,
                       rideId: ride?._id,
-                      position: { x: e.clientX, y: e.clientY },
+                      element: e.currentTarget,
                     })}
                       style={{
                         width: '64px',
@@ -1221,12 +1221,12 @@ function RideDetails() {
                       onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
                     />
                   ) : (
-                    <div
+<div
                       onClick={(e) => setDriverPopup({
                       driverUser,
                       driver,
                       rideId: ride?._id,
-                      position: { x: e.clientX, y: e.clientY },
+                      element: e.currentTarget,
                     })}
                     style={{
                       width: '64px',
@@ -2150,7 +2150,7 @@ function RideDetails() {
           driverUser={driverPopup.driverUser}
           driver={driverPopup.driver}
           rideId={driverPopup.rideId}
-          position={driverPopup.position}
+          element={driverPopup.element}
           onClose={() => setDriverPopup(null)}
         />
       )}
