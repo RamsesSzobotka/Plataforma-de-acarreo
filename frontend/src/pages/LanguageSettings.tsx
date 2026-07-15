@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 const languages = [
-  { code: 'es', label: '🇵🇦 Español', desc: 'Idioma predeterminado de la plataforma' },
-  { code: 'en', label: '🇺🇸 English', desc: 'Switch to English interface' },
+  { code: 'es', flag: '🇵🇦', name: 'Español', desc: 'Idioma predeterminado de la plataforma' },
+  { code: 'en', flag: '🇺🇸', name: 'English', desc: 'Switch to English interface' },
 ]
 
 export default function LanguageSettings() {
@@ -44,7 +44,7 @@ export default function LanguageSettings() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '1rem',
+                gap: '1.25rem',
                 padding: '1.25rem',
                 borderRadius: 'var(--radius)',
                 border: `1px solid ${isActive ? 'var(--primary, #0D9488)' : 'var(--border, #E2E8F0)'}`,
@@ -57,26 +57,26 @@ export default function LanguageSettings() {
               }}
             >
               <div style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '12px',
+                width: '72px',
+                height: '72px',
+                borderRadius: '16px',
                 background: isActive ? 'var(--primary, #0D9488)' : 'var(--bg-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                fontSize: '1.5rem',
               }}>
-                <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{lang.code === 'es' ? '🇵🇦' : '🇺🇸'}</span>
+                <span style={{ fontSize: '2.5rem', lineHeight: 1 }}>{lang.flag}</span>
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontWeight: 600,
+                  fontSize: '1.125rem',
                   color: isActive ? 'var(--primary, #0D9488)' : 'var(--text-primary)',
                   marginBottom: '0.15rem',
                 }}>
-                  {lang.label}
+                  {lang.name}
                   {isActive && (
                     <span style={{
                       display: 'inline-block',

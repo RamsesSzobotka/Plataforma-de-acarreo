@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
 
 const languages = [
-  { code: 'es', label: '🇵🇦 ES' },
-  { code: 'en', label: '🇺🇸 EN' },
+  { code: 'es', flag: '🇵🇦' },
+  { code: 'en', flag: '🇺🇸' },
 ]
 
 export default function LanguageSwitcher() {
@@ -16,19 +16,19 @@ export default function LanguageSwitcher() {
           key={lang.code}
           onClick={() => i18n.changeLanguage(lang.code)}
           style={{
-            padding: '0.35rem 0.65rem',
+            padding: '0.25rem 0.5rem',
             border: '1px solid var(--border, #E2E8F0)',
             borderRadius: 'var(--radius-sm, 8px)',
             background: lang.code === current ? 'var(--primary, #0D9488)' : 'transparent',
             color: lang.code === current ? '#fff' : 'var(--text-secondary, #334155)',
             cursor: 'pointer',
             fontFamily: 'var(--font-body, sans-serif)',
-            fontSize: 'var(--text-sm, 0.875rem)',
-            fontWeight: lang.code === current ? 600 : 400,
+            fontSize: '1.25rem',
+            lineHeight: 1,
             transition: 'all 0.15s',
           }}
         >
-          {lang.label}
+          {lang.flag}
         </button>
       ))}
     </div>
