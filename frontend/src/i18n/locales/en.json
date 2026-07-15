@@ -621,5 +621,18 @@
   "consent.terms": "Terms & Conditions",
   "consent.termsText": "I have read and accept the <1>Terms and Conditions</1> of Carglyn.",
   "consent.accept": "Accept and continue",
-  "consent.saving": "Saving..."
+  "consent.saving": "Saving...",
+
+  "nav.settings": "Settings",
+
+  "settings.title": "Settings",
+  "settings.subtitle": "Manage your account preferences",
+  "settings.mcp": "MCP Connection",
+  "settings.mcpDesc": "Configure MCP access to connect AI assistants",
+  "settings.privacy": "Privacy & Data",
+  "settings.privacyDesc": "Manage your personal data under GDPR",
+  "settings.email": "Email Notifications",
+  "settings.emailDesc": "Choose which status changes to receive by email",
+  "settings.payment": "Payment Method",
+  "settings.paymentDesc": "Manage your card to pay for rides"
 }

@@ -1,37 +1,18 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 interface SettingsItem {
   icon: string
-  title: string
-  description: string
+  titleKey: string
+  descKey: string
   to: string
 }
 
 const SETTINGS_ITEMS: SettingsItem[] = [
-  {
-    icon: 'api',
-    title: 'Conexión MCP',
-    description: 'Configura el acceso MCP para conectar asistentes de IA',
-    to: '/settings/mcp',
-  },
-  {
-    icon: 'privacy_tip',
-    title: 'Privacidad y Datos',
-    description: 'Gestiona tus datos personales según el GDPR',
-    to: '/settings/gdpr',
-  },
-  {
-    icon: 'mail',
-    title: 'Notificaciones por Email',
-    description: 'Elige qué cambios de estado recibir por correo',
-    to: '/settings/email-notifications',
-  },
-  {
-    icon: 'credit_card',
-    title: 'Método de Pago',
-    description: 'Administra tu tarjeta para pagar los acarreos',
-    to: '/add-payment-method',
-  },
+  { icon: 'api', titleKey: 'settings.mcp', descKey: 'settings.mcpDesc', to: '/settings/mcp' },
+  { icon: 'privacy_tip', titleKey: 'settings.privacy', descKey: 'settings.privacyDesc', to: '/settings/gdpr' },
+  { icon: 'mail', titleKey: 'settings.email', descKey: 'settings.emailDesc', to: '/settings/email-notifications' },
+  { icon: 'credit_card', titleKey: 'settings.payment', descKey: 'settings.paymentDesc', to: '/add-payment-method' },
 ]
 
 const cardStyle: React.CSSProperties = {
@@ -48,6 +29,8 @@ const cardStyle: React.CSSProperties = {
 }
 
 export default function Settings() {
+  const { t } = useTranslation()
+
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '2rem 1rem' }}>
       <Link
@@ -62,14 +45,14 @@ export default function Settings() {
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver
+        {t('common.back')}
       </Link>
 
       <h1 style={{ fontFamily: 'var(--font-heading)', marginBottom: '0.5rem' }}>
-        Configuración
+        {t('settings.title')}
       </h1>
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-        Administra las preferencias de tu cuenta
+        {t('settings.subtitle')}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -106,10 +89,10 @@ export default function Settings() {
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.15rem' }}>
-                {item.title}
+                {t(item.titleKey)}
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                {item.description}
+                {t(item.descKey)}
               </div>
             </div>
 

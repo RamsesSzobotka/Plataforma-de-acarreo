@@ -704,5 +704,18 @@
   "consent.terms": "Términos y Condiciones",
   "consent.termsText": "He leído y acepto los <1>Términos y Condiciones</1> de Carglyn.",
   "consent.accept": "Aceptar y continuar",
-  "consent.saving": "Guardando..."
+  "consent.saving": "Guardando...",
+
+  "nav.settings": "Configuración",
+
+  "settings.title": "Configuración",
+  "settings.subtitle": "Administra las preferencias de tu cuenta",
+  "settings.mcp": "Conexión MCP",
+  "settings.mcpDesc": "Configura el acceso MCP para conectar asistentes de IA",
+  "settings.privacy": "Privacidad y Datos",
+  "settings.privacyDesc": "Gestiona tus datos personales según el GDPR",
+  "settings.email": "Notificaciones por Email",
+  "settings.emailDesc": "Elige qué cambios de estado recibir por correo",
+  "settings.payment": "Método de Pago",
+  "settings.paymentDesc": "Administra tu tarjeta para pagar los acarreos"
 }

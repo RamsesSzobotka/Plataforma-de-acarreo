@@ -237,7 +237,7 @@ function Layout() {
                         href={`/profile/${user?.id}`}
                       />
                       <UserButton.Link
-                        label="Configuración"
+                        label={t('nav.settings')}
                         labelIcon={<span className="material-symbols-rounded">settings</span>}
                         href="/settings"
                       />
@@ -575,7 +575,7 @@ function Layout() {
                 }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>settings</span>
-                Configuración
+                {t('nav.settings')}
               </Link>
               <UserButton
                 afterSignOutUrl="/"
@@ -596,7 +596,7 @@ function Layout() {
                     href={`/profile/${user?.id}`}
                   />
                   <UserButton.Link
-                    label="Configuración"
+                    label={t('nav.settings')}
                     labelIcon={<span className="material-symbols-rounded">settings</span>}
                     href="/settings"
                   />
