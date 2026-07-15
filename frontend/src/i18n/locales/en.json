@@ -668,5 +668,8 @@
   "settings.email": "Email Notifications",
   "settings.emailDesc": "Choose which status changes to receive by email",
   "settings.payment": "Payment Method",
-  "settings.paymentDesc": "Manage your card to pay for rides"
+  "settings.paymentDesc": "Manage your card to pay for rides",
+  "settings.language": "Language",
+  "settings.languageDesc": "Select the platform language",
+  "common.active": "Active"
 }

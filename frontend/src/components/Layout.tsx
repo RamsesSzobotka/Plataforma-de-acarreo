@@ -2,7 +2,7 @@ import { Outlet, Link } from 'react-router-dom'
 import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import LanguageSwitcher from './LanguageSwitcher'
+
 import { useNotificationBadge } from '../contexts/NotificationBadgeContext'
 
 function Layout() {
@@ -155,8 +155,6 @@ function Layout() {
                   <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
                   {t('nav.createRide')}
                 </Link>
-
-                <LanguageSwitcher />
 
                 {/* Notifications Bell */}
                 <Link
@@ -489,9 +487,6 @@ function Layout() {
 
             {/* Divider */}
             <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)' }}>
-              <div style={{ marginBottom: 'var(--space-3)' }}>
-                <LanguageSwitcher />
-              </div>
               <Link
                 to="/notifications"
                 onClick={() => setMobileMenuOpen(false)}

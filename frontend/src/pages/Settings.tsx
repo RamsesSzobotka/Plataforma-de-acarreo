@@ -13,6 +13,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { icon: 'privacy_tip', titleKey: 'settings.privacy', descKey: 'settings.privacyDesc', to: '/settings/gdpr' },
   { icon: 'mail', titleKey: 'settings.email', descKey: 'settings.emailDesc', to: '/settings/email-notifications' },
   { icon: 'credit_card', titleKey: 'settings.payment', descKey: 'settings.paymentDesc', to: '/add-payment-method' },
+  { icon: 'language', titleKey: 'settings.language', descKey: 'settings.languageDesc', to: '/settings/language' },
 ]
 
 const cardStyle: React.CSSProperties = {

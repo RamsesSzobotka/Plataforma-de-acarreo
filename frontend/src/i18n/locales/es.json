@@ -751,5 +751,8 @@
   "settings.email": "Notificaciones por Email",
   "settings.emailDesc": "Elige qué cambios de estado recibir por correo",
   "settings.payment": "Método de Pago",
-  "settings.paymentDesc": "Administra tu tarjeta para pagar los acarreos"
+  "settings.paymentDesc": "Administra tu tarjeta para pagar los acarreos",
+  "settings.language": "Idioma",
+  "settings.languageDesc": "Selecciona el idioma de la plataforma",
+  "common.active": "Activo"
 }
