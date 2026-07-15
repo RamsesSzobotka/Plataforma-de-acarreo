@@ -623,6 +623,23 @@
   "consent.accept": "Accept and continue",
   "consent.saving": "Saving...",
 
+  "gdpr.title": "Privacy & Data",
+  "gdpr.subtitle": "Manage your personal data under the General Data Protection Regulation (GDPR)",
+  "gdpr.exportTitle": "Download my data",
+  "gdpr.exportText": "Receive a JSON file with all the information we have about you: profile, rides, messages and ratings.",
+  "gdpr.exportBtn": "Download my data",
+  "gdpr.exporting": "Exporting...",
+  "gdpr.exportSuccess": "Data exported successfully",
+  "gdpr.exportError": "Could not export data",
+  "gdpr.deleteTitle": "Delete my account",
+  "gdpr.deleteText": "Request anonymization of all your personal data. Your past rides will be kept for business records, but without personal information.",
+  "gdpr.deleteBtn": "Delete my account",
+  "gdpr.deleting": "Deleting...",
+  "gdpr.deleteError": "Could not delete account",
+  "gdpr.confirmDeleteTitle": "Delete account?",
+  "gdpr.confirmDeleteText": "All your personal data will be anonymized. This action cannot be undone.",
+  "gdpr.confirmDeleteBtn": "Yes, delete my account",
+
   "nav.settings": "Settings",
 
   "settings.title": "Settings",
