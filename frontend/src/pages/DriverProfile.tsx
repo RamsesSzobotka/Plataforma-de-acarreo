@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import FileUpload from '../components/FileUpload'
-import { StatusBadge } from '../components/StatusBadge'
+import FileUpload from '../components/ui/FileUpload'
+import { StatusBadge } from '../components/ui/StatusBadge'
 
 interface Driver {
   _id: string

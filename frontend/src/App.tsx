@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Trans, useTranslation } from 'react-i18next'
-import Layout from './components/Layout'
+import Layout from './components/layout/Layout'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { NotificationBadgeProvider } from './contexts/NotificationBadgeContext'
-import ErrorBoundary from './components/ErrorBoundary'
-import PageTransition from './components/PageTransition'
-import ToastContainer from './components/Toast'
+import ErrorBoundary from './components/ui/ErrorBoundary'
+import PageTransition from './components/layout/PageTransition'
+import ToastContainer from './components/ui/Toast'
 
 const Home = lazy(() => import('./pages/Home'))
 const AuthPage = lazy(() => import('./pages/AuthPage'))

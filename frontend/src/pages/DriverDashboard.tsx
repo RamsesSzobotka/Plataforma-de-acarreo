@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import ChatButton from '../components/ChatButton'
-import { StatusBadge } from '../components/StatusBadge'
-import { EmptyState } from '../components/EmptyState'
+import ChatButton from '../components/ride/ChatButton'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { EmptyState } from '../components/ui/EmptyState'
 import type { Ride } from '../types'
 import { ridesAPI, usersAPI, paymentsAPI, userWsService } from '../services/api'
 // ponytail: dynamic import to split sweetalert2 chunk
 import { useDriverLocation } from '../hooks/useDriverLocation'
 import { useTranslation } from 'react-i18next'
-import RideMapModal from '../components/RideMapModal'
+import RideMapModal from '../components/map/RideMapModal'
 
 interface Driver {
   _id: string

@@ -1,4 +1,4 @@
-import { StatusBadge } from './StatusBadge'
+import { StatusBadge } from '../ui/StatusBadge'
 
 interface TimelineStep {
   status: string

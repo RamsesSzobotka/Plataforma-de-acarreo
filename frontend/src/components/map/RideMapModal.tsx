@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { Ride } from '../types'
+import type { Ride } from '../../types'
 
 interface RideMapModalProps {
   rides: Ride[]
