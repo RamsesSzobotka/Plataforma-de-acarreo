@@ -185,7 +185,7 @@ export interface Report {
 export interface AppNotification {
   _id: string
   userId: string
-  type: 'report_response' | 'ride_message' | 'offer_accepted' | 'offer_received' | 'ride_status'
+  type: 'report_response' | 'ride_message' | 'offer_accepted' | 'offer_received' | 'ride_status' | 'nearby_rides'
   title: string
   body: string
   read: boolean

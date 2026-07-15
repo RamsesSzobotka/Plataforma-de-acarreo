@@ -34,6 +34,11 @@ export function getWsConnections(): Map<string, Set<WsConnection>> {
   return wsConnections
 }
 
+/** Obtener todos los clerkId con conexión activa en /ws/user */
+export function getConnectedUserIds(): string[] {
+  return Array.from(userConnections.keys())
+}
+
 /** Broadcast de un evento a todos los miembros de una sala */
 export function broadcastToRide(rideId: string, data: any) {
   const connections = wsConnections.get(rideId)

@@ -30,6 +30,7 @@ import oauth from './routes/oauth'
 import notifications from './routes/notifications'
 import gdpr from './routes/gdpr'
 import debug from './routes/debug'
+import { checkNearbyRides } from './services/nearbyRidesNotifier'
 
 // Session cache (5 min TTL)
 interface CachedSession { clerkId: string; expiresAt: number }
@@ -353,6 +354,11 @@ async function initServer() {
     const { User } = await import('./models/user')
     await User.createAdmin('admin@gmail.com', 'Hola123!')
     console.warn('✅ Admin creado')
+
+    // Start hourly nearby rides notification check
+    checkNearbyRides() // run immediately on startup, don't wait 1h
+    setInterval(checkNearbyRides, 60 * 60 * 1000) // then every hour
+    console.warn('🕐 Nearby rides notifications: hourly check active')
   } catch (err) {
     console.error('❌ Error:', err)
   }
