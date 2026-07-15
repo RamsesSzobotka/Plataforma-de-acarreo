@@ -46,4 +46,25 @@ debug.post('/test-email', authMiddleware, async (c) => {
   })
 })
 
+/**
+ * POST /api/debug/trigger-nearby-rides
+ * Ejecuta manualmente checkNearbyRides() para probar notificaciones de pedidos cercanos.
+ * Solo funciona con debug mode activado en Settings > Modo Debug.
+ * Requiere un driver conectado via WS con ubicación en Redis y rides disponibles < 20km.
+ */
+debug.post('/trigger-nearby-rides', authMiddleware, async (c) => {
+  const { getDebugMode } = await import('../utils/debugLogger')
+  if (!getDebugMode()) {
+    return c.json({ success: false, message: 'Activa Modo Debug en Settings > Modo Debug primero' }, 400)
+  }
+
+  const { checkNearbyRides } = await import('../services/nearbyRidesNotifier')
+  await checkNearbyRides()
+
+  return c.json({
+    success: true,
+    message: 'checkNearbyRides() ejecutado. Revisa los logs del servidor para ver el resultado.',
+  })
+})
+
 export default debug
