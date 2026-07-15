@@ -1,3 +1,5 @@
+import { getDebugMode } from '../../utils/debugLogger'
+
 /**
  * Email notification service using Brevo (Sendinblue) REST API
  * Uses HTTPS (port 443) — works on Render free tier unlike SMTP
@@ -61,6 +63,8 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
   }
   console.log(`[Email] 📤 Payload enviado a Brevo:`, JSON.stringify(logPayload, null, 2))
 
+  if (getDebugMode()) console.log(`[Email] 📬 Sending via Brevo — to: ${options.to}, subject: "${options.subject}"`)
+
   try {
     const res = await fetch(BREVO_API_URL, {
       method: 'POST',
@@ -73,6 +77,11 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     })
 
     const body = await res.text()
+    if (getDebugMode()) {
+      let responseData: any = {}
+      try { responseData = JSON.parse(body) } catch { /* not JSON */ }
+      console.log(`[Email] 📨 Brevo response — messageId: ${responseData.messageId || 'unknown'}, status: ${res.status}`)
+    }
     console.log(`[Email] 📥 Respuesta de Brevo (status ${res.status}):`, body)
 
     if (!res.ok) {

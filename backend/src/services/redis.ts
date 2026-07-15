@@ -1,3 +1,5 @@
+import { getDebugMode } from '../utils/debugLogger'
+
 /**
  * Redis Service
  *
@@ -79,6 +81,7 @@ export async function saveDriverLocation(
       updatedAt: Date.now(),
     })
     await r.setex(key, LOCATION_TTL, data)
+    if (getDebugMode()) console.log(`[Redis] 💾 Location saved — rideId: ${rideId}, coords: [${coords.latitude}, ${coords.longitude}], ttl: ${LOCATION_TTL}s`)
     console.log(`✅ [REDIS] Saved driver location for rideId=${rideId}, key=${key}`)
     return { success: true }
   } catch (err) {
@@ -109,6 +112,7 @@ export async function getDriverLocation(
       console.log(`📭 [REDIS] No location found for rideId=${rideId}, key=${key}`)
       return null
     }
+    if (getDebugMode()) console.log(`[Redis] 📍 Location read — rideId: ${rideId}, found: ${!!data}`)
     console.log(`✅ [REDIS] Got driver location for rideId=${rideId}:`, data)
     return JSON.parse(data)
   } catch (err) {

@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { getDebugMode } from '../utils/debugLogger'
 import { Ride } from '../models/ride'
 import { User } from '../models/user'
 import { Driver } from '../models/driver'
@@ -273,6 +274,7 @@ export async function transferToDriver(
     transfer_group: rideId,
     metadata: { rideId },
   })
+  if (getDebugMode()) console.log(`[Stripe] 💸 Transfer to driver — driverStripeId: ${driverStripeAccountId}, amount: ${amountInCents} cents, transferId: ${transfer.id}`)
   return transfer
 }
 
@@ -283,6 +285,7 @@ export async function refundPayment(paymentIntentId: string, reason: string) {
     reason: 'fraudulent', // or 'duplicate', 'requested_by_customer'
     metadata: { reason },
   })
+  if (getDebugMode()) console.log(`[Payments] ↩️ Refund processed — paymentIntent: ${paymentIntentId}, refundId: ${refund.id}, amount: $${(refund.amount || 0) / 100}`)
   return refund
 }
 
@@ -449,8 +452,11 @@ export async function handleStripeWebhookEvent(event: Stripe.Event) {
       break
     }
 
-    case 'payout.paid':
+    case 'payout.paid': {
+      const payout = event.data.object as Stripe.Payout
+      if (getDebugMode()) console.log(`[Stripe] 🏧 Payout created — payoutId: ${payout.id}, amount: ${payout.amount} cents`)
       break
+    }
 
     default:
       break

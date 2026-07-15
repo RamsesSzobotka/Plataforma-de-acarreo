@@ -3,8 +3,10 @@ import { User } from '../models/user'
 import { Driver } from '../models/driver'
 import { Ride } from '../models/ride'
 import { AuditLog } from '../models/auditLog'
+import { Setting } from '../models/setting'
 import { logAudit } from '../services/audit'
 import { createNotification } from '../services/notificationService'
+import { setDebugMode, getDebugMode } from '../utils/debugLogger'
 import { mongoose } from '../db/mongo'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
@@ -176,6 +178,37 @@ const adminAuth = async (c: any, next: any) => {
 
 // Aplicar middleware a todas las rutas
 admin.use('*', adminAuth)
+
+// === SETTINGS ===
+
+// Get all settings (for now just debugMode)
+admin.get('/settings', async (c) => {
+  const setting = await Setting.findOne({ key: 'debugMode' })
+  const debugMode = setting?.value === true
+  return c.json({ debugMode })
+})
+
+// Update debug mode
+admin.patch('/settings', async (c) => {
+  const { debugMode } = await c.req.json()
+  if (typeof debugMode !== 'boolean') {
+    return c.json({ error: 'debugMode must be a boolean' }, 400)
+  }
+
+  await Setting.findOneAndUpdate(
+    { key: 'debugMode' },
+    { key: 'debugMode', value: debugMode },
+    { upsert: true, new: true }
+  )
+
+  setDebugMode(debugMode)
+  if (getDebugMode()) {
+    const adminUser: any = c.get('adminUser')
+    console.log(`[Admin] ⚙️ Debug mode ${debugMode ? 'activado' : 'desactivado'} por admin ${adminUser?.clerkId || 'unknown'}`)
+  }
+
+  return c.json({ debugMode, message: `Debug mode ${debugMode ? 'activado' : 'desactivado'}` })
+})
 
 // === ESTADÍSTICAS ===
 
