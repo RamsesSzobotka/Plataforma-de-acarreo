@@ -13,6 +13,7 @@ import Disputes from './pages/Disputes'
 import UserDetail from './pages/UserDetail'
 import AuditLogs from './pages/AuditLogs'
 import Payments from './pages/Payments'
+import Settings from './pages/Settings'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="payments" element={<Payments />} />
           <Route path="disputes" element={<Disputes />} />
           <Route path="audit-logs" element={<AuditLogs />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
 
         {/* Fallback - redirect to dashboard */}

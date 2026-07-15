@@ -10,6 +10,7 @@ const navItems = [
   { to: '/payments', label: 'Pagos', icon: 'payments' },
   { to: '/disputes', label: 'Disputas', icon: 'gavel' },
   { to: '/audit-logs', label: 'Auditoría', icon: 'history' },
+  { to: '/settings', label: 'Ajustes', icon: 'settings' },
 ]
 
 export default function Layout() {

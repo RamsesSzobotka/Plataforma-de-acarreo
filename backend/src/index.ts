@@ -343,6 +343,12 @@ async function initServer() {
       console.log('📦 Base de datos actualizada — sin migraciones pendientes')
     }
 
+    // Load debug mode setting
+    const { initDebugMode } = await import('./utils/debugLogger')
+    const { Setting } = await import('./models/setting')
+    const debugSetting = await Setting.findOne({ key: 'debugMode' })
+    initDebugMode(debugSetting?.value === true)
+
     const { User } = await import('./models/user')
     await User.createAdmin('admin@gmail.com', 'Hola123!')
     console.log('✅ Admin creado')

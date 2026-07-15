@@ -138,6 +138,11 @@ export const api = {
     return request(`/mcp-audit-logs?${query.toString()}`)
   },
 
+  // Settings
+  getSettings: () => request('/settings'),
+  updateSettings: (data: { debugMode: boolean }) =>
+    request('/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+
   // Audit Logs
   getAuditLogs: async (params: {
     action?: string
