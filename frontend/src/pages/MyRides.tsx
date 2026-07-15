@@ -39,14 +39,10 @@ function MyRides() {
 
   const filterOptions = [
     { value: 'all', label: t('ride.list.all'), icon: 'list' },
-    { value: 'active_chat', label: t('ride.list.withChat'), icon: 'chat' },
-    { value: 'requested', label: t('ride.status.requested'), icon: 'inbox' },
-    { value: 'accepted', label: t('ride.status.accepted'), icon: 'check_circle' },
+    { value: 'requested', label: t('ride.list.pending'), icon: 'inbox' },
     { value: 'in_progress', label: t('ride.status.in_progress'), icon: 'local_shipping' },
-    { value: 'completed', label: t('ride.status.completed'), icon: 'task_alt' },
     { value: 'paid', label: t('ride.status.paid'), icon: 'payments' },
-    { value: 'cancelled', label: t('ride.status.cancelled'), icon: 'cancel' },
-    { value: 'failed', label: t('ride.status.failed'), icon: 'error' },
+    { value: 'active_chat', label: t('ride.list.withChat'), icon: 'chat' },
   ]
 
   useEffect(() => {

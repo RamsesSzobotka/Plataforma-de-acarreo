@@ -263,6 +263,7 @@
 
   "ride.list.title": "My Rides",
   "ride.list.all": "All",
+  "ride.list.pending": "Pending",
   "ride.list.withChat": "With Chat",
   "ride.list.empty": "You have no rides yet",
   "ride.list.emptyFiltered": "No {{filter}} rides",

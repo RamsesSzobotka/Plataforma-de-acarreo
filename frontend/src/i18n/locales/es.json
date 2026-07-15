@@ -253,6 +253,7 @@
 
   "ride.list.title": "Mis Pedidos",
   "ride.list.all": "Todos",
+  "ride.list.pending": "Pendientes",
   "ride.list.withChat": "Con Chat",
   "ride.list.empty": "No tienes pedidos aún",
   "ride.list.emptyFiltered": "No hay pedidos {{filter}}",

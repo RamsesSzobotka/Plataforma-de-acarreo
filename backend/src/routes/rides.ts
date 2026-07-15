@@ -189,8 +189,11 @@ rides.get('/', authMiddleware, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '10')
   
+  const hasActiveChat = c.req.query('hasActiveChat')
+  
   const query: any = {}
   if (status) query.status = status
+  if (hasActiveChat === 'true') query.chatEnabled = true
 
   // Ownership: clientes solo pueden ver sus propios pedidos
   if (currentUser.role === 'client') {
