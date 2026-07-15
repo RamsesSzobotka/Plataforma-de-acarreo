@@ -11,6 +11,7 @@ const TYPE_ICONS: Record<string, string> = {
   offer_accepted: 'handshake',
   offer_received: 'request_quote',
   ride_status: 'local_shipping',
+  nearby_rides: 'nearby',
 }
 
 function timeAgo(dateStr: string): string {

@@ -336,36 +336,6 @@ payments.post('/connect/create-account', authMiddleware, async (c) => {
   }
 })
 
-payments.post('/create-connect-account', authMiddleware, async (c) => {
-  try {
-    const currentUser = c.get('user') as AuthUser
-
-    if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
-      return c.json({ error: 'Solo conductores pueden activar cuentas de pagos' }, 403)
-    }
-
-    const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
-    const account = await createDriverConnectAccount({
-      clerkId: currentUser.clerkId,
-      email: currentUser.email,
-      origin,
-    })
-
-    return c.json({
-      success: true,
-      onboardingUrl: account.onboardingUrl,
-      stripeAccountId: account.stripeAccountId,
-    })
-  } catch (error: any) {
-    if (error instanceof MarketplaceStripeError) {
-      return c.json({ error: error.message }, error.statusCode)
-    }
-
-    console.error('Error creating connect account:', error)
-    return c.json({ error: 'Error creando connect account' }, 500)
-  }
-})
-
 payments.get('/connect/status', authMiddleware, async (c) => {
   try {
     const currentUser = c.get('user') as AuthUser
