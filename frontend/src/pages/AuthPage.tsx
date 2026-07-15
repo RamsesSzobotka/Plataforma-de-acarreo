@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import SignInCustom from '../components/SignInCustom'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 function AuthPage() {
+  const { t } = useTranslation()
   const [userType, setUserType] = useState<'client' | 'driver'>('client')
 
   return (
@@ -17,24 +20,27 @@ function AuthPage() {
         borderBottom: '1px solid #334155',
         padding: '1rem 2rem',
       }}>
-        <Link 
-          to="/" 
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.5rem',
-            textDecoration: 'none',
-            color: '#F8FAFC',
-            fontFamily: '"Plus Jakarta Sans", sans-serif',
-            fontWeight: '600',
-            fontSize: '1rem',
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+          <Link 
+            to="/" 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem',
+              textDecoration: 'none',
+              color: '#F8FAFC',
+              fontFamily: '"Plus Jakarta Sans", sans-serif',
+              fontWeight: '600',
+              fontSize: '1rem',
+            }}
+          >
           <span className="material-symbols-rounded" style={{ color: '#0D9488' }}>
             arrow_back
           </span>
-          Volver al inicio
-        </Link>
+            {t('auth.returnHome')}
+          </Link>
+          <LanguageSwitcher />
+        </div>
       </header>
 
       {/* Contenido principal */}
@@ -97,7 +103,7 @@ function AuthPage() {
                   color: '#64748B',
                   margin: 0,
                 }}>
-                  Marketplace B2B de transporte
+                  {t('home.title')}
                 </p>
               </div>
             </div>
@@ -116,12 +122,12 @@ function AuthPage() {
                 margin: 0,
                 lineHeight: 1.2,
               }}>
-                Transporta mercancias
+                {t('auth.welcome')}
                 <span style={{ 
                   color: userType === 'driver' ? '#F97316' : '#0D9488',
                   display: 'block',
                 }}>
-                  con confianza
+                  {t('auth.signIn')}
                 </span>
               </h2>
               <p style={{
@@ -132,8 +138,8 @@ function AuthPage() {
                 maxWidth: '400px',
               }}>
                 {userType === 'client' 
-                  ? 'Encuentra conductores confiables para tus necesidades de transporte.'
-                  : 'Encuentra pedidos de acarreo cerca de ti y genera ingresos.'}
+                  ? t('home.forClients.desc')
+                  : t('home.forDrivers.desc')}
               </p>
             </div>
 
@@ -168,7 +174,7 @@ function AuthPage() {
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
                   shopping_bag
                 </span>
-                Cliente
+                {t('home.clientCta')}
               </button>
               <button
                 onClick={() => setUserType('driver')}
@@ -192,7 +198,7 @@ function AuthPage() {
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
                   directions_car
                 </span>
-                Conductor
+                {t('home.driverCta')}
               </button>
             </div>
 
@@ -204,10 +210,10 @@ function AuthPage() {
               marginTop: '0.5rem',
             }}>
               {[
-                { icon: 'inventory_2', text: 'Multiples imagenes por pedido' },
-                { icon: 'location_on', text: 'Tracking en tiempo real' },
-                { icon: 'chat', text: 'Chat directo con conductor' },
-                { icon: 'star', text: 'Calificaciones verificadas' },
+                { icon: 'inventory_2', text: t('home.features.multipleImages') },
+                { icon: 'location_on', text: t('home.features.realtimeTracking') },
+                { icon: 'chat', text: t('home.features.directChat') },
+                { icon: 'star', text: t('home.features.ratings') },
               ].map((feature, index) => (
                 <div key={index} style={{
                   display: 'flex',
@@ -245,7 +251,7 @@ function AuthPage() {
               color: '#64748B',
               marginTop: '1rem',
             }}>
-              No tienes cuenta?{' '}
+              {t('auth.noAccount')}{' '}
               <Link 
                 to="/" 
                 style={{ 
@@ -254,7 +260,7 @@ function AuthPage() {
                   textDecoration: 'none',
                 }}
               >
-                Crear cuenta como {userType === 'client' ? 'cliente' : 'conductor'}
+                {t('auth.createAccountAs', { role: userType === 'client' ? t('home.clientCta') : t('home.driverCta') })}
               </Link>
             </p>
           </div>
@@ -287,8 +293,8 @@ function AuthPage() {
             display: 'flex',
             gap: '1rem',
           }}>
-            <a 
-              href="#" 
+            <Link
+              to="/terms"
               style={{
                 fontFamily: '"Inter", sans-serif',
                 fontSize: '0.75rem',
@@ -297,9 +303,9 @@ function AuthPage() {
               }}
             >
               Terminos de Servicio
-            </a>
-            <a 
-              href="#" 
+            </Link>
+            <Link
+              to="/privacy"
               style={{
                 fontFamily: '"Inter", sans-serif',
                 fontSize: '0.75rem',
@@ -308,7 +314,7 @@ function AuthPage() {
               }}
             >
               Politica de Privacidad
-            </a>
+            </Link>
           </div>
         </div>
       </footer>

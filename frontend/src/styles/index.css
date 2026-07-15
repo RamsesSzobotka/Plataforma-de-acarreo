@@ -39,7 +39,7 @@
   /* Textos */
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text-muted: #94A3B8;
   --text-inverse: #0F172A;
 
   /* Bordes */
@@ -550,27 +550,27 @@ h6 { font-size: var(--text-base); font-weight: var(--font-semibold); }
 
 .badge-primary {
   background: var(--primary-subtle);
-  color: var(--primary-light);
+  color: #0F766E;
 }
 
 .badge-success {
   background: var(--success-subtle);
-  color: var(--success);
+  color: #16A34A;
 }
 
 .badge-warning {
   background: var(--warning-subtle);
-  color: var(--warning);
+  color: #D97706;
 }
 
 .badge-error {
   background: var(--error-subtle);
-  color: var(--error);
+  color: #DC2626;
 }
 
 .badge-info {
   background: var(--info-subtle);
-  color: var(--info);
+  color: #2563EB;
 }
 
 .badge-neutral {

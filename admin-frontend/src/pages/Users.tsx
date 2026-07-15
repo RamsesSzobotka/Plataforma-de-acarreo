@@ -2,6 +2,21 @@ import { useEffect, useState } from 'react'
 
 import { api } from '../services/api'
 
+function downloadCSV(url: string) {
+  const token = localStorage.getItem('adminToken')
+  if (!token) return
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = url.includes('/rides') ? 'rides.csv' : url.includes('/users') ? 'usuarios.csv' : 'pagos.csv'
+      a.click()
+      URL.revokeObjectURL(a.href)
+    })
+    .catch(console.error)
+}
+
 interface User {
   clerkId: string
   email: string
@@ -68,6 +83,10 @@ export default function Users() {
               <option value="driver">Conductores</option>
               <option value="admin">Admins</option>
             </select>
+            <button className="action-btn secondary" onClick={() => downloadCSV(`/api/admin/export/users${roleFilter && roleFilter !== 'todos' ? `?role=${roleFilter}` : ''}`)}>
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>
+              Exportar CSV
+            </button>
           </div>
         </div>
         <table className="data-table">
@@ -81,7 +100,11 @@ export default function Users() {
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.clerkId}>
+              <tr
+                key={user.clerkId}
+                onClick={() => window.location.href = `/users/${user.clerkId}`}
+                style={{ cursor: 'pointer' }}
+              >
                 <td>
                   <div className="user-cell">
                     {user.imageUrl ? (

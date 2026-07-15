@@ -11,6 +11,7 @@ import {
   type WsData,
 } from './services/websocket'
 import { saveDriverLocation, connectRedis } from './services/redis'
+import { getDebugMode } from './utils/debugLogger'
 import { rateLimiter } from './middleware/rateLimiter'
 import { monitoringMiddleware } from './middleware/monitoring'
 import rides from './routes/rides'
@@ -21,8 +22,15 @@ import payments from './routes/payments'
 import webhooks from './routes/webhooks'
 import upload from './routes/upload'
 import admin from './routes/admin'
+import health from './routes/health'
 import mcp from './routes/mcp'
 import ratings from './routes/ratings'
+import reports from './routes/reports'
+import oauth from './routes/oauth'
+import notifications from './routes/notifications'
+import gdpr from './routes/gdpr'
+import debug from './routes/debug'
+import { checkNearbyRides } from './services/nearbyRidesNotifier'
 
 // Session cache (5 min TTL)
 interface CachedSession { clerkId: string; expiresAt: number }
@@ -44,6 +52,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
+  'https://carglyn-frontend.onrender.com',
 ]
 
 function getAllowedOrigins() {
@@ -53,12 +62,15 @@ function getAllowedOrigins() {
     .filter(Boolean) ?? []
 
   const frontendUrl = process.env.FRONTEND_URL?.trim()
-  const devOrigins = process.env.NODE_ENV === 'production' ? [] : DEFAULT_ALLOWED_ORIGINS
   const origins = new Set([
-    ...devOrigins,
+    ...DEFAULT_ALLOWED_ORIGINS,
     ...configuredOrigins,
     ...(frontendUrl ? [frontendUrl] : []),
   ])
+
+  if (process.env.NODE_ENV === 'production' && origins.size === 1) {
+    console.warn('⚠️ CORS: Only default origins configured. Verify FRONTEND_URL or ALLOWED_ORIGINS.')
+  }
 
   return origins
 }
@@ -94,7 +106,7 @@ app.use('*', async (c, next) => {
   const start = Date.now()
   await next()
   const ms = Date.now() - start
-  console.log(`${c.req.method} ${c.req.path} - ${c.res.status} - ${ms}ms`)
+  console.warn(`${c.req.method} ${c.req.path} - ${c.res.status} - ${ms}ms`)
 })
 
 // ── Rate limiting ───────────────────────────────────────────
@@ -130,7 +142,7 @@ app.get('/ws/tracking/:rideId', (c) => {
   return c.text('WebSocket upgrade failed', 400)
 })
 
-app.get('/health', (c) => c.json({ ok: true }))
+app.route('/health', health)
 app.get('/', (c) => c.json({ message: 'Carglyn API', version: '1.0.0' }))
 app.route('/api/auth', auth)
 app.route('/api/rides', rides)
@@ -140,8 +152,13 @@ app.route('/api/payments', payments)
 app.route('/api/webhooks', webhooks)
 app.route('/api/upload', upload)
 app.route('/api/admin', admin)
-app.route('/api/mcp', mcp)
+app.route('/mcp', mcp)
+app.route('/', oauth)
 app.route('/api/ratings', ratings)
+app.route('/api/reports', reports)
+app.route('/api/notifications', notifications)
+app.route('/api/gdpr', gdpr)
+app.route('/api/debug', debug)
 
 app.notFound((c) => c.json({ error: 'Not Found' }, 404))
 app.onError((err, c) => { console.error('Error:', err); return c.json({ error: 'Internal Server Error' }, 500) })
@@ -156,7 +173,7 @@ const server = Bun.serve({
     open(ws: ServerWebSocket<WsData>) {
       const { rideId } = ws.data
       const isTracking = rideId?.startsWith('tracking:')
-      console.log(`🔌 [WS] WebSocket open: rideId=${rideId}, isTracking=${isTracking}`)
+      if (getDebugMode()) console.log(`🔌 [WS] WebSocket open: rideId=${rideId}, isTracking=${isTracking}`)
     },
     async message(ws: ServerWebSocket<WsData>, msg: string | Buffer) {
       const { rideId } = ws.data
@@ -274,7 +291,7 @@ const server = Bun.serve({
         if (message.type === 'location_update' && message.latitude && message.longitude) {
           // Extraer el rideId real (sin prefijo tracking:)
           const realRideId = rideId.startsWith('tracking:') ? rideId.slice(9) : rideId
-          console.log(`📍 [TRACKING] Received location_update for rideId=${realRideId} from clerkId=${ws.data.clerkId}`)
+          if (getDebugMode()) console.log(`📍 [TRACKING] Received location_update for rideId=${realRideId} from clerkId=${ws.data.clerkId}`)
           console.log(`📍 [TRACKING] Coords: lat=${message.latitude}, lng=${message.longitude}, heading=${message.heading}, speed=${message.speed}`)
 
           // Guardar en Redis con TTL
@@ -312,10 +329,10 @@ const server = Bun.serve({
 })
 
 async function initServer() {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`)
+  console.warn(`🚀 Servidor corriendo en puerto ${PORT}`)
   try {
     await connectDB()
-    console.log('✅ MongoDB conectado')
+    console.warn('✅ MongoDB conectado')
 
     // Conectar Redis (falla silenciosamente si no está disponible — tracking usa fallback)
     await connectRedis()
@@ -323,14 +340,25 @@ async function initServer() {
     // Run pending database migrations
     const count = await runMigrations()
     if (count > 0) {
-      console.log(`✅ ${count} migraciones aplicadas`)
+      console.warn(`✅ ${count} migraciones aplicadas`)
     } else {
-      console.log('📦 Base de datos actualizada — sin migraciones pendientes')
+      console.warn('📦 Base de datos actualizada — sin migraciones pendientes')
     }
+
+    // Load debug mode setting
+    const { initDebugMode } = await import('./utils/debugLogger')
+    const { Setting } = await import('./models/setting')
+    const debugSetting = await Setting.findOne({ key: 'debugMode' })
+    initDebugMode(debugSetting?.value === true)
 
     const { User } = await import('./models/user')
     await User.createAdmin('admin@gmail.com', 'Hola123!')
-    console.log('✅ Admin creado')
+    console.warn('✅ Admin creado')
+
+    // Start hourly nearby rides notification check
+    checkNearbyRides() // run immediately on startup, don't wait 1h
+    setInterval(checkNearbyRides, 60 * 60 * 1000) // then every hour
+    console.warn('🕐 Nearby rides notifications: hourly check active')
   } catch (err) {
     console.error('❌ Error:', err)
   }

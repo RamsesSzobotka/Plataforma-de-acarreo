@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { hideLoading, showLoading } from '../services/alerts'
+import { useTranslation } from 'react-i18next'
+// ponytail: dynamic import to split sweetalert2 chunk
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -17,56 +18,50 @@ type McpState = 'loading' | 'no_token' | 'has_token'
 
 interface Tool {
   name: string
-  description: string
+  descriptionKey: string
 }
-
-// ── Tool catalogs by role ────────────────────────────────────────────────────
-
-const CLIENT_TOOLS: Tool[] = [
-  { name: 'list_my_rides', description: 'Listar mis acarreos como cliente o conductor. Filtra por estado, página y límite.' },
-  { name: 'create_ride', description: 'Crear un nuevo pedido de acarreo. Requiere mínimo 1 imagen.' },
-  { name: 'get_ride_details', description: 'Obtener detalles completos de un acarreo por su ID.' },
-  { name: 'view_offers', description: 'Ver ofertas recibidas para un acarreo.' },
-  { name: 'accept_offer', description: 'Aceptar una oferta de un conductor para un acarreo.' },
-  { name: 'confirm_delivery', description: 'Confirmar la entrega de un acarreo y cobrar al cliente.' },
-  { name: 'cancel_ride', description: 'Cancelar un acarreo en estado requested.' },
-  { name: 'rate_service', description: 'Calificar el servicio de un acarreo completado (1-5 estrellas).' },
-  { name: 'get_public_driver_profile', description: 'Obtener el perfil público de un conductor por su ID.' },
-]
-
-const DRIVER_TOOLS: Tool[] = [
-  { name: 'list_available_rides', description: 'Listar acarreos disponibles para un conductor.' },
-  { name: 'propose_price', description: 'Proponer un precio para un acarreo.' },
-  { name: 'send_message', description: 'Enviar un mensaje en un acarreo.' },
-  { name: 'start_trip', description: 'Iniciar un viaje. Solo conductores verificados.' },
-  { name: 'upload_delivery_photo', description: 'Subir una foto de la entrega.' },
-  { name: 'get_payment_history', description: 'Ver historial de pagos recibidos.' },
-  { name: 'get_driver_profile', description: 'Obtener el perfil del conductor autenticado.' },
-]
 
 // ── Component ───────────────────────────────────────────────────────────────
 
 function SettingsMcp() {
   const { getToken } = useAuth()
   const { user } = useUser()
+  const { t } = useTranslation()
 
   const [state, setState] = useState<McpState>('loading')
   const [createdAt, setCreatedAt] = useState<string | null>(null)
   const [lastUsedAt, setLastUsedAt] = useState<string | null>(null)
   const [rawToken, setRawToken] = useState<string | null>(null) // Only shown once
   const [copied, setCopied] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [revoking, setRevoking] = useState(false)
-  const [confirmGenerate, setConfirmGenerate] = useState(false)
-  const [confirmRevoke, setConfirmRevoke] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Detect role from Clerk publicMetadata
   const role = (user?.publicMetadata?.role as string | undefined) ?? 'client'
-  const tools: Tool[] = role === 'driver' ? DRIVER_TOOLS : CLIENT_TOOLS
+  const tools: Tool[] = role === 'driver'
+    ? [
+        { name: 'list_available_rides', descriptionKey: 'mcp.tools.list_available_rides' },
+        { name: 'propose_price', descriptionKey: 'mcp.tools.propose_price' },
+        { name: 'send_message', descriptionKey: 'mcp.tools.send_message' },
+        { name: 'start_trip', descriptionKey: 'mcp.tools.start_trip' },
+        { name: 'upload_delivery_photo', descriptionKey: 'mcp.tools.upload_delivery_photo' },
+        { name: 'get_payment_history', descriptionKey: 'mcp.tools.get_payment_history' },
+        { name: 'get_driver_profile', descriptionKey: 'mcp.tools.get_driver_profile' },
+      ]
+    : [
+        { name: 'list_my_rides', descriptionKey: 'mcp.tools.list_my_rides' },
+        { name: 'create_ride', descriptionKey: 'mcp.tools.create_ride' },
+        { name: 'get_ride_details', descriptionKey: 'mcp.tools.get_ride_details' },
+        { name: 'view_offers', descriptionKey: 'mcp.tools.view_offers' },
+        { name: 'accept_offer', descriptionKey: 'mcp.tools.accept_offer' },
+        { name: 'confirm_delivery', descriptionKey: 'mcp.tools.confirm_delivery' },
+        { name: 'cancel_ride', descriptionKey: 'mcp.tools.cancel_ride' },
+        { name: 'rate_service', descriptionKey: 'mcp.tools.rate_service' },
+        { name: 'get_public_driver_profile', descriptionKey: 'mcp.tools.get_public_driver_profile' },
+      ]
 
   // Active environment for snippet
   const [env, setEnv] = useState<'localhost' | 'production'>('localhost')
+  const [agentTab, setAgentTab] = useState<'opencode' | 'claude' | 'codex'>('opencode')
   const baseUrl = env === 'localhost' ? 'http://localhost:3000' : 'https://carglyn-backend.onrender.com'
 
   // ── Fetch token status ────────────────────────────────────────────────────
@@ -78,14 +73,14 @@ function SettingsMcp() {
       const res = await fetch(`${API_URL}/api/auth/mcp-token/status`, {
         headers: { Authorization: `Bearer ${jwt}` }
       })
-      if (!res.ok) throw new Error('Error al obtener estado del token')
+      if (!res.ok) throw new Error(t('mcp.errors.status'))
       const body = await res.json()
       const data: McpTokenStatus = body.data
       setCreatedAt(data.createdAt)
       setLastUsedAt(data.lastUsedAt)
       setState(data.hasToken ? 'has_token' : 'no_token')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido')
+      setError(err instanceof Error ? err.message : t('common.error'))
       setState('no_token')
     }
   }, [getToken])
@@ -96,18 +91,17 @@ function SettingsMcp() {
 
   useEffect(() => {
     if (state === 'loading') {
-      showLoading('Cargando configuración MCP...')
+      import('../services/alerts').then(({ showLoading }) => showLoading(t('mcp.loading')))
     } else {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
-    return () => hideLoading()
+    return () => { import('../services/alerts').then(({ hideLoading }) => hideLoading()) }
   }, [state])
 
   // ── Generate token ─────────────────────────────────────────────────────────
 
   async function handleGenerate() {
     try {
-      setGenerating(true)
       setError(null)
       const jwt = await getToken()
       const res = await fetch(`${API_URL}/api/auth/mcp-token`, {
@@ -118,22 +112,21 @@ function SettingsMcp() {
         }
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Error al generar token' }))
-        throw new Error(err.error || 'Error al generar token')
+        const err = await res.json().catch(() => ({ error: t('mcp.errors.generate') }))
+        throw new Error(err.error || t('mcp.errors.generate'))
       }
       const body = await res.json()
       const token = body.data?.token
-      if (!token) throw new Error('El servidor no devolvió un token válido')
+      if (!token) throw new Error(t('mcp.errors.invalidToken'))
       // Store raw token in memory — will be cleared on component unmount or revoke
       setRawToken(token)
       setCreatedAt(body.data?.createdAt || null)
       setLastUsedAt(null)
       setState('has_token')
-      setConfirmGenerate(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al generar token')
+      setError(err instanceof Error ? err.message : t('mcp.errors.generate'))
     } finally {
-      setGenerating(false)
+      // no state to clean up — SweetAlert handles loading
     }
   }
 
@@ -141,7 +134,6 @@ function SettingsMcp() {
 
   async function handleRevoke() {
     try {
-      setRevoking(true)
       setError(null)
       const jwt = await getToken()
       const res = await fetch(`${API_URL}/api/auth/mcp-token`, {
@@ -149,18 +141,15 @@ function SettingsMcp() {
         headers: { Authorization: `Bearer ${jwt}` }
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Error al revocar token' }))
-        throw new Error(err.error || 'Error al revocar token')
+        const err = await res.json().catch(() => ({ error: t('mcp.errors.revoke') }))
+        throw new Error(err.error || t('mcp.errors.revoke'))
       }
       setRawToken(null)
       setCreatedAt(null)
       setLastUsedAt(null)
       setState('no_token')
-      setConfirmRevoke(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al revocar token')
-    } finally {
-      setRevoking(false)
+      setError(err instanceof Error ? err.message : t('mcp.errors.revoke'))
     }
   }
 
@@ -186,20 +175,19 @@ function SettingsMcp() {
 
   // ── Config snippet ─────────────────────────────────────────────────────────
 
-  function buildOpenCodeConfig(tokenValue: string): string {
-    return JSON.stringify({
-      mcpServers: {
-        carglyn: {
-          enabled: true,
-          type: 'remote',
-          transport: 'streamable-http',
-          url: `${baseUrl}/api/mcp`,
-          headers: {
-            MCP_API_KEY: tokenValue
-          }
+  function buildSnippet(): string {
+    const entry = {
+      carglyn: {
+        enabled: true,
+        type: 'remote',
+        transport: 'streamable-http',
+        url: `${baseUrl}/api/mcp`,
+        headers: {
+          MCP_API_KEY: 'TU_TOKEN_AQUI'
         }
       }
-    }, null, 2)
+    }
+    return JSON.stringify(entry, null, 2)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -210,7 +198,7 @@ function SettingsMcp() {
     <div>
       {/* Back link */}
       <Link
-        to="/"
+        to="/settings"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -222,16 +210,16 @@ function SettingsMcp() {
         }}
       >
         <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>arrow_back</span>
-        Volver al inicio
+        {t('mcp.backHome')}
       </Link>
 
       {/* Header */}
       <h1 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <span className="material-symbols-rounded">api</span>
-        Conexión MCP
+        {t('mcp.title')}
       </h1>
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.875rem' }}>
-        Integra la plataforma con herramientas externas como OpenCode usando el protocolo MCP.
+        {t('mcp.subtitle')}
       </p>
 
       {/* Error alert */}
@@ -257,12 +245,12 @@ function SettingsMcp() {
         <div className="card-header">
           <span className="card-title">
             <span className="material-symbols-rounded" style={{ fontSize: '1.25rem', verticalAlign: 'middle', marginRight: '0.5rem' }}>key</span>
-            Token de Acceso
+            {t('mcp.token')}
           </span>
           {state === 'has_token' ? (
-            <span className="badge badge-success">Activo</span>
+            <span className="badge badge-success">{t('mcp.active')}</span>
           ) : (
-            <span className="badge badge-neutral">Sin Token</span>
+            <span className="badge badge-neutral">{t('mcp.noTokenShort')}</span>
           )}
         </div>
         <div className="card-body">
@@ -277,7 +265,7 @@ function SettingsMcp() {
                   padding: '1rem'
                 }}>
                   <p style={{ fontSize: '0.75rem', color: 'var(--warning)', marginBottom: '0.5rem', fontWeight: 600 }}>
-                    ⚠️ Este token se muestra solo una vez. Guárdalo en un lugar seguro.
+                    {t('mcp.tokenWarning')}
                   </p>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <input
@@ -296,8 +284,8 @@ function SettingsMcp() {
                   </div>
                 </div>
               ) : (
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  Token generado. No se vuelve a mostrar por seguridad.
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  {t('mcp.tokenGeneratedOnce')}
                 </p>
               )}
 
@@ -305,7 +293,7 @@ function SettingsMcp() {
               <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                 {createdAt && (
                   <span>
-                    <span style={{ color: 'var(--text-muted)' }}>Creado: </span>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('mcp.createdAt')}: </span>
                     {new Date(createdAt).toLocaleDateString('es-ES', {
                       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                     })}
@@ -313,7 +301,7 @@ function SettingsMcp() {
                 )}
                 {lastUsedAt && (
                   <span>
-                    <span style={{ color: 'var(--text-muted)' }}>Último uso: </span>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('mcp.lastUsedAt')}: </span>
                     {new Date(lastUsedAt).toLocaleDateString('es-ES', {
                       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                     })}
@@ -323,25 +311,55 @@ function SettingsMcp() {
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => setConfirmGenerate(true)}>
+                <button className="btn btn-primary" onClick={async () => {
+                  const { showConfirm } = await import('../services/alerts')
+                  const confirmed = await showConfirm({
+                    icon: 'warning',
+                    title: t('mcp.regenerateTokenTitle'),
+                    text: t('mcp.generateTokenHasExisting'),
+                    confirmText: t('common.confirm'),
+                    cancelText: t('common.cancel'),
+                  })
+                  if (confirmed) handleGenerate()
+                }}>
                   <span className="material-symbols-rounded">refresh</span>
-                  Regenerar Token
+                  {t('mcp.regenerate')}
                 </button>
-                <button className="btn btn-danger-outline" onClick={() => setConfirmRevoke(true)}>
+                <button className="btn btn-danger-outline" onClick={async () => {
+                  const { showConfirm } = await import('../services/alerts')
+                  const confirmed = await showConfirm({
+                    icon: 'warning',
+                    title: t('mcp.revokeTokenTitle'),
+                    text: t('mcp.revokeTokenText') + ' ' + t('mcp.revokeTokenUndo'),
+                    confirmText: t('mcp.revoke'),
+                    cancelText: t('common.cancel'),
+                  })
+                  if (confirmed) handleRevoke()
+                }}>
                   <span className="material-symbols-rounded">delete_forever</span>
-                  Revocar Token
+                  {t('mcp.revoke')}
                 </button>
               </div>
             </div>
           ) : (
             <div>
               <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                No tienes un token de acceso. Genera uno para conectar herramientas MCP.
+                {t('mcp.noToken')}
               </p>
-              <button className="btn btn-primary" onClick={() => setConfirmGenerate(true)}>
-                <span className="material-symbols-rounded">add</span>
-                Generar Token
-              </button>
+<button className="btn btn-primary" onClick={async () => {
+                const { showConfirm } = await import('../services/alerts')
+                const confirmed = await showConfirm({
+                  icon: 'info',
+                  title: t('mcp.generateTokenTitle'),
+                  text: t('mcp.generateTokenNew'),
+                  confirmText: t('common.confirm'),
+                  cancelText: t('common.cancel'),
+                })
+                if (confirmed) handleGenerate()
+              }}>
+                  <span className="material-symbols-rounded">add</span>
+                  {t('mcp.generateToken')}
+                </button>
             </div>
           )}
         </div>
@@ -352,15 +370,15 @@ function SettingsMcp() {
         <div className="card-header">
           <span className="card-title">
             <span className="material-symbols-rounded" style={{ fontSize: '1.25rem', verticalAlign: 'middle', marginRight: '0.5rem' }}>build</span>
-            Herramientas Disponibles
+            {t('mcp.toolsTitle')}
           </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {role === 'driver' ? 'Rol: Conductor' : 'Rol: Cliente'}
+            {role === 'driver' ? t('mcp.roleDriver') : t('mcp.roleClient')}
           </span>
         </div>
         <div className="card-body">
           <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            Herramientas MCP disponibles para tu rol. Configúralas en tu cliente MCP.
+            {t('mcp.toolsSubtitle')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {tools.map(tool => (
@@ -376,7 +394,7 @@ function SettingsMcp() {
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }}>terminal</span>
                 <div>
                   <code style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{tool.name}</code>
-                  <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0', fontSize: '0.8125rem' }}>{tool.description}</p>
+                  <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0', fontSize: '0.8125rem' }}>{t(tool.descriptionKey)}</p>
                 </div>
               </div>
             ))}
@@ -384,66 +402,232 @@ function SettingsMcp() {
         </div>
       </div>
 
-      {/* ── Section 3: Configuration ────────────────────────────────────── */}
-      {state === 'has_token' && (
-        <div className="card" style={{ marginBottom: '1.5rem' }}>
+      {/* ── Section 3: MCP Client Configuration ──────────────────────── */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div className="card-header">
             <span className="card-title">
               <span className="material-symbols-rounded" style={{ fontSize: '1.25rem', verticalAlign: 'middle', marginRight: '0.5rem' }}>code</span>
-              Configuración OpenCode
+              {t('mcp.configTitle')}
             </span>
           </div>
           <div className="card-body">
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              Agrega esto en tu archivo de configuración de OpenCode (<code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>opencode.json</code>):
+              {t('mcp.configSubtitle')}
             </p>
 
-            {/* Env toggle */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            {/* Environment Toggle */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
               <button
                 className={`tab ${env === 'localhost' ? 'active' : ''}`}
                 onClick={() => setEnv('localhost')}
               >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>laptop</span>
                 Localhost
               </button>
               <button
                 className={`tab ${env === 'production' ? 'active' : ''}`}
                 onClick={() => setEnv('production')}
               >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>cloud</span>
                 Producción
               </button>
             </div>
 
-            {/* Snippet */}
-            <div style={{ position: 'relative' }}>
-              <pre
-                style={{
+            {/* Tool Tabs */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+              <button
+                className={`tab ${agentTab === 'opencode' ? 'active' : ''}`}
+                onClick={() => setAgentTab('opencode')}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>terminal</span>
+                {t('mcp.tab.opencode')}
+              </button>
+              
+              <button
+                className={`tab ${agentTab === 'claude' ? 'active' : ''}`}
+                onClick={() => setAgentTab('claude')}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>psychology</span>
+                {t('mcp.tab.claude')}
+              </button>
+              <button
+                className={`tab ${agentTab === 'codex' ? 'active' : ''}`}
+                onClick={() => setAgentTab('codex')}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>smart_toy</span>
+                {t('mcp.tab.codex')}
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {agentTab === 'opencode' ? (
+              <>
+                {/* Instructions for OpenCode */}
+                <div style={{
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }}>folder</span>
+                  <span>
+                    {t('mcp.configFile', { path: '~/.config/opencode/opencode.json' })}
+                    <br />
+                    {t('mcp.configMcpServers')}
+                  </span>
+                </div>
+
+                {/* Snippet */}
+                <div style={{ position: 'relative' }}>
+                  <pre
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      padding: '1rem',
+                      overflow: 'auto',
+                      fontSize: '0.75rem',
+                      lineHeight: '1.6',
+                      maxHeight: '400px',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-mono)'
+                    }}
+                  >
+                    <code>{buildSnippet()}</code>
+                  </pre>
+                  <button
+                    className={`btn btn-sm ${copied ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => copyToClipboard(buildSnippet())}
+                    style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
+                  >
+                    <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
+                    {copied ? t('mcp.copySuccess') : t('mcp.copy')}
+                  </button>
+                </div>
+              </>
+            ) : agentTab === 'claude' ? (
+              <>
+                {/* Instructions for Claude */}
+                <div style={{
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }}>info</span>
+                  <span>{t('mcp.claude.instructions')}</span>
+                </div>
+
+                {/* Steps */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  <p>{t('mcp.claude.step1')}</p>
+                  <p>{t('mcp.claude.step2')}</p>
+                  <p>{t('mcp.claude.step3')}</p>
+                </div>
+
+                {/* URL box with copy */}
+                <div style={{
                   background: 'var(--bg-secondary)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)',
                   padding: '1rem',
-                  overflow: 'auto',
-                  fontSize: '0.75rem',
-                  lineHeight: '1.6',
-                  maxHeight: '400px',
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-mono)'
-                }}
-              >
-                <code>{buildOpenCodeConfig('TU_TOKEN_AQUI')}</code>
-              </pre>
-              <button
-                className={`btn btn-sm ${copied ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => copyToClipboard(buildOpenCodeConfig('TU_TOKEN_AQUI'))}
-                style={{ position: 'absolute', top: '0.5rem', right: '0.5rem' }}
-              >
-                <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
-                {copied ? 'Copiado' : 'Copiar'}
-              </button>
-            </div>
+                  marginTop: '0.75rem',
+                  marginBottom: '1rem'
+                }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                    {t('mcp.claude.urlLabel')}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="input font-mono"
+                      value={`${baseUrl}/mcp`}
+                      readOnly
+                      style={{ fontSize: '0.8125rem', flex: 1 }}
+                    />
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => copyToClipboard(`${baseUrl}/mcp`)}
+                    >
+                      <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* No API key needed */}
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  {t('mcp.claude.step4')}
+                </p>
+              </>
+            ) : agentTab === 'codex' ? (
+              <>
+                {/* Instructions for Codex */}
+                <div style={{
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem'
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }}>info</span>
+                  <span>{t('mcp.codex.instructions')}</span>
+                </div>
+
+                {/* Steps */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  <p>{t('mcp.codex.step1')}</p>
+                  <p>{t('mcp.codex.step2')}</p>
+                  <p>{t('mcp.codex.step3')}</p>
+                  <p>{t('mcp.codex.step4')}</p>
+                  <p>{t('mcp.codex.step5')}</p>
+                </div>
+
+                {/* URL box with copy */}
+                <div style={{
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '1rem',
+                  marginTop: '0.75rem',
+                  marginBottom: '1rem'
+                }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                    {t('mcp.codex.urlLabel')}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="input font-mono"
+                      value={`${baseUrl}/mcp`}
+                      readOnly
+                      style={{ fontSize: '0.8125rem', flex: 1 }}
+                    />
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => copyToClipboard(`${baseUrl}/mcp`)}
+                    >
+                      <span className="material-symbols-rounded">{copied ? 'check' : 'content_copy'}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
-      )}
 
       {/* ── Section 4: Security note ──────────────────────────────────────── */}
       {state === 'has_token' && (
@@ -460,64 +644,12 @@ function SettingsMcp() {
         }}>
           <span className="material-symbols-rounded" style={{ fontSize: '1.25rem', color: 'var(--warning)', flexShrink: 0 }}>info</span>
           <p style={{ margin: 0 }}>
-            <strong>Seguridad:</strong> Después de revocar el token, cierra sesión en todos los clientes MCP
-            que lo estén usando. El token es personal e intransferible.
+            <strong>{t('mcp.securityLabel')}:</strong> {t('mcp.securityText')}
           </p>
         </div>
       )}
 
-      {/* ── Confirm Generate Modal ─────────────────────────────────────────── */}
-      {confirmGenerate && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 'var(--z-modal)', padding: '1rem'
-        }}>
-          <div className="card animate-scale-in" style={{ maxWidth: '400px', width: '100%' }}>
-            <h3 style={{ marginBottom: '0.75rem' }}>¿Generar token?</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-              {state === 'has_token'
-                ? 'Esto invalidará el token actual. Las conexiones existentes dejarán de funcionar.'
-                : 'Se generará un nuevo token de acceso para conexiones MCP.'}
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setConfirmGenerate(false)} disabled={generating}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
-                {generating ? <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} /> : null}
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Confirm Revoke Modal ──────────────────────────────────────────── */}
-      {confirmRevoke && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 'var(--z-modal)', padding: '1rem'
-        }}>
-          <div className="card animate-scale-in" style={{ maxWidth: '400px', width: '100%' }}>
-            <h3 style={{ marginBottom: '0.75rem' }}>¿Revocar token?</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-              Todas las conexiones que usen este token dejarán de funcionar inmediatamente.
-              <strong> Esta acción no se puede deshacer.</strong>
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setConfirmRevoke(false)} disabled={revoking}>
-                Cancelar
-              </button>
-              <button className="btn btn-danger" onClick={handleRevoke} disabled={revoking}>
-                {revoking ? <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} /> : null}
-                Revocar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      
     </div>
   )
 }

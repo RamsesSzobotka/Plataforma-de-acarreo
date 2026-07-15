@@ -1,6 +1,7 @@
 import { Hono } from 'hono/tiny'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createMcpServer, validateMcpToken } from '../mcp/server'
+import { dualAuthMiddleware } from '../middleware/dualAuth'
 
 const mcpApp = new Hono()
 
@@ -53,28 +54,34 @@ interface McpSession {
 
 const sessions = new Map<string, McpSession>()
 
-async function mcpAuth(c: any): Promise<string | null> {
-  const apiKey = c.req.header('MCP_API_KEY') || c.req.query('token')
-  if (!apiKey) return null
-  return validateMcpToken(apiKey)
-}
+// TTL cleanup for stale sessions (30 min sin actividad)
+const SESSION_TTL_MS = 30 * 60 * 1000
+const sessionTimestamps = new Map<string, number>()
+
+setInterval(() => {
+  const now = Date.now()
+  for (const [sessionId, lastUsed] of sessionTimestamps) {
+    if (now - lastUsed > SESSION_TTL_MS) {
+      sessions.delete(sessionId)
+      sessionTimestamps.delete(sessionId)
+    }
+  }
+}, 5 * 60 * 1000) // Cleanup cada 5 minutos
 
 /**
  * Asegura que el Request tenga el Accept header requerido por el SDK MCP.
- * El SDK exige que el cliente acepte tanto application/json como text/event-stream.
- * OpenCode no envía text/event-stream, así que lo inyectamos server-side.
+ * Streamable HTTP usa solo application/json, pero el SDK del lado servidor
+ * del MCP puede necesitar text/event-stream para ciertas respuestas SSE.
+ * Solo inyectamos si el cliente no envía ningún Accept header.
  */
 function ensureAcceptHeader(req: Request): Request {
-  const accept = req.headers.get('accept') || ''
-  if (accept.includes('text/event-stream')) {
-    return req
+  const accept = req.headers.get('accept')
+  if (!accept || accept === '*/*') {
+    const headers = new Headers(req.headers)
+    headers.set('accept', 'application/json, text/event-stream')
+    return new Request(req, { headers })
   }
-  const newAccept = accept.includes('application/json')
-    ? accept + ', text/event-stream'
-    : 'application/json, text/event-stream'
-  const headers = new Headers(req.headers)
-  headers.set('accept', newAccept)
-  return new Request(req, { headers })
+  return req
 }
 
 /**
@@ -117,7 +124,7 @@ mcpApp.get('/status', async (c) => {
   })
 })
 
-mcpApp.all('/', async (c) => {
+mcpApp.all('/', dualAuthMiddleware, async (c) => {
   // Rate limit check
   const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
   const rateLimit = checkMcpRateLimit(ip)
@@ -125,45 +132,12 @@ mcpApp.all('/', async (c) => {
   c.header('X-RateLimit-Remaining', String(rateLimit.remaining))
   if (rateLimit.retryAfter) c.header('Retry-After', String(rateLimit.retryAfter))
   if (!rateLimit.allowed) {
-    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Demasiadas peticiones.' } }, 429)
+    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'Too many requests.' } }, 429)
   }
 
-  const clerkId = await mcpAuth(c)
+  const clerkId = c.get('clerkId') as string | undefined
   if (!clerkId) {
-    // Intentar parsear el body para dar un error JSON-RPC que el agente pueda interpretar
-    try {
-      const rawReq = c.req.raw.clone()
-      const body = await rawReq.json()
-      const rpcId = body.id ?? null
-      const method = body.method || 'unknown'
-      return c.json({
-        jsonrpc: '2.0',
-        id: rpcId,
-        error: {
-          code: -32001,
-          message: 'Se requiere autenticación MCP.',
-          data: {
-            method,
-            help: 'Agrega el header "MCP_API_KEY" con tu token en opencode.json > mcp > carglyn > headers.',
-            tokenInstructions: 'Para generar un token, haz una petición POST a /api/auth/mcp-token con sesión web activa.',
-            checkStatus: 'GET /api/mcp/status - endpoint de diagnóstico sin auth',
-          },
-        },
-      }, 401)
-    } catch {
-      // Si no se puede parsear el body, devolver error genérico
-      return c.json({
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32001,
-          message: 'Se requiere autenticación MCP. Usa el header "MCP_API_KEY".',
-          data: {
-            help: 'Configura el token en opencode.json o visita GET /api/mcp/status para diagnóstico.',
-          },
-        },
-      }, 401)
-    }
+    return c.json({ jsonrpc: '2.0', id: null, error: { code: -32001, message: 'Not authenticated.' } }, 401)
   }
 
   try {
@@ -189,6 +163,7 @@ mcpApp.all('/', async (c) => {
             },
           }, 403)
         }
+        sessionTimestamps.set(sessionId, Date.now())
         return existing.transport.handleRequest(req, { authInfo: { token: '', clientId: '', scopes: [], extra: { clerkId } } })
       }
     }
@@ -200,19 +175,19 @@ mcpApp.all('/', async (c) => {
     const mcpServer = createMcpServer(clerkId)
     await mcpServer.connect(transport)
 
-    transport.onclose = () => {
-      if (transport.sessionId) {
-        sessions.delete(transport.sessionId)
-      }
-    }
-
     const response = await transport.handleRequest(req, { authInfo: { token: '', clientId: '', scopes: [], extra: { clerkId } } })
 
     if (transport.sessionId) {
       sessions.set(transport.sessionId, { transport, clerkId })
-      c.req.raw.signal?.addEventListener('abort', () => {
-        sessions.delete(transport.sessionId!)
-      })
+      sessionTimestamps.set(transport.sessionId, Date.now())
+      // onclose se dispara cuando el transporte MCP finaliza la sesión
+      // (no cuando el request HTTP termina). Esto es correcto para Streamable HTTP.
+      transport.onclose = () => {
+        if (transport.sessionId) {
+          sessions.delete(transport.sessionId)
+          sessionTimestamps.delete(transport.sessionId)
+        }
+      }
     }
 
     return response

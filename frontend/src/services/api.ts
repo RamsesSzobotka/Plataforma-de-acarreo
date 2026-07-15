@@ -1,4 +1,4 @@
-import type { Ride, Message, PaginatedResponse, RatingWithRater } from '../types'
+import type { Ride, Message, PaginatedResponse, RatingWithRater, AppNotification } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -280,11 +280,14 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, token?: stri
 
 export const ridesAPI = {
   // Listar pedidos disponibles (para drivers)
-  listAvailable: (params?: { type?: string; page?: number; limit?: number }, token?: string) => {
+  listAvailable: (params?: { type?: string; page?: number; limit?: number; lat?: number; lng?: number; radius?: number }, token?: string) => {
     const searchParams = new URLSearchParams()
     if (params?.type) searchParams.set('type', params.type)
     if (params?.page) searchParams.set('page', String(params.page))
     if (params?.limit) searchParams.set('limit', String(params.limit))
+    if (params?.lat !== undefined) searchParams.set('lat', String(params.lat))
+    if (params?.lng !== undefined) searchParams.set('lng', String(params.lng))
+    if (params?.radius !== undefined) searchParams.set('radius', String(params.radius))
     const query = searchParams.toString()
     return fetchAPI<PaginatedResponse<Ride>>(`/api/rides/available${query ? `?${query}` : ''}`, {}, token)
   },
@@ -359,6 +362,13 @@ export const ridesAPI = {
       {},
       token
     ),
+
+  // Enviar ubicación del conductor al backend
+  sendDriverLocation: (latitude: number, longitude: number, token?: string) =>
+    fetchAPI<{ success: boolean; message: string }>('/api/rides/driver-location', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude }),
+    }, token),
 }
 
 export const messagesAPI = {
@@ -461,6 +471,33 @@ export const ratingsAPI = {
   },
 }
 
+export const reportsAPI = {
+  create: (data: { reportedId: string; reportedRole: string; rideId?: string; comment: string; category?: string }, token?: string) =>
+    fetchAPI<{ success: boolean; message: string; report: any }>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+}
+
+export const notificationsAPI = {
+  list: (params?: { page?: number; limit?: number }, token?: string) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    const query = searchParams.toString()
+    return fetchAPI<PaginatedResponse<AppNotification>>(`/api/notifications${query ? `?${query}` : ''}`, {}, token)
+  },
+
+  unreadCount: (token?: string) =>
+    fetchAPI<{ count: number }>('/api/notifications/unread-count', {}, token),
+
+  markRead: (id: string, token?: string) =>
+    fetchAPI<AppNotification>(`/api/notifications/${id}/read`, { method: 'PATCH' }, token),
+
+  markAllRead: (token?: string) =>
+    fetchAPI<{ success: boolean }>('/api/notifications/read-all', { method: 'PATCH' }, token),
+}
+
 export const paymentsAPI = {
   createSetupIntent: (token?: string) =>
     fetchAPI<{ clientSecret: string; setupIntentId: string; stripeCustomerId: string }>(
@@ -556,4 +593,54 @@ export const paymentsAPI = {
       },
       token
     ),
+}
+
+export const gdprAPI = {
+  giveConsent: (version = '2.0', documents: string[] = ['privacy', 'terms'], token?: string) =>
+    fetchAPI<{ success: boolean }>('/api/gdpr/consent', {
+      method: 'POST',
+      body: JSON.stringify({ version, documents }),
+    }, token),
+
+  exportData: async (token?: string) => {
+    const response = await fetch(`${API_URL}/api/gdpr/export`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || error.message || 'Error al exportar datos')
+    }
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mis-datos-carglyn-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  },
+
+  deleteAccount: (token?: string) =>
+    fetchAPI<{ success: boolean }>('/api/gdpr/account', {
+      method: 'DELETE',
+    }, token),
+}
+
+type EmailPreferences = {
+  onAccepted: boolean
+  onInProgress: boolean
+  onCompleted: boolean
+  onCancelled: boolean
+}
+
+export const emailPreferencesAPI = {
+  get: (token?: string) =>
+    fetchAPI<{ emailPreferences: EmailPreferences }>('/api/users/me/email-preferences', {}, token),
+
+  update: (prefs: EmailPreferences, token?: string) =>
+    fetchAPI<{ emailPreferences: EmailPreferences }>('/api/users/me/email-preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    }, token),
 }

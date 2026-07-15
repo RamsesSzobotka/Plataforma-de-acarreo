@@ -7,6 +7,7 @@ import { Elements } from '@stripe/react-stripe-js'
 import App from './App'
 import 'sweetalert2/dist/sweetalert2.min.css'
 import './styles/index.css'
+import './i18n/i18n'
 
 // Import your publishable keys
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder'

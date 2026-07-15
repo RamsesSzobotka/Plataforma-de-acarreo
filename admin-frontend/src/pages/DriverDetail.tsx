@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 
 interface DriverDetail {
@@ -33,6 +33,7 @@ interface DriverDetail {
 
 export default function DriverDetail() {
   const { userId } = useParams<{ userId: string }>()
+  const navigate = useNavigate()
   const [driver, setDriver] = useState<DriverDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -107,6 +108,22 @@ export default function DriverDetail() {
     }
   }
 
+  async function handleUnsuspend() {
+    if (!userId) return
+    if (!confirm('¿Quitar la suspensión de este conductor?')) return
+    setActionLoading(true)
+    try {
+      await api.unsuspendDriver(userId)
+      setDriver((d) =>
+        d ? { ...d, verificationStatus: 'verified', isAvailable: true, rejectionReason: '' } : d
+      )
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="loading-spinner">
@@ -120,9 +137,9 @@ export default function DriverDetail() {
       <div className="empty-state">
         <span className="material-symbols-rounded">person_off</span>
         <p>Conductor no encontrado</p>
-        <Link to="/drivers" className="action-btn secondary" style={{ marginTop: '1rem' }}>
+        <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ marginTop: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
           Volver
-        </Link>
+        </button>
       </div>
     )
   }
@@ -131,12 +148,12 @@ export default function DriverDetail() {
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link to="/drivers" className="action-btn secondary">
+          <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
               arrow_back
             </span>
             Volver
-          </Link>
+          </button>
           <h2>Detalle del Conductor</h2>
         </div>
       </div>
@@ -381,9 +398,21 @@ export default function DriverDetail() {
               Suspender
             </button>
           )}
-          <Link to="/drivers" className="action-btn secondary">
-            Volver a Conductores
-          </Link>
+          {driver.verificationStatus === 'suspended' && (
+            <button
+              className="action-btn warning"
+              onClick={handleUnsuspend}
+              disabled={actionLoading}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                check_circle
+              </span>
+              Quitar Suspensión
+            </button>
+          )}
+          <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
+            Volver
+          </button>
         </div>
       </div>
 

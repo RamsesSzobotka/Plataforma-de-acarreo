@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'https://carglyn-backend.onrender.com',
         changeOrigin: true,
       },
+      '/health': {
+        target: 'https://carglyn-backend.onrender.com',
+        changeOrigin: true,
+      },
     },
   },
 })

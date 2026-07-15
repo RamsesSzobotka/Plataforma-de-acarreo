@@ -56,15 +56,15 @@ export async function setupTests(): Promise<void> {
       );
       await forceIndexBuild(nativeDb, 'mcp_tokens', { tokenId: 1 });
 
-      await nativeDb.collection('audit_logs').createIndex(
+      await nativeDb.collection('mcpAuditLogs').createIndex(
         { clerkId: 1 }
       );
-      await forceIndexBuild(nativeDb, 'audit_logs', { clerkId: 1 });
+      await forceIndexBuild(nativeDb, 'mcpAuditLogs', { clerkId: 1 });
 
-      await nativeDb.collection('audit_logs').createIndex(
+      await nativeDb.collection('mcpAuditLogs').createIndex(
         { createdAt: -1 }
       );
-      await forceIndexBuild(nativeDb, 'audit_logs', { createdAt: -1 });
+      await forceIndexBuild(nativeDb, 'mcpAuditLogs', { createdAt: -1 });
 
       console.log('✅ Test indexes created');
     } catch (error) {
@@ -79,7 +79,7 @@ export async function setupTests(): Promise<void> {
 export async function teardownTests(): Promise<void> {
   // Use deleteMany instead of drop() to PRESERVE indexes
   // Dropping collections removes indexes, which breaks the unique constraint tests
-  const testCollections = ['offers', 'rides', 'users', 'drivers', 'ratings', 'messages', 'audit_logs', 'mcp_tokens'];
+  const testCollections = ['offers', 'rides', 'users', 'drivers', 'ratings', 'messages', 'mcpAuditLogs', 'mcp_tokens'];
   try {
     for (const name of testCollections) {
       try {
@@ -148,11 +148,13 @@ export async function createTestRide(clientId: string, overrides: Partial<any> =
     images: [],
     pickupLocation: {
       address: 'Test Pickup',
-      coordinates: { type: 'Point', coordinates: [-79.5, 8.9] }
+      type: 'Point',
+      coordinates: [-79.5, 8.9]
     },
     dropoffLocation: {
       address: 'Test Dropoff',
-      coordinates: { type: 'Point', coordinates: [-79.4, 8.95] }
+      type: 'Point',
+      coordinates: [-79.4, 8.95]
     },
     estimatedPrice: 100,
     status: 'requested',

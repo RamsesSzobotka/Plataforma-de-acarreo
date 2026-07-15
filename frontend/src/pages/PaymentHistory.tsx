@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
+import { useTranslation } from 'react-i18next'
 import { paymentsAPI } from '../services/api'
-import { hideLoading, showLoading } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 
 interface PaymentHistoryItem {
   _id: string
@@ -23,7 +24,9 @@ interface PaymentHistoryResponse {
 }
 
 function PaymentHistory() {
+  const { t, i18n } = useTranslation()
   const { getToken } = useAuth()
+  const navigate = useNavigate()
   const [history, setHistory] = useState<PaymentHistoryItem[]>([])
   const [summary, setSummary] = useState({ totalEarnings: 0, totalRides: 0 })
   const [loading, setLoading] = useState(true)
@@ -36,13 +39,13 @@ function PaymentHistory() {
 
   useEffect(() => {
     if (loading) {
-      showLoading('Cargando historial...')
+      import('../services/alerts').then(({ showLoading }) => showLoading(t('common.loading')))
     } else {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
 
     return () => {
-      hideLoading()
+      import('../services/alerts').then(({ hideLoading }) => hideLoading())
     }
   }, [loading])
 
@@ -62,11 +65,11 @@ function PaymentHistory() {
 
   function formatCurrency(amountInCents: number) {
     const amount = amountInCents / 100
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+    return new Intl.NumberFormat(i18n.language || 'en-US', { style: 'currency', currency: 'USD' }).format(amount)
   }
 
   function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString('es-ES', {
+    return new Date(dateString).toLocaleDateString(i18n.language || 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -81,26 +84,26 @@ function PaymentHistory() {
 
   return (
     <div>
-      <Link to="/driver" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+      <button onClick={() => navigate(-1)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 'inherit', padding: 0 }}>
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver al Panel del Conductor
-      </Link>
+        {t('common.back')}
+      </button>
 
       <h1 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <span className="material-symbols-rounded">account_balance_wallet</span>
-        Historial de Pagos
+        {t('driver.payment.title')}
       </h1>
 
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)', color: 'white' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9 }}>Total Earnings</p>
+            <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9 }}>{t('driver.payment.total')}</p>
             <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
               {formatCurrency(summary.totalEarnings)}
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9 }}>Total Acarreos Pagados</p>
+            <p style={{ margin: 0, fontSize: '0.875rem', opacity: 0.9 }}>{t('driver.payment.totalRides')}</p>
             <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 'bold' }}>
               {summary.totalRides}
             </p>
@@ -114,11 +117,11 @@ function PaymentHistory() {
             receipt_long
           </span>
           <p style={{ color: 'var(--text-muted)' }}>
-            No tienes pagos recibidos todavía
+            {t('driver.payment.empty')}
           </p>
-          <Link to="/driver" className="btn btn-outline" style={{ marginTop: '1rem' }}>
-            Volver al Panel
-          </Link>
+          <button onClick={() => navigate(-1)} className="btn btn-outline" style={{ marginTop: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 'inherit' }}>
+            {t('common.back')}
+          </button>
         </div>
       ) : (
         <>
@@ -142,7 +145,7 @@ function PaymentHistory() {
                       </p>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                      Pagado: {formatDate(item.paidAt)}
+                      {t('driver.payment.paidOn')} {formatDate(item.paidAt)}
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -150,8 +153,8 @@ function PaymentHistory() {
                       +{formatCurrency(item.driverAmount)}
                     </p>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      <div>Total del viaje: ${((item.driverAmount + item.platformFee) / 100).toFixed(2)}</div>
-                      <div>Tu pago: {formatCurrency(item.driverAmount)} | Comisión: {formatCurrency(item.platformFee)}</div>
+                      <div>{t('driver.payment.tripTotal')} ${((item.driverAmount + item.platformFee) / 100).toFixed(2)}</div>
+                      <div>{t('driver.payment.yourPayment')} {formatCurrency(item.driverAmount)} | {t('driver.payment.commission')} {formatCurrency(item.platformFee)}</div>
                     </div>
                   </div>
                 </div>
@@ -169,7 +172,7 @@ function PaymentHistory() {
                 <span className="material-symbols-rounded">chevron_left</span>
               </button>
               <span style={{ display: 'flex', alignItems: 'center', padding: '0 1rem', color: 'var(--text-secondary)' }}>
-                Página {page} de {totalPages}
+                {t('driver.payment.pageOf', { page, totalPages })}
               </span>
               <button
                 className="btn btn-outline"

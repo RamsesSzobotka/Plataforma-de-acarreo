@@ -9,6 +9,17 @@ const WS_URL = BACKEND_URL.replace('http', 'ws')
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-clerk': ['@clerk/clerk-react'],
+          'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
+          'vendor-i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+        }
+      }
+    }
+  },
   resolve: {
     alias: {
       ...(process.env.VITE_E2E_AUTH_MOCK === '1'

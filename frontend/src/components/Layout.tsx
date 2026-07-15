@@ -1,11 +1,16 @@
 import { Outlet, Link } from 'react-router-dom'
 import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useNotificationBadge } from '../contexts/NotificationBadgeContext'
 
 function Layout() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
+  const { t } = useTranslation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { unreadCount } = useNotificationBadge()
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -53,7 +58,7 @@ function Layout() {
               fontSize: 'var(--text-xl)',
               color: 'var(--text-primary)',
             }}>
-              Cargly
+              Carglyn
             </span>
           </Link>
 
@@ -89,9 +94,17 @@ function Layout() {
                     e.currentTarget.style.color = 'var(--text-secondary)'
                     e.currentTarget.style.background = 'transparent'
                   }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>dashboard</span>
-                  Panel Conductor
+                  {t('nav.driverPanel')}
                 </Link>
 
                 <Link
@@ -117,9 +130,17 @@ function Layout() {
                     e.currentTarget.style.color = 'var(--text-secondary)'
                     e.currentTarget.style.background = 'transparent'
                   }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1.125rem' }}>local_shipping</span>
-                  Mis Pedidos
+                  {t('nav.myRides')}
                 </Link>
 
                 {/* CTA - Nuevo Pedido */}
@@ -132,7 +153,57 @@ function Layout() {
                   }}
                 >
                   <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>add</span>
-                  Nuevo Pedido
+                  {t('nav.createRide')}
+                </Link>
+
+                {/* Notifications Bell */}
+                <Link
+                  to="/notifications"
+                  aria-label={t('nav.notifications')}
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '40px',
+                    height: '40px',
+                    textDecoration: 'none',
+                    color: 'var(--text-secondary)',
+                    borderRadius: '50%',
+                    transition: 'all var(--duration-fast) var(--ease-out)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--text-primary)'
+                    e.currentTarget.style.background = 'var(--surface-1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '1.375rem' }}>notifications</span>
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      minWidth: '16px',
+                      height: '16px',
+                      borderRadius: '8px',
+                      background: 'var(--error)',
+                      color: '#fff',
+                      fontSize: '0.625rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 4px',
+                      lineHeight: 1,
+                      boxShadow: '0 0 0 2px var(--surface-0)',
+                    }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </Link>
 
                 {/* User Button */}
@@ -159,19 +230,14 @@ function Layout() {
                   >
                     <UserButton.MenuItems>
                       <UserButton.Link
-                        label="Ver Perfil Público"
+                        label={t('nav.viewPublicProfile')}
                         labelIcon={<span className="material-symbols-rounded">person</span>}
                         href={`/profile/${user?.id}`}
                       />
                       <UserButton.Link
-                        label="Método de Pago"
-                        labelIcon={<span className="material-symbols-rounded">credit_card</span>}
-                        href="/add-payment-method"
-                      />
-                      <UserButton.Link
-                        label="Conexión MCP"
-                        labelIcon={<span className="material-symbols-rounded">api</span>}
-                        href="/settings/mcp"
+                        label={t('nav.settings')}
+                        labelIcon={<span className="material-symbols-rounded">settings</span>}
+                        href="/settings"
                       />
                     </UserButton.MenuItems>
                   </UserButton>
@@ -183,7 +249,7 @@ function Layout() {
                 className="btn btn-primary"
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>login</span>
-                Iniciar Sesion
+                {t('nav.signIn')}
               </Link>
             )}
           </nav>
@@ -201,7 +267,7 @@ function Layout() {
                 color: 'var(--text-primary)',
                 cursor: 'pointer',
               }}
-              aria-label="Abrir menú"
+              aria-label={t('nav.openMenu')}
             >
               <span className="material-symbols-rounded">menu</span>
             </button>
@@ -210,7 +276,7 @@ function Layout() {
       </header>
 
       {/* Main Content */}
-      <main style={{
+      <main id="main-content" style={{
         flex: 1,
         padding: 'var(--space-8) 0',
         background: 'var(--surface-0)',
@@ -246,7 +312,37 @@ function Layout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <img src="/logos/Carglylogo.png" alt="Carglyn" style={{ height: '24px', width: 'auto' }} />
           </div>
-          <p>2026 Plataforma de Acarreos. Todos los derechos reservados.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+            <Link
+              to="/privacy"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                color: 'var(--text-muted)',
+                textDecoration: 'none',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>privacy_tip</span>
+              {t('footer.privacy', 'Privacidad')}
+            </Link>
+            <Link
+              to="/terms"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-1)',
+                color: 'var(--text-muted)',
+                textDecoration: 'none',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>description</span>
+              {t('footer.terms', 'Términos')}
+            </Link>
+            <p>{t('layout.footer.copyright')}</p>
+          </div>
         </div>
       </footer>
 
@@ -255,6 +351,8 @@ function Layout() {
         <>
           <div
             onClick={() => setMobileMenuOpen(false)}
+            role="presentation"
+            aria-label="Cerrar menú"
             style={{
               position: 'fixed',
               inset: 0,
@@ -288,7 +386,7 @@ function Layout() {
                 cursor: 'pointer',
                 padding: 'var(--space-2)',
               }}
-              aria-label="Cerrar menu"
+              aria-label={t('nav.closeMenu')}
             >
               <span className="material-symbols-rounded">close</span>
             </button>
@@ -324,6 +422,14 @@ function Layout() {
                 e.currentTarget.style.color = 'var(--text-secondary)'
                 e.currentTarget.style.background = 'transparent'
               }}
+              onFocus={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)'
+                e.currentTarget.style.background = 'var(--surface-2)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.background = 'transparent'
+              }}
             >
               <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>dashboard</span>
               Panel Conductor
@@ -353,6 +459,14 @@ function Layout() {
                 e.currentTarget.style.color = 'var(--text-secondary)'
                 e.currentTarget.style.background = 'transparent'
               }}
+              onFocus={(e) => {
+                e.currentTarget.style.color = 'var(--text-primary)'
+                e.currentTarget.style.background = 'var(--surface-2)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)'
+                e.currentTarget.style.background = 'transparent'
+              }}
             >
               <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>local_shipping</span>
               Mis Pedidos
@@ -373,6 +487,91 @@ function Layout() {
 
             {/* Divider */}
             <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)' }}>
+              <Link
+                to="/notifications"
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-medium)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  borderRadius: 'var(--radius)',
+                  transition: 'all var(--duration-fast) var(--ease-out)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>notifications</span>
+                Notificaciones
+                {unreadCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    background: 'var(--error)',
+                    color: '#fff',
+                    borderRadius: '999px',
+                    padding: '0.125rem 0.5rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </Link>
+              <Link
+                to="/settings"
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-medium)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  borderRadius: 'var(--radius)',
+                  transition: 'all var(--duration-fast) var(--ease-out)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                  e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>settings</span>
+                {t('nav.settings')}
+              </Link>
               <UserButton
                 afterSignOutUrl="/"
                 appearance={{
@@ -392,14 +591,9 @@ function Layout() {
                     href={`/profile/${user?.id}`}
                   />
                   <UserButton.Link
-                    label="Método de Pago"
-                    labelIcon={<span className="material-symbols-rounded">credit_card</span>}
-                    href="/add-payment-method"
-                  />
-                  <UserButton.Link
-                    label="Conexión MCP"
-                    labelIcon={<span className="material-symbols-rounded">api</span>}
-                    href="/settings/mcp"
+                    label={t('nav.settings')}
+                    labelIcon={<span className="material-symbols-rounded">settings</span>}
+                    href="/settings"
                   />
                 </UserButton.MenuItems>
               </UserButton>

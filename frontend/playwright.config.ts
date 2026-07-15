@@ -18,6 +18,27 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
+  // Force Spanish locale at browser level so navigator.language returns 'es-ES'
+  // This fixes i18next LanguageDetector resolution to Spanish
+  // Also set localStorage as fallback
+  initScript: `
+    localStorage.setItem('i18nextLng', 'es');
+    Object.defineProperty(navigator, 'language', { value: 'es-ES', writable: true });
+    Object.defineProperty(navigator, 'languages', { value: ['es-ES', 'es'], writable: true });
+  `,
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Locale at browser context level — this is the REAL fix for i18n
+        contextOptions: {
+          locale: 'es-ES',
+          timezoneId: 'America/Panama',
+        },
+      },
+    },
+  ],
   webServer: {
     command: 'bun run dev -- --host 127.0.0.1',
     env: {
@@ -27,10 +48,4 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-  ],
 })

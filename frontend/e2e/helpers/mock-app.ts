@@ -70,6 +70,8 @@ export const driverRide: MockRide = {
 export async function signInAs(page: Page, role: E2ERole) {
   await page.addInitScript((authRole) => {
     window.localStorage.setItem('__e2e_auth_role', authRole)
+    // Force Spanish locale for E2E tests
+    window.localStorage.setItem('i18nextLng', 'es')
     class MockWebSocket extends EventTarget {
       static CONNECTING = 0
       static OPEN = 1
@@ -109,7 +111,11 @@ export async function mockCommonApi(page: Page) {
 export async function mockRideList(page: Page, rides: MockRide[]) {
   await page.route('**/api/rides**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname !== '/api/rides') return route.fallback()
+    // Only intercept /api/rides (list endpoint), fallback for /api/rides/:id
+    if (url.pathname !== '/api/rides' && url.pathname !== '/api/rides/') {
+      await route.fallback()
+      return
+    }
 
     const status = url.searchParams.get('status')
     const driverId = url.searchParams.get('driverId')
@@ -141,8 +147,12 @@ export async function mockRideDetails(page: Page, ride: MockRide, options?: { ha
   await page.route(`**/api/rides/${ride._id}/contacts`, async (route) => {
     await route.fulfill({ json: { data: [] } })
   })
+  // Mock user profile endpoints for both client and driver
+  await page.route('**/api/users/client-user', async (route) => {
+    await route.fulfill({ json: { _id: 'user-client', clerkId: 'client-user', firstName: 'Carla', lastName: 'E2E', imageUrl: '', role: 'client' } })
+  })
   await page.route('**/api/users/driver-user', async (route) => {
-    await route.fulfill({ json: { _id: 'user-driver', clerkId: 'driver-user', firstName: 'Diego', lastName: 'Martinez', imageUrl: '' } })
+    await route.fulfill({ json: { _id: 'user-driver', clerkId: 'driver-user', firstName: 'Diego', lastName: 'Martinez', imageUrl: '', role: 'driver' } })
   })
   await page.route('**/api/users/driver/driver-user', async (route) => {
     await route.fulfill({ json: { _id: 'driver-profile', userId: 'driver-user', vehicleType: 'Camioneta', plate: 'PTY-123', rating: 4.8, totalRides: 32 } })
@@ -158,6 +168,61 @@ export async function mockRideDetails(page: Page, ride: MockRide, options?: { ha
   })
 }
 
+// Mock Stripe para E2E — evita que intente conectar a servidores externos de Stripe
+export async function mockStripe(page: Page) {
+  // Interceptar el script de Stripe desde CDN y reemplazar con un mock
+  await page.route('https://js.stripe.com/v3/**', async (route) => {
+    const mockStripe = `
+      (function() {
+        window.__stripe_mock = true;
+        window.Stripe = function(key) {
+          return {
+            elements: function() {
+              return {
+                getElement: function() {
+                  return {
+                    mount: function() {},
+                    on: function() {},
+                    update: function() {},
+                    unmount: function() {}
+                  };
+                },
+                create: function() {
+                  return {
+                    mount: function() {},
+                    on: function() {},
+                    update: function() {},
+                    unmount: function() {}
+                  };
+                }
+              };
+            },
+            confirmCardSetup: function(clientSecret, options) {
+              return Promise.resolve({
+                setupIntent: { payment_method: 'pm_mock_' + Date.now() },
+                error: null
+              });
+            },
+            createPaymentMethod: function() {
+              return Promise.resolve({
+                paymentMethod: { id: 'pm_mock_' + Date.now() },
+                error: null
+              });
+            }
+          };
+        };
+        window.Stripe.__oxidized = true;
+      })();
+    `
+    await route.fulfill({
+      contentType: 'application/javascript',
+      body: mockStripe,
+    })
+  })
+  // Tambien interceptar la carga del modulo ES de @stripe/stripe-js
+  // Vite carga stripe-js desde js.stripe.com, entonces el route de arriba deberia bastar
+}
+
 export async function mockDriverStatus(page: Page, statusResponse: unknown, availableRides: MockRide[] = [], myRides: MockRide[] = []) {
   await mockCommonApi(page)
   await page.route('**/api/users/driver/me', async (route) => {
@@ -167,12 +232,14 @@ export async function mockDriverStatus(page: Page, statusResponse: unknown, avai
     }
     await route.fulfill({ json: statusResponse })
   })
+  // Available rides: /api/rides/available
   await page.route('**/api/rides/available**', async (route) => {
     const url = new URL(route.request().url())
     const type = url.searchParams.get('type')
     const filtered = type ? availableRides.filter((ride) => ride.type === type) : availableRides
     await route.fulfill({ json: { data: filtered, pagination: { page: 1, limit: 20, total: filtered.length, pages: 1 } } })
   })
+  // My rides: /api/rides?driverId=...
   await page.route('**/api/rides**', async (route: Route) => {
     const url = new URL(route.request().url())
     if (url.pathname !== '/api/rides') return route.fallback()

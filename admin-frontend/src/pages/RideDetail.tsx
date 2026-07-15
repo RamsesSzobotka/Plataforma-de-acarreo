@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 
 interface RideDetail {
@@ -18,6 +18,8 @@ interface RideDetail {
   images: { url: string }[]
   deliveryPhoto?: { url: string }
   cancellationReason?: string
+  refundId?: string
+  paymentIntentId?: string
   clientId?: { firstName?: string; lastName?: string; email: string }
   driverId?: { firstName?: string; lastName?: string; email: string }
   createdAt: string
@@ -26,6 +28,7 @@ interface RideDetail {
 
 export default function RideDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [ride, setRide] = useState<RideDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -105,6 +108,23 @@ export default function RideDetail() {
     }
   }
 
+  async function handleRefund() {
+    if (!id) return
+    const reason = prompt('Motivo del reembolso:')
+    if (!reason) return
+    setActionLoading(true)
+    try {
+      await api.refundRide(id, { reason })
+      alert('Reembolso procesado exitosamente')
+      const updated = await api.getRide(id!)
+      setRide(updated)
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   async function openAssignModal() {
     setActionLoading(true)
     try {
@@ -154,9 +174,9 @@ export default function RideDetail() {
       <div className="empty-state">
         <span className="material-symbols-rounded">inventory_2</span>
         <p>Pedido no encontrado</p>
-        <Link to="/rides" className="action-btn secondary" style={{ marginTop: '1rem' }}>
+        <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ marginTop: '1rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
           Volver
-        </Link>
+        </button>
       </div>
     )
   }
@@ -165,12 +185,12 @@ export default function RideDetail() {
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link to="/rides" className="action-btn secondary">
+          <button onClick={() => navigate(-1)} className="action-btn secondary" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
             <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
               arrow_back
             </span>
             Volver
-          </Link>
+          </button>
           <h2>Detalle del Pedido</h2>
         </div>
       </div>
@@ -358,6 +378,14 @@ export default function RideDetail() {
                 cancel
               </span>
               Cancelar
+            </button>
+          )}
+          {ride.paymentIntentId && ride.status !== 'cancelled' && !ride.refundId && (
+            <button className="action-btn danger" onClick={handleRefund} disabled={actionLoading}>
+              <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+                currency_exchange
+              </span>
+              Reembolsar
             </button>
           )}
           <button className="action-btn danger" onClick={handleDelete} disabled={actionLoading}>

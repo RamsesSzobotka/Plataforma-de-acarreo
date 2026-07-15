@@ -5,7 +5,8 @@ import AddressInput from '../components/AddressInput'
 import MultiFileUpload from '../components/MultiFileUpload'
 import { ridesAPI, usersAPI } from '../services/api'
 import { SectionHeader } from '../components/SectionHeader'
-import { showError, showWarning } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
+import { useTranslation } from 'react-i18next'
 
 interface UploadedImage {
   url: string
@@ -26,16 +27,9 @@ interface RideFormData {
   notes?: string
 }
 
-const rideTypes = [
-  { value: 'mudanza', label: 'Mudanza', icon: 'home' },
-  { value: 'electrodomesticos', label: 'Electrodomesticos', icon: 'kitchen' },
-  { value: 'muebles', label: 'Muebles', icon: 'chair' },
-  { value: 'productos', label: 'Productos', icon: 'inventory_2' },
-  { value: 'otros', label: 'Otros', icon: 'category' },
-]
-
 function CreateRide() {
   const { user } = useUser()
+  const { t } = useTranslation()
   const { getToken } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -43,6 +37,14 @@ function CreateRide() {
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null)
   const [hasSavedPaymentMethod, setHasSavedPaymentMethod] = useState<boolean | null>(null)
   const [checkingPaymentMethod, setCheckingPaymentMethod] = useState(true)
+
+  const rideTypes = [
+    { value: 'mudanza', label: t('ride.type.mudanza'), icon: 'home' },
+    { value: 'electrodomesticos', label: t('ride.type.electrodomesticos'), icon: 'kitchen' },
+    { value: 'muebles', label: t('ride.type.muebles'), icon: 'chair' },
+    { value: 'productos', label: t('ride.type.productos'), icon: 'inventory_2' },
+    { value: 'otros', label: t('ride.type.otros'), icon: 'category' },
+  ]
 
   const [formData, setFormData] = useState<RideFormData>({
     title: '',
@@ -107,17 +109,20 @@ function CreateRide() {
     if (!user) return
 
     if (!formData.pickupCoordinates || !formData.dropoffCoordinates) {
-      await showWarning('Por favor selecciona una direccion de la lista de sugerencias')
+      const { showWarning } = await import('../services/alerts')
+      await showWarning(t('ride.create.validation.pickup'))
       return
     }
 
     if (formData.images.length === 0) {
-      await showWarning('Sube al menos una imagen del pedido')
+      const { showWarning } = await import('../services/alerts')
+      await showWarning(t('ride.create.validation.images'))
       return
     }
 
     if (!formData.type) {
-      await showWarning('Selecciona un tipo de pedido')
+      const { showWarning } = await import('../services/alerts')
+      await showWarning(t('ride.create.validation.type'))
       return
     }
 
@@ -133,7 +138,7 @@ function CreateRide() {
     try {
       const token = await getToken()
       if (!token) {
-        throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+        throw new Error(t('ride.create.validation.session'))
       }
 
       await ridesAPI.create({
@@ -160,7 +165,8 @@ function CreateRide() {
 
       navigate('/my-rides')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error al crear el pedido'
+      const message = error instanceof Error ? error.message : t('ride.create.validation.error')
+      const { showError } = await import('../services/alerts')
       await showError(message)
     } finally {
       setLoading(false)
@@ -175,7 +181,8 @@ function CreateRide() {
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       {/* Back button */}
       <Link
-        to="/my-rides"
+        to=".."
+        relative="path"
         className="btn btn-ghost"
         style={{
           display: 'inline-flex',
@@ -183,17 +190,24 @@ function CreateRide() {
           gap: 'var(--space-2)',
           marginBottom: 'var(--space-6)',
           color: 'var(--text-muted)',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 'inherit',
+          textDecoration: 'none',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver a Mis Pedidos
+        {t('common.back')}
       </Link>
 
       {/* Header */}
       <SectionHeader
         icon="add_circle"
-        title="Crear Nuevo Pedido"
-        description="Completa los detalles de tu acarreo"
+        title={t('ride.create.newTitle')}
+        description={t('ride.create.newDescription')}
         action={
           <div style={{
             display: 'flex',
@@ -206,7 +220,7 @@ function CreateRide() {
             color: 'var(--text-muted)',
           }}>
             <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>info</span>
-            1 de 3 pasos
+            {t('ride.create.steps', { current: 1, total: 3 })}
           </div>
         }
       />
@@ -249,9 +263,9 @@ function CreateRide() {
             ) : '1'}
           </div>
           <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '2px' }}>Paso 1</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '2px' }}>{t('ride.create.step1')}</div>
             <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-medium)', color: formCompleted ? 'var(--success)' : 'var(--text-primary)' }}>
-              Detalles del pedido
+              {t('ride.create.step1Title')}
             </div>
           </div>
         </div>
@@ -293,9 +307,9 @@ function CreateRide() {
             ) : '2'}
           </div>
           <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '2px' }}>Paso 2</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '2px' }}>{t('ride.create.step2')}</div>
             <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-medium)', color: locationsCompleted ? 'var(--success)' : 'var(--text-primary)' }}>
-              Ubicaciones
+              {t('ride.create.step2Title')}
             </div>
           </div>
         </div>
@@ -337,9 +351,9 @@ function CreateRide() {
             ) : '3'}
           </div>
           <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '2px' }}>Paso 3</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '2px' }}>{t('ride.create.step3')}</div>
             <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-medium)', color: priceSet ? 'var(--success)' : 'var(--text-primary)' }}>
-              Precio final
+              {t('ride.create.step3Title')}
             </div>
           </div>
         </div>
@@ -360,7 +374,7 @@ function CreateRide() {
             gap: 'var(--space-3)',
           }}>
             <div className="spinner" style={{ width: '20px', height: '20px' }} />
-            <span style={{ color: 'var(--text-muted)' }}>Verificando metodo de pago...</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('ride.create.checkingPayment')}</span>
           </div>
         ) : hasSavedPaymentMethod ? (
           <div style={{
@@ -376,8 +390,8 @@ function CreateRide() {
           }}>
             <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
             <div>
-              <strong>Metodo de pago verificado</strong>
-              <p style={{ margin: 0, opacity: 0.8, fontSize: 'var(--text-xs)' }}>Tu metodo de pago esta listo para usar</p>
+              <strong>{t('ride.create.paymentVerified')}</strong>
+              <p style={{ margin: 0, opacity: 0.8, fontSize: 'var(--text-xs)' }}>{t('ride.create.paymentVerifiedDesc')}</p>
             </div>
           </div>
         ) : (
@@ -400,18 +414,19 @@ function CreateRide() {
                 color: 'var(--error)',
               }}>
                 <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>warning</span>
-                <strong style={{ fontSize: 'var(--text-sm)' }}>Metodo de pago requerido</strong>
+                <strong style={{ fontSize: 'var(--text-sm)' }}>{t('ride.create.paymentRequired')}</strong>
               </div>
               <Link
                 to="/add-payment-method?redirect=create-ride"
                 className="btn btn-sm"
+                aria-label={t('ride.create.addPaymentMethod')}
                 style={{
                   background: 'var(--error)',
                   color: 'white',
                 }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>add</span>
-                Agregar
+                {t('common.add')}
               </Link>
             </div>
             <p style={{
@@ -419,7 +434,7 @@ function CreateRide() {
               fontSize: 'var(--text-sm)',
               color: 'var(--text-secondary)',
             }}>
-              Debes agregar un metodo de pago antes de crear un pedido.
+              {t('ride.create.paymentRequiredDesc')}
             </p>
           </div>
         )}
@@ -457,21 +472,21 @@ function CreateRide() {
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
               }}>
-                Informacion del Pedido
+                {t('ride.create.sectionBasic')}
               </h3>
               <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Titulo, descripcion y tipo de acarreo
+                {t('ride.create.sectionBasicDesc')}
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
             <div className="form-group">
-              <label className="form-label required">Titulo del pedido</label>
+              <label className="form-label required">{t('ride.create.formTitle')}</label>
               <input
                 type="text"
                 className="input"
-                placeholder="Ej: Mudanza completa de apartamento a casa nueva"
+                placeholder={t('ride.create.formTitlePlaceholder')}
                 value={formData.title}
                 onChange={(e) => updateFormField('title', e.target.value)}
                 required
@@ -479,7 +494,7 @@ function CreateRide() {
             </div>
 
             <div className="form-group">
-              <label className="form-label required">Tipo de acarreo</label>
+              <label className="form-label required">{t('ride.create.formType')}</label>
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
@@ -489,6 +504,7 @@ function CreateRide() {
                   <button
                     key={type.value}
                     type="button"
+                    aria-pressed={formData.type === type.value}
                     onClick={() => updateFormField('type', type.value as RideFormData['type'])}
                     style={{
                       display: 'flex',
@@ -522,11 +538,11 @@ function CreateRide() {
             </div>
 
             <div className="form-group">
-              <label className="form-label required">Descripcion detallada</label>
+              <label className="form-label required">{t('ride.create.formDesc')}</label>
               <textarea
                 className="input"
                 rows={4}
-                placeholder="Describe que necesitas transportar, dimensiones aproximadas, cantidad de bultos..."
+                placeholder={t('ride.create.formDescPlaceholder')}
                 value={formData.description}
                 onChange={(e) => updateFormField('description', e.target.value)}
                 required
@@ -568,16 +584,16 @@ function CreateRide() {
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
               }}>
-                Imagenes del Pedido
+                {t('ride.create.sectionImages')}
               </h3>
               <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Agrega hasta 8 fotos de lo que necesitas transportar
+                {t('ride.create.sectionImagesDesc')}
               </p>
             </div>
           </div>
 
           <MultiFileUpload
-            label="Imágenes del acarreo"
+            label={t('ride.create.formImages')}
             required
             maxFiles={8}
             value={formData.images}
@@ -619,18 +635,18 @@ function CreateRide() {
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
               }}>
-                Ubicaciones
+                {t('ride.create.sectionLocations')}
               </h3>
               <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Punto de recogida y destino final
+                {t('ride.create.sectionLocationsDesc')}
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
             <AddressInput
-              label="Direccion de Recogida"
-              placeholder="Escribe una direccion en Panama..."
+              label={t('ride.create.formPickup')}
+              placeholder={t('ride.create.formPickupPlaceholder')}
               value={formData.pickupAddress}
               coordinates={formData.pickupCoordinates}
               onAddressChange={(address) => updateFormField('pickupAddress', address)}
@@ -659,8 +675,8 @@ function CreateRide() {
             </div>
 
             <AddressInput
-              label="Direccion de Entrega"
-              placeholder="Escribe una direccion en Panama..."
+              label={t('ride.create.formDropoff')}
+              placeholder={t('ride.create.formDropoffPlaceholder')}
               value={formData.dropoffAddress}
               coordinates={formData.dropoffCoordinates}
               onAddressChange={(address) => updateFormField('dropoffAddress', address)}
@@ -703,17 +719,17 @@ function CreateRide() {
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
               }}>
-                Precio y Detalles
+                {t('ride.create.sectionPrice')}
               </h3>
               <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Valor sugerido y informacion adicional
+                {t('ride.create.sectionPriceDesc')}
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
             <div className="form-group">
-              <label className="form-label required">Precio Sugerido (USD)</label>
+              <label className="form-label required">{t('ride.create.formPrice')}</label>
               <div style={{ position: 'relative' }}>
                 <span style={{
                   position: 'absolute',
@@ -731,6 +747,7 @@ function CreateRide() {
                   value={formData.estimatedPrice || ''}
                   onChange={(e) => updateFormField('estimatedPrice', Number(e.target.value))}
                   required
+                  aria-label={t('ride.create.formPrice')}
                   style={{ paddingLeft: 'var(--space-8)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)' }}
                 />
               </div>
@@ -739,7 +756,7 @@ function CreateRide() {
                 fontSize: 'var(--text-xs)',
                 color: 'var(--text-muted)',
               }}>
-                Este precio es una referencia inicial. Podras negociarlo con los conductores.
+                {t('ride.create.formPriceHint')}
               </p>
             </div>
 
@@ -749,7 +766,7 @@ function CreateRide() {
               gap: 'var(--space-4)',
             }}>
               <div className="form-group">
-                <label className="form-label">Numero de Bultos</label>
+                <label className="form-label">{t('ride.create.formPackages')}</label>
                 <input
                   type="number"
                   className="input"
@@ -763,11 +780,11 @@ function CreateRide() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Notas Especiales</label>
+              <label className="form-label">{t('ride.create.formNotes')}</label>
               <textarea
                 className="input"
                 rows={3}
-                placeholder="Ej: Requiere ayuda para cargar, contiene articulos fragiles, horarios flexibles..."
+                placeholder={t('ride.create.formNotesPlaceholder')}
                 value={formData.notes || ''}
                 onChange={(e) => updateFormField('notes', e.target.value)}
               />
@@ -797,12 +814,12 @@ function CreateRide() {
             {loading ? (
               <>
                 <div className="spinner" style={{ width: '20px', height: '20px' }} />
-                Creando pedido...
+                {t('ride.create.submitting')}
               </>
             ) : (
               <>
                 <span className="material-symbols-rounded">send</span>
-                Publicar Pedido
+                {t('ride.create.submit')}
               </>
             )}
           </button>
@@ -813,7 +830,7 @@ function CreateRide() {
             textAlign: 'center',
             margin: 0,
           }}>
-            Direcciones proporcionadas por <a href="https://www.openstreetmap.org" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>OpenStreetMap</a>
+            {t('ride.create.poweredBy')} <a href="https://www.openstreetmap.org" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>OpenStreetMap</a>
           </p>
         </div>
       </form>

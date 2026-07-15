@@ -7,11 +7,17 @@ const navItems = [
   { to: '/users', label: 'Usuarios', icon: 'group' },
   { to: '/drivers', label: 'Conductores', icon: 'local_shipping' },
   { to: '/rides', label: 'Pedidos', icon: 'inventory_2' },
+  { to: '/payments', label: 'Pagos', icon: 'payments' },
+  { to: '/disputes', label: 'Disputas', icon: 'gavel' },
+  { to: '/audit-logs', label: 'Auditoría', icon: 'history' },
+  { to: '/settings', label: 'Ajustes', icon: 'settings' },
 ]
 
 export default function Layout() {
   const navigate = useNavigate()
   const [user, setUser] = useState<any>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
 
   useEffect(() => {
     const userData = localStorage.getItem('adminUser')
@@ -20,15 +26,37 @@ export default function Layout() {
     }
   }, [])
 
+  useEffect(() => {
+    const check = () => {
+      fetch('/health')
+        .then(r => setBackendStatus(r.ok ? 'connected' : 'disconnected'))
+        .catch(() => setBackendStatus('disconnected'))
+    }
+    check()
+    const id = setInterval(check, 30000)
+    return () => clearInterval(id)
+  }, [])
+
   function handleLogout() {
     localStorage.removeItem('adminToken')
     localStorage.removeItem('adminUser')
     navigate('/login')
   }
 
+  function handleNavClick() {
+    setSidebarOpen(false)
+  }
+
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      {/* Overlay */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
           <span className="material-symbols-rounded icon">local_shipping</span>
           <h1>
@@ -41,7 +69,9 @@ export default function Layout() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/dashboard'}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              onClick={handleNavClick}
             >
               <span className="material-symbols-rounded">{item.icon}</span>
               {item.label}
@@ -49,17 +79,39 @@ export default function Layout() {
           ))}
         </nav>
       </aside>
+
       <main className="main-content">
-        {/* Header con usuario y logout */}
+        {/* Header con toggle, health y usuario */}
         <header style={{ 
           display: 'flex', 
-          justifyContent: 'flex-end', 
           alignItems: 'center', 
-          gap: '1rem',
+          gap: '0.75rem',
           padding: '1rem',
           borderBottom: '1px solid #E2E8F0',
           marginBottom: '1.5rem'
         }}>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(v => !v)}>
+            <span className="material-symbols-rounded">
+              {sidebarOpen ? 'close' : 'menu'}
+            </span>
+          </button>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Health indicator */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Servidor:
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
+              background: backendStatus === 'connected' ? '#22C55E'
+                : backendStatus === 'disconnected' ? '#EF4444'
+                : '#F59E0B',
+            }} />
+            {backendStatus === 'connected' ? 'Conectado'
+              : backendStatus === 'disconnected' ? 'Desconectado'
+              : 'Verificando...'}
+          </span>
+
           {user && (
             <span style={{ color: '#64748B', fontSize: '0.875rem' }}>
               {user.email}

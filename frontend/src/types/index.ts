@@ -20,9 +20,14 @@ export interface Ride {
   cancellationReason?: string
   stripePaymentMethodId?: string
   paymentIntentId?: string
+  transferId?: string
   platformFee?: number
   driverAmount?: number
   paidAt?: string
+  refundId?: string
+  refundedAt?: string
+  refundReason?: string
+  distance?: number
   createdAt: string
   updatedAt: string
 }
@@ -146,4 +151,45 @@ export interface PaginatedResponse<T> {
     total: number
     pages: number
   }
+}
+
+export interface Report {
+  _id: string
+  reporterId: string
+  reportedId: string
+  reportedRole: 'client' | 'driver'
+  rideId?: string
+  comment: string
+  category: 'payment_dispute' | 'illicit_actions' | 'other'
+  status: 'pending' | 'in_review' | 'resolved'
+  resolution?: 'refunded' | 'dismissed' | 'warning'
+  resolvedBy?: string
+  resolvedAt?: string
+  createdAt: string
+  updatedAt: string
+  // Populated fields when fetching single report
+  reporter?: {
+    firstName?: string
+    lastName?: string
+    email?: string
+    imageUrl?: string
+  }
+  reported?: {
+    firstName?: string
+    lastName?: string
+    email?: string
+    imageUrl?: string
+  }
+}
+
+export interface AppNotification {
+  _id: string
+  userId: string
+  type: 'report_response' | 'ride_message' | 'offer_accepted' | 'offer_received' | 'ride_status' | 'nearby_rides'
+  title: string
+  body: string
+  read: boolean
+  link?: string
+  metadata?: { rideId?: string; reportId?: string; offerId?: string }
+  createdAt: string
 }

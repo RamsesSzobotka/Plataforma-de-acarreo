@@ -1,18 +1,21 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { PaymentForm } from '../components/PaymentForm'
-import { ridesAPI, usersAPI, ratingsAPI } from '../services/api'
+import { ridesAPI, usersAPI, ratingsAPI, reportsAPI } from '../services/api'
 import { wsService } from '../services/api'
 import { StatusBadge } from '../components/StatusBadge'
 import { TimelineStepper } from '../components/TimelineStepper'
 import type { DriverContact, RatingWithRater } from '../types'
 import type { Ride } from '../types'
 import { useNotifications } from '../contexts/NotificationsContext'
-import { showConfirm, showError, showSuccess } from '../services/alerts'
+import { ReportCategoryModal } from '../components/ReportCategoryModal'
+import Swal from 'sweetalert2'
+// ponytail: showConfirm/showError/showSuccess use dynamic import below
 import { useRideTracking } from '../hooks/useRideTracking'
 import RouteMapWrapper from '../components/RouteMapWrapper'
-import DriverProfilePopup from '../components/DriverProfilePopup'
+
+import { useTranslation } from 'react-i18next'
 
 interface Driver {
   _id: string
@@ -31,26 +34,19 @@ interface User {
   imageUrl?: string
 }
 
-const timelineSteps = [
-  { status: 'requested', label: 'Solicitado' },
-  { status: 'accepted', label: 'Aceptado' },
-  { status: 'in_progress', label: 'En Viaje' },
-  { status: 'completed', label: 'Completado' },
-  { status: 'paid', label: 'Pagado' },
-]
-
 function RideDetails() {
   const { id } = useParams<{ id: string }>()
   const { user } = useUser()
   const { getToken } = useAuth()
   const { unreadCounts } = useNotifications()
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const [ride, setRide] = useState<Ride | null>(null)
   const [driver, setDriver] = useState<Driver | null>(null)
   const [driverUser, setDriverUser] = useState<User | null>(null)
   const [contacts, setContacts] = useState<DriverContact[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
-  const [driverPopup, setDriverPopup] = useState<{ driverUser: any; driver: any; rideId?: string; position: { x: number; y: number } } | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -62,6 +58,18 @@ function RideDetails() {
   const [driverComment, setDriverComment] = useState('')
   const [driverExistingRating, setDriverExistingRating] = useState<RatingWithRater | null>(null)
   const [driverHasRated, setDriverHasRated] = useState(false)
+  const [hasReportedDriver, setHasReportedDriver] = useState(false)
+  const [hasReportedClient, setHasReportedClient] = useState(false)
+
+  // Report modal state
+  const [reportModal, setReportModal] = useState<{
+    isOpen: boolean
+    type: 'driver' | 'client' | null
+    category: string | null
+  }>({ isOpen: false, type: null, category: null })
+
+  // Ref to track if we're currently processing a report to avoid loop
+  const isProcessingReport = useRef(false)
 
   // ── Tracking en vivo del conductor ──
   const { driverLocation, isTracking } = useRideTracking({
@@ -257,12 +265,39 @@ function RideDetails() {
   }, [id])
 
   async function handleCancel() {
-    if (!id) return
+    if (!id || !ride) return
+    const isDriver = user?.id === ride.driverId
+
+    if (isDriver) {
+      // Driver unassign: no refund, vuelve a requested
+      const { showConfirm } = await import('../services/alerts')
+      const confirmed = await showConfirm({
+        title: '¿Retirarte de este acarreo?',
+        text: 'Tu oferta será cancelada y la publicación volverá a estar disponible para otros conductores.',
+        icon: 'warning',
+        confirmText: 'Sí, retirarme'
+      })
+      if (!confirmed) return
+
+      try {
+        const token = await getToken()
+        await ridesAPI.cancel(id, 'Conductor se retiró', token || undefined)
+        loadRide()
+      } catch {
+      }
+      return
+    }
+
+    // Client cancel: con refund si aplica
+    const cancelText = hasAuthorizedPayment
+      ? t('ride.detail.cancelConfirmTextWithRefund', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })
+      : t('ride.detail.cancelConfirmText')
+    const { showConfirm } = await import('../services/alerts')
     const confirmed = await showConfirm({
-      title: 'Cancelar pedido',
-      text: 'Estas seguro de cancelar este pedido?',
+      title: t('ride.detail.cancelConfirmTitle'),
+      text: cancelText,
       icon: 'warning',
-      confirmText: 'Si, cancelar'
+      confirmText: t('ride.detail.cancelConfirmBtn')
     })
 
     if (!confirmed) return
@@ -278,20 +313,22 @@ function RideDetails() {
   async function handleConfirmDelivery() {
     if (!user || !ride || !id) return
 
+    const amount = ride.finalPrice || ride.estimatedPrice
     const confirmMessage = userHasPaymentMethod
-      ? '¿Confirmas que la entrega está completa?\n\nSe cobrará automáticamente a tu forma de pago guardada.'
-      : '¿Confirmas que la entrega está completa?\n\nNota: Necesitarás agregar un método de pago después.'
+      ? t('ride.detail.confirmDeliveryWithPayment', { amount: amount.toLocaleString() })
+      : t('ride.detail.confirmDeliveryWithoutPayment')
 
+    const { showConfirm } = await import('../services/alerts')
     const confirmed = await showConfirm({
-      title: 'Confirmar entrega',
-      text: confirmMessage
+      title: t('ride.detail.confirmDelivery'),
+      text: confirmMessage,
     })
 
     if (!confirmed) return
 
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      if (!token) throw new Error(t('auth.sessionInvalid'))
 
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/confirm-delivery`, {
         method: 'POST',
@@ -303,20 +340,22 @@ function RideDetails() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Error al confirmar entrega')
+        throw new Error(error.error || t('ride.detail.confirmDeliveryError'))
       }
 
       const result = await response.json()
+      const mod = await import('../services/alerts')
 
       if (result.message?.includes('pagado')) {
-        await showSuccess('Entrega confirmada y pago procesado exitosamente')
+        await mod.showSuccess(t('ride.detail.confirmDeliverySuccessPaid'))
       } else {
-        await showSuccess('Entrega confirmada. Pago realizado con exito')
+        await mod.showSuccess(t('ride.detail.confirmDeliverySuccess'))
       }
 
       loadRide()
     } catch (error) {
-      await showError(error instanceof Error ? error.message : 'Error al confirmar entrega')
+      const { showError } = await import('../services/alerts')
+      await showError(error instanceof Error ? error.message : t('ride.detail.confirmDeliveryError'))
     }
   }
 
@@ -334,7 +373,7 @@ function RideDetails() {
     if (!ride || rating === 0 || !user || !id) return
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      if (!token) throw new Error(t('auth.sessionInvalid'))
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/rate`, {
         method: 'POST',
         headers: {
@@ -347,20 +386,21 @@ function RideDetails() {
           raterId: user.id,
         }),
       })
+      const mod = await import('../services/alerts')
       if (response.ok) {
-        await showSuccess('Calificacion enviada')
+        await mod.showSuccess(t('ride.detail.ratingSent'))
         setRating(0)
         setComment('')
         loadRide()
       } else if (response.status === 409) {
-        // Intento de duplicar calificación — el backend rechaza correctamente
         const data = await response.json()
-        await showError(data.error || 'Ya has calificado este acarreo')
+        await mod.showError(data.error || t('ride.detail.ratingAlreadyRated'))
       } else {
-        await showError('Error al enviar la calificacion')
+        await mod.showError(t('ride.detail.ratingError'))
       }
     } catch (err) {
-      await showError((err as Error).message || 'Error al enviar la calificacion')
+      const { showError } = await import('../services/alerts')
+      await showError((err as Error).message || t('ride.detail.ratingError'))
     }
   }
 
@@ -368,7 +408,7 @@ function RideDetails() {
     if (!ride || driverRating === 0 || !user || !id) return
     try {
       const token = await getToken()
-      if (!token) throw new Error('Sesion no valida. Inicia sesion nuevamente.')
+      if (!token) throw new Error(t('auth.sessionInvalid'))
       const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/rides/${id}/rate`, {
         method: 'POST',
         headers: {
@@ -381,36 +421,257 @@ function RideDetails() {
           raterId: user.id,
         }),
       })
+      const mod = await import('../services/alerts')
       if (response.ok) {
-        await showSuccess('Calificacion enviada')
+        await mod.showSuccess(t('ride.detail.ratingSent'))
         setDriverRating(0)
         setDriverComment('')
         loadRide()
       } else if (response.status === 409) {
         const data = await response.json()
-        await showError(data.error || 'Ya has calificado este acarreo')
+        await mod.showError(data.error || t('ride.detail.ratingAlreadyRated'))
       } else {
-        await showError('Error al enviar la calificacion')
+        await mod.showError(t('ride.detail.ratingError'))
       }
     } catch (err) {
-      await showError((err as Error).message || 'Error al enviar la calificacion')
+      const { showError } = await import('../services/alerts')
+      await showError((err as Error).message || t('ride.detail.ratingError'))
     }
   }
 
-  const handleContactClick = (contact: DriverContact, e: React.MouseEvent) => {
-    const driverData = {
-      clerkId: contact.driverId,
-      firstName: contact.driver?.firstName,
-      lastName: contact.driver?.lastName,
-      imageUrl: contact.driver?.imageUrl,
+  function openReportModal(type: 'driver' | 'client') {
+    isProcessingReport.current = false
+    setReportModal({ isOpen: true, type, category: null })
+  }
+
+  async function handleReportCategorySelect(category: string) {
+    setReportModal((prev) => ({ ...prev, isOpen: false, category }))
+  }
+
+  async function handleDownloadInvoice() {
+    if (!id || !ride) return
+    try {
+      const token = await getToken()
+      if (!token) {
+        console.error('No token available')
+        return
+      }
+
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const response = await fetch(`${apiUrl}/api/rides/${id}/invoice`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Error al descargar factura' }))
+        throw new Error(error.error || 'Error al descargar factura')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `factura-carglyn-${ride._id.slice(-8)}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading invoice:', err)
+      const { showError } = await import('../services/alerts')
+      showError(err instanceof Error ? err.message : 'Error al descargar factura')
     }
-    setDriverPopup({
-      driverUser: driverData,
-      driver: null,
-      rideId: `${id}?contactId=${contact._id}&driverId=${contact.driverId}`,
-      position: { x: e.clientX, y: e.clientY },
+  }
+
+  async function handleReportDriver() {
+    const token = await getToken()
+    if (!token || !ride?.driverId) return
+
+    // First step: select category using custom modal
+    openReportModal('driver')
+  }
+
+  async function handleReportDriverSecondStep() {
+    const token = await getToken()
+    if (!token || !ride?.driverId || !reportModal.category) return
+
+    const { value: comment } = await Swal.fire({
+      background: '#1E293B',
+      color: '#F1F5F9',
+      title: reportModal.category === 'payment_dispute' ? 'Detalle de la disputa' : 'Describe el problema',
+      text: 'Minimo 10 caracteres',
+      input: 'textarea',
+      inputPlaceholder: 'Escribe aqui el motivo...',
+      inputAttributes: {
+        style: 'background: #334155; color: #F8FAFC; border: 1px solid #475569; border-radius: 8px; padding: 12px;'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Enviar Reporte',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      inputValidator: (value: string) => {
+        if (!value || value.trim().length < 10) {
+          return 'El comentario debe tener al menos 10 caracteres'
+        }
+      },
+      showLoaderOnConfirm: true,
+      preConfirm: async (comment: string) => {
+        try {
+          const token = await getToken()
+          await reportsAPI.create({
+            reportedId: ride!.driverId!,
+            reportedRole: 'driver',
+            rideId: ride!._id,
+            comment: comment.trim(),
+            category: reportModal.category ?? undefined,
+          }, token ?? undefined)
+          return true
+        } catch (err: any) {
+          Swal.showValidationMessage(err.message || 'Error al enviar reporte')
+          return false
+        }
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    })
+
+    if (comment) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reporte Enviado',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisara pronto.',
+        confirmButtonColor: '#0D9488',
+      })
+      setHasReportedDriver(true)
+    }
+    setReportModal({ isOpen: false, type: null, category: null })
+  }
+
+  async function handleReportClient() {
+    const token = await getToken()
+    if (!token || !ride?.clientId) return
+
+    // First step: select category using custom modal
+    openReportModal('client')
+  }
+
+  async function handleReportClientSecondStep() {
+    const token = await getToken()
+    if (!token || !ride?.clientId || !reportModal.category) return
+
+    const { value: comment } = await Swal.fire({
+      background: '#1E293B',
+      color: '#F1F5F9',
+      title: 'Describe el problema',
+      text: 'Minimo 10 caracteres',
+      input: 'textarea',
+      inputPlaceholder: 'Escribe aqui el motivo...',
+      inputAttributes: {
+        style: 'background: #334155; color: #F8FAFC; border: 1px solid #475569; border-radius: 8px; padding: 12px;'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Enviar Reporte',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#64748B',
+      reverseButtons: true,
+      inputValidator: (value: string) => {
+        if (!value || value.trim().length < 10) {
+          return 'El comentario debe tener al menos 10 caracteres'
+        }
+      },
+      showLoaderOnConfirm: true,
+      preConfirm: async (comment: string) => {
+        try {
+          const token = await getToken()
+          await reportsAPI.create({
+            reportedId: ride!.clientId,
+            reportedRole: 'client',
+            rideId: ride!._id,
+            comment: comment.trim(),
+            category: reportModal.category ?? undefined,
+          }, token ?? undefined)
+          return true
+        } catch (err: any) {
+          Swal.showValidationMessage(err.message || 'Error al enviar reporte')
+          return false
+        }
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    })
+
+    if (comment) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reporte Enviado',
+        text: 'Hemos recibido tu reporte. Un administrador lo revisara pronto.',
+        confirmButtonColor: '#0D9488',
+      })
+      setHasReportedClient(true)
+    }
+    setReportModal({ isOpen: false, type: null, category: null })
+  }
+
+  function showDriverSwal(driverUser: any, driverInfo: any, rideIdForChat?: string) {
+    const rating = driverInfo?.rating
+    const totalRides = driverInfo?.totalRides
+
+    Swal.fire({
+      background: '#1E293B',
+      color: '#F1F5F9',
+      width: 340,
+      padding: '24px',
+      showConfirmButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Ver Perfil',
+      cancelButtonText: 'Enviar Mensaje',
+      confirmButtonColor: '#0D9488',
+      cancelButtonColor: '#F97316',
+      reverseButtons: true,
+      html: `
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;text-align:left">
+          ${driverUser?.imageUrl
+            ? `<img src="${driverUser.imageUrl}" alt="${driverUser.firstName || ''}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #0D9488;flex-shrink:0" />`
+            : `<div style="width:56px;height:56px;border-radius:50%;background:#0D9488;color:white;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0">${(driverUser?.firstName?.[0] || 'D').toUpperCase()}</div>`
+          }
+          <div style="min-width:0;flex:1">
+            <div style="font-size:16px;font-weight:600;color:#F1F5F9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${driverUser?.firstName || ''} ${driverUser?.lastName || ''}</div>
+            ${rating ? `
+              <div style="display:flex;align-items:center;gap:4px;font-size:13px;color:#94A3B8;margin-top:4px">
+                <span style="display:flex">
+                  ${Array.from({ length: 5 }, (_, i) =>
+                    `<span class="material-symbols-rounded" style="font-size:14px;color:${i < Math.round(rating) ? '#F59E0B' : '#475569'};font-variation-settings:'FILL' ${i < Math.round(rating) ? 1 : 0}">star</span>`
+                  ).join('')}
+                </span>
+                <span>${rating} (${totalRides || 0})</span>
+              </div>
+            ` : '<div style="font-size:13px;color:#94A3B8;margin-top:4px">Sin calificaciones</div>'}
+          </div>
+        </div>
+      `,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        navigate(`/profile/${driverUser?.clerkId}`)
+      } else if (result.isDismissed && result.dismiss === Swal.DismissReason.cancel) {
+        if (rideIdForChat) navigate(`/chat/${rideIdForChat}`)
+      }
     })
   }
+
+  // Effect to trigger second step after category is selected
+  useEffect(() => {
+    if (reportModal.category && reportModal.type && !isProcessingReport.current) {
+      isProcessingReport.current = true
+      if (reportModal.type === 'driver') {
+        handleReportDriverSecondStep()
+      } else {
+        handleReportClientSecondStep()
+      }
+    }
+  }, [reportModal.category, reportModal.type])
 
   if (loading) {
     return (
@@ -421,29 +682,44 @@ function RideDetails() {
     )
   }
 
-  if (!ride) return <div>Pedido no encontrado</div>
+  if (!ride) return <div>{t('ride.detail.noRideFound')}</div>
 
   const isClientOwner = user?.id === ride.clientId
   const isDriverOwner = user?.id === ride.driverId
   const isOwner = isClientOwner
-  const canClientCancel = isClientOwner && ride.status === 'requested'
+
+  // Client can cancel if: owner AND (requested OR negotiating OR (accepted with paymentIntent but no transfer yet))
+  const clientCancelStatuses = ['requested', 'negotiating']
+  const hasAuthorizedPayment = !!(ride.paymentIntentId && !ride.transferId)
+  const canClientCancel = isClientOwner && (
+    clientCancelStatuses.includes(ride.status) ||
+    (ride.status === 'accepted' && hasAuthorizedPayment)
+  )
   const canDriverCancel = isDriverOwner && ride.status === 'accepted'
 
   const unreadCount = unreadCounts[ride._id] || 0
 
+  const timelineSteps = [
+    { status: 'requested', label: t('ride.status.requested') },
+    { status: 'accepted', label: t('ride.status.accepted') },
+    { status: 'in_progress', label: t('ride.status.in_progress') },
+    { status: 'completed', label: t('ride.status.completed') },
+    { status: 'paid', label: t('ride.status.paid') },
+  ]
+
   const typeLabels: Record<string, string> = {
-    mudanza: 'Mudanza',
-    electrodomesticos: 'Electrodomesticos',
-    muebles: 'Muebles',
-    productos: 'Productos',
-    otros: 'Otros',
+    mudanza: t('ride.type.mudanza'),
+    electrodomesticos: t('ride.type.electrodomesticos'),
+    muebles: t('ride.type.muebles'),
+    productos: t('ride.type.productos'),
+    otros: t('ride.type.otros'),
   }
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 var(--space-4)' }}>
       {/* Back button */}
-      <Link
-        to="/my-rides"
+      <button
+        onClick={() => navigate(-1)}
         className="btn btn-ghost"
         style={{
           display: 'inline-flex',
@@ -451,11 +727,17 @@ function RideDetails() {
           gap: 'var(--space-2)',
           marginBottom: 'var(--space-6)',
           color: 'var(--text-muted)',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 'inherit',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver a Mis Pedidos
-      </Link>
+        {t('common.back')}
+      </button>
 
       {/* Hero Section with Status */}
       <div
@@ -494,7 +776,7 @@ function RideDetails() {
               }}
             >
               <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>chat</span>
-              {unreadCount > 99 ? '99+' : unreadCount} mensajes
+              {t('ride.detail.messages', { count: unreadCount > 99 ? '99+' : unreadCount })}
             </div>
           )}
 
@@ -526,6 +808,28 @@ function RideDetails() {
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 {ride.description}
               </p>
+              {user?.id && user?.id !== ride.clientId && !hasReportedClient && (
+                <button
+                  onClick={handleReportClient}
+                  title="Reportar cliente"
+                  aria-label="Reportar cliente"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#64748B',
+                    padding: '4px',
+                    marginTop: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>flag</span>
+                  Reportar cliente
+                </button>
+              )}
             </div>
           </div>
 
@@ -593,10 +897,10 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Imagenes del Pedido
+                    {t('ride.detail.images')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {ride.images.length} imagen{ride.images.length !== 1 ? 'es' : ''}
+                    {t('ride.detail.imageCount', { count: ride.images.length })}
                   </span>
                 </div>
               </div>
@@ -607,31 +911,34 @@ function RideDetails() {
                 gap: 'var(--space-3)',
               }}>
                 {ride.images.map((img, idx) => (
-                  <div
+                  <button
                     key={idx}
+                    type="button"
+                    aria-label={`Ver imagen ${idx + 1}`}
                     onClick={() => setSelectedImage(img.url)}
                     style={{
                       position: 'relative',
                       borderRadius: 'var(--radius)',
                       overflow: 'hidden',
-                      cursor: 'pointer',
                       aspectRatio: '4/3',
                       background: 'var(--surface-1)',
                       transition: 'transform var(--duration-fast) var(--ease-out)',
+                      border: 'none',
+                      padding: 0,
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                   >
                     <img
                       src={img.url}
-                      alt={`Imagen ${idx + 1}`}
+                      alt={t('ride.detail.imageAlt', { index: idx + 1 })}
                       style={{
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
                       }}
                     />
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -670,7 +977,7 @@ function RideDetails() {
                 fontWeight: 'var(--font-semibold)',
                 margin: 0,
               }}>
-                Ubicaciones
+                {t('ride.detail.locations')}
               </h3>
             </div>
 
@@ -706,7 +1013,7 @@ function RideDetails() {
                     letterSpacing: '0.05em',
                     marginBottom: 'var(--space-1)',
                   }}>
-                    Recogida
+                    {t('ride.detail.pickup')}
                   </div>
                   <div style={{
                     fontSize: 'var(--text-sm)',
@@ -767,7 +1074,7 @@ function RideDetails() {
                     letterSpacing: '0.05em',
                     marginBottom: 'var(--space-1)',
                   }}>
-                    Entrega
+                    {t('ride.detail.dropoff')}
                   </div>
                   <div style={{
                     fontSize: 'var(--text-sm)',
@@ -819,7 +1126,7 @@ function RideDetails() {
                     <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>
                       my_location
                     </span>
-                    Conductor en vivo — ubicacion actualizada en tiempo real
+                    {t('ride.detail.liveDriverLocation')}
                   </div>
                 )}
               </div>
@@ -861,10 +1168,10 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Foto de Entrega
+                    {t('ride.detail.deliveryPhoto')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    Confirmacion visual del servicio
+                    {t('ride.detail.deliveryPhotoDesc')}
                   </span>
                 </div>
               </div>
@@ -876,7 +1183,7 @@ function RideDetails() {
               }}>
                 <img
                   src={ride.deliveryPhoto.url}
-                  alt="Entrega"
+                  alt={t('ride.detail.deliveryPhotoAlt')}
                   style={{
                     width: '100%',
                     aspectRatio: '16/9',
@@ -927,42 +1234,46 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Conductor Asignado
+                    {t('ride.detail.assignedDriver')}
                   </h3>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {driverUser.imageUrl ? (
-                  <img
-                    src={driverUser.imageUrl}
-                    alt={driverUser.firstName}
-                    onClick={(e) => setDriverPopup({
-                      driverUser,
-                      driver,
-                      rideId: ride?._id,
-                      position: { x: e.clientX, y: e.clientY },
-                    })}
+                  <button
+                    type="button"
+                    aria-label="Ver perfil del conductor"
+                    onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      borderRadius: '50%',
+                      display: 'inline-flex',
+                    }}
+                  >
+                    <img
+                      src={driverUser.imageUrl}
+                      alt={driverUser.firstName}
                       style={{
                         width: '64px',
                         height: '64px',
                         borderRadius: '50%',
                         objectFit: 'cover',
                         border: '3px solid var(--primary-subtle)',
-                        cursor: 'pointer',
                         transition: 'opacity 0.2s',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
                       onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
                     />
+                  </button>
                   ) : (
-                    <div
-                      onClick={(e) => setDriverPopup({
-                      driverUser,
-                      driver,
-                      rideId: ride?._id,
-                      position: { x: e.clientX, y: e.clientY },
-                    })}
+                  <button
+                    type="button"
+                    aria-label="Ver perfil del conductor"
+                    onClick={() => showDriverSwal(driverUser, driver, ride?._id)}
                     style={{
                       width: '64px',
                       height: '64px',
@@ -975,11 +1286,12 @@ function RideDetails() {
                       fontSize: 'var(--text-xl)',
                       fontWeight: 'var(--font-bold)',
                       border: '3px solid var(--primary-subtle)',
+                      padding: 0,
                       cursor: 'pointer',
                     }}
                   >
                     {driverUser.firstName?.charAt(0) || 'D'}
-                  </div>
+                  </button>
                 )}
                 <div style={{ flex: 1 }}>
                   <div style={{
@@ -990,6 +1302,24 @@ function RideDetails() {
                   }}>
                     {driverUser.firstName} {driverUser.lastName}
                   </div>
+                  {ride.clientId === user?.id && ride.driverId && !hasReportedDriver && (
+                    <button
+                      onClick={handleReportDriver}
+                      title="Reportar conductor"
+                      aria-label="Reportar conductor"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#64748B',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: '20px' }}>flag</span>
+                    </button>
+                  )}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1003,7 +1333,7 @@ function RideDetails() {
                         star
                       </span>
                       <strong style={{ color: 'var(--text-primary)' }}>{driver.rating}</strong>
-                      ({driver.totalRides} viajes)
+                      ({driver.totalRides} {t('profile.public.rides')})
                     </span>
                   </div>
                   <div style={{
@@ -1030,7 +1360,7 @@ function RideDetails() {
                   }}
                 >
                   <span className="material-symbols-rounded">chat</span>
-                  Chatear con Conductor
+                  {t('ride.detail.chatWithDriver')}
                 </Link>
               )}
 
@@ -1044,7 +1374,7 @@ function RideDetails() {
                   }}
                 >
                   <span className="material-symbols-rounded">chat</span>
-                  Chatear con Cliente
+                  {t('ride.detail.chatWithClient')}
                 </Link>
               )}
             </div>
@@ -1084,10 +1414,10 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    Conductores Interesados
+                    {t('ride.detail.interestedDrivers')}
                   </h3>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {contacts.length} conductor{contacts.length !== 1 ? 'es' : ''} te ha escrito
+                    {t('ride.detail.interestedDriversSubtitle', { count: contacts.length })}
                   </span>
                 </div>
               </div>
@@ -1096,7 +1426,11 @@ function RideDetails() {
                 {contacts.map((contact) => (
                   <div
                     key={contact._id}
-                    onClick={(e) => handleContactClick(contact, e)}
+                    onClick={() => showDriverSwal(
+                      { clerkId: contact.driverId, firstName: contact.driver?.firstName, lastName: contact.driver?.lastName, imageUrl: contact.driver?.imageUrl },
+                      null,
+                      `${id}?contactId=${contact._id}&driverId=${contact.driverId}`
+                    )}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -1181,7 +1515,7 @@ function RideDetails() {
                 color: 'var(--text-muted)',
                 textAlign: 'center',
               }}>
-                Haz click en un conductor para iniciar conversacion
+                {t('ride.detail.interestedDriversHint')}
               </p>
             </div>
           )}
@@ -1222,7 +1556,7 @@ function RideDetails() {
                   fontWeight: 'var(--font-semibold)',
                   margin: 0,
                 }}>
-                  Resumen del Pago
+                  {t('ride.detail.paymentSummary')}
                 </h3>
               </div>
             </div>
@@ -1243,7 +1577,7 @@ function RideDetails() {
                   letterSpacing: '0.05em',
                   marginBottom: 'var(--space-1)',
                 }}>
-                  Precio {ride.finalPrice ? 'final' : 'sugerido'}
+                  {ride.finalPrice ? t('ride.detail.finalPrice') : t('ride.detail.estimatedPrice')}
                 </div>
                 <div style={{
                   fontFamily: 'var(--font-mono)',
@@ -1266,7 +1600,49 @@ function RideDetails() {
                   color: 'var(--success)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '0.875rem' }}>done</span>
-                  Precio negociado
+                  {t('ride.detail.negotiatedPrice')}
+                </div>
+              )}
+
+              {/* Payment status messages */}
+              {hasAuthorizedPayment && !ride.paidAt && (
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  display: 'flex',
+                  gap: 'var(--space-2)',
+                  alignItems: 'center',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
+                    check_circle
+                  </span>
+                  <span>
+                    {t('ride.detail.paymentMade', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
+                  </span>
+                </div>
+              )}
+              {ride.transferId && (
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--success-subtle)',
+                  borderRadius: 'var(--radius)',
+                  display: 'flex',
+                  gap: 'var(--space-2)',
+                  alignItems: 'center',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--success)',
+                }}>
+                  <span className="material-symbols-rounded" style={{ fontSize: '1rem', flexShrink: 0 }}>
+                    check_circle
+                  </span>
+                  <span>
+                    {t('ride.detail.paymentToDriver')}
+                  </span>
                 </div>
               )}
             </div>
@@ -1284,7 +1660,7 @@ function RideDetails() {
                   }}
                 >
                   <span className="material-symbols-rounded">cancel</span>
-                  Cancelar Pedido
+                  {t('ride.detail.cancel')}
                 </button>
               )}
 
@@ -1295,7 +1671,7 @@ function RideDetails() {
                   style={{ width: '100%' }}
                 >
                   <span className="material-symbols-rounded">check_circle</span>
-                  Confirmar Entrega
+                  {t('ride.detail.confirmDelivery')}
                 </button>
               )}
 
@@ -1306,7 +1682,7 @@ function RideDetails() {
                   style={{ width: '100%', textAlign: 'center' }}
                 >
                   <span className="material-symbols-rounded">credit_card</span>
-                  Agregar Metodo de Pago
+                  {t('ride.detail.addPaymentMethod')}
                 </Link>
               )}
 
@@ -1317,24 +1693,41 @@ function RideDetails() {
                   style={{ width: '100%' }}
                 >
                   <span className="material-symbols-rounded">payment</span>
-                  Pagar ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()}
+                  {t('ride.detail.payNow', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
                 </button>
               )}
 
               {(ride.status === 'paid' || ride.paidAt) && isClientOwner && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 'var(--space-2)',
-                  padding: 'var(--space-4)',
-                  background: 'var(--success-subtle)',
-                  borderRadius: 'var(--radius)',
-                  color: 'var(--success)',
-                  fontWeight: 'var(--font-semibold)',
-                }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
-                  Pago Confirmado
+                <div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 'var(--space-2)',
+                    padding: 'var(--space-4)',
+                    background: 'var(--success-subtle)',
+                    borderRadius: 'var(--radius)',
+                    color: 'var(--success)',
+                    fontWeight: 'var(--font-semibold)',
+                  }}>
+                    <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>check_circle</span>
+                    {t('ride.detail.paymentConfirmed')}
+                  </div>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    className="btn btn-secondary"
+                    style={{
+                      width: '100%',
+                      marginTop: 'var(--space-3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 'var(--space-2)',
+                    }}
+                  >
+                    <span className="material-symbols-rounded">description</span>
+                    Descargar Factura
+                  </button>
                 </div>
               )}
             </div>
@@ -1367,7 +1760,7 @@ function RideDetails() {
                   className="btn btn-ghost"
                   style={{ width: '100%', marginTop: 'var(--space-3)' }}
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </div>
             )}
@@ -1387,9 +1780,9 @@ function RideDetails() {
                   info
                 </span>
                 <div style={{ fontSize: 'var(--text-sm)' }}>
-                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Pago Automatico</strong>
+                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>{t('ride.detail.autoPaymentTitle')}</strong>
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    Se cobrara automaticamente ${(ride.finalPrice || ride.estimatedPrice).toLocaleString()} a tu forma de pago guardada.
+                    {t('ride.detail.autoPaymentDescription', { amount: (ride.finalPrice || ride.estimatedPrice).toLocaleString() })}
                   </span>
                 </div>
               </div>
@@ -1409,9 +1802,9 @@ function RideDetails() {
                   warning
                 </span>
                 <div style={{ fontSize: 'var(--text-sm)' }}>
-                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>Metodo de Pago Requerido</strong>
+                  <strong style={{ display: 'block', marginBottom: 'var(--space-1)' }}>{t('ride.detail.paymentRequiredTitle')}</strong>
                   <span style={{ color: 'var(--text-secondary)' }}>
-                    Debes agregar un metodo de pago para completar el pedido.
+                    {t('ride.detail.paymentRequired')}
                   </span>
                 </div>
               </div>
@@ -1455,7 +1848,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    {hasRated ? 'Tu Calificacion' : 'Calificar Servicio'}
+                    {hasRated ? t('ride.detail.yourRating') : t('ride.detail.rateService')}
                   </h3>
                   {hasRated && (
                     <span style={{
@@ -1463,7 +1856,7 @@ function RideDetails() {
                       color: 'var(--success)',
                       fontWeight: 'var(--font-medium)',
                     }}>
-                      Ya calificaste este acarreo
+                      {t('ride.detail.alreadyRated')}
                     </span>
                   )}
                 </div>
@@ -1508,7 +1901,7 @@ function RideDetails() {
                     fontSize: 'var(--text-xs)',
                     color: 'var(--text-muted)',
                   }}>
-                    Calificado el {new Date(existingRating.createdAt).toLocaleDateString('es-ES', {
+                    {t('ride.detail.ratedOn')} {new Date(existingRating.createdAt).toLocaleDateString(i18n.language || 'en', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
@@ -1550,7 +1943,7 @@ function RideDetails() {
 
                   <textarea
                     className="input"
-                    placeholder="Comentario (opcional)"
+                    placeholder={t('ride.detail.commentPlaceholder')}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     style={{ marginBottom: 'var(--space-4)' }}
@@ -1563,7 +1956,7 @@ function RideDetails() {
                     style={{ width: '100%' }}
                   >
                     <span className="material-symbols-rounded">send</span>
-                    Enviar Calificacion
+                    {t('ride.detail.submitRating')}
                   </button>
                 </>
               )}
@@ -1607,7 +2000,7 @@ function RideDetails() {
                     fontWeight: 'var(--font-semibold)',
                     margin: 0,
                   }}>
-                    {driverHasRated ? 'Tu Calificacion' : 'Calificar Cliente'}
+                    {driverHasRated ? t('ride.detail.yourRating') : t('ride.detail.rateClient')}
                   </h3>
                   {driverHasRated && (
                     <span style={{
@@ -1615,7 +2008,7 @@ function RideDetails() {
                       color: 'var(--success)',
                       fontWeight: 'var(--font-medium)',
                     }}>
-                      Ya calificaste este acarreo
+                      {t('ride.detail.alreadyRated')}
                     </span>
                   )}
                 </div>
@@ -1660,7 +2053,7 @@ function RideDetails() {
                     fontSize: 'var(--text-xs)',
                     color: 'var(--text-muted)',
                   }}>
-                    Calificado el {new Date(driverExistingRating.createdAt).toLocaleDateString('es-ES', {
+                    {t('ride.detail.ratedOn')} {new Date(driverExistingRating.createdAt).toLocaleDateString(i18n.language || 'en', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
@@ -1702,7 +2095,7 @@ function RideDetails() {
 
                   <textarea
                     className="input"
-                    placeholder="Comentario (opcional)"
+                    placeholder={t('ride.detail.commentPlaceholder')}
                     value={driverComment}
                     onChange={(e) => setDriverComment(e.target.value)}
                     style={{ marginBottom: 'var(--space-4)' }}
@@ -1715,10 +2108,37 @@ function RideDetails() {
                     style={{ width: '100%' }}
                   >
                     <span className="material-symbols-rounded">send</span>
-                    Enviar Calificacion
+                    {t('ride.detail.submitRating')}
                   </button>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Driver Invoice Download */}
+          {ride.status === 'paid' && isDriverOwner && (
+            <div className="card" style={{ animation: 'fadeInUp var(--duration-normal) var(--ease-out)', animationDelay: '350ms', animationFillMode: 'both' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--success-subtle)', color: 'var(--success)', borderRadius: 'var(--radius)' }}>
+                  <span className="material-symbols-rounded">description</span>
+                </div>
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-semibold)', margin: 0 }}>
+                    Factura
+                  </h3>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    Descarga el comprobante de pago
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleDownloadInvoice}
+                className="btn btn-secondary"
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}
+              >
+                <span className="material-symbols-rounded">download</span>
+                Descargar Factura
+              </button>
             </div>
           )}
         </div>
@@ -1776,16 +2196,20 @@ function RideDetails() {
         </div>
       )}
 
-      {/* Driver Profile Popup */}
-      {driverPopup && (
-        <DriverProfilePopup
-          driverUser={driverPopup.driverUser}
-          driver={driverPopup.driver}
-          rideId={driverPopup.rideId}
-          position={driverPopup.position}
-          onClose={() => setDriverPopup(null)}
-        />
-      )}
+      {/* Report Category Modal */}
+      <ReportCategoryModal
+        isOpen={reportModal.isOpen}
+        title={reportModal.type === 'driver' ? 'Reportar Conductor' : 'Reportar Cliente'}
+        categories={[
+          { value: 'illicit_actions', label: 'Comportamiento inapropiado', description: 'Conducta agresiva, irrespetuosa o inapropiada' },
+          ...(ride?.paymentIntentId && ride?.driverId
+            ? [{ value: 'payment_dispute', label: 'Disputa de pago', description: 'Problemas relacionados con el pago del servicio' }]
+            : []),
+          { value: 'other', label: 'Otro', description: 'Otra razon no mencionada anteriormente' },
+        ]}
+        onSelect={handleReportCategorySelect}
+        onClose={() => setReportModal({ isOpen: false, type: null, category: null })}
+      />
     </div>
   )
 }

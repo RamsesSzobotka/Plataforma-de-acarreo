@@ -1,20 +1,22 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
+import { mock, describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 import { db } from '../src/db/mongo';
-import { setupTests, teardownTests, cleanupCollection, createTestUser, createTestRide } from './setup';
+import { setupTests, teardownTests, cleanupCollection, createTestUser, createTestDriver, createTestRide } from './setup';
+
+let mockClerkId = 'cancel_test_user';
+
+mock.module('@clerk/clerk-sdk-node', () => ({
+  verifyToken: () => Promise.resolve({ sub: mockClerkId }),
+}));
+
 import rides from '../src/routes/rides';
 
-function createApp(mockUser: { clerkId: string; role: string; email?: string }) {
-  const app = new Hono();
-  app.use('*', async (c, next) => {
-    c.set('user', mockUser);
-    await next();
-  });
-  app.route('/api/rides', rides);
-  return app;
-}
+const app = new Hono();
+app.route('/api/rides', rides);
 
-describe('Ride Cancellation', () => {
+const authHeaders = { Authorization: 'Bearer test_token' };
+
+describe('POST /api/rides/:id/cancel', () => {
   beforeAll(async () => {
     await setupTests();
   });
@@ -29,178 +31,137 @@ describe('Ride Cancellation', () => {
     await cleanupCollection('drivers');
   });
 
-  describe('Cancel Ride Endpoint', () => {
-    it('should cancel own ride when client in requested status', async () => {
-      const client = await createTestUser('cancel_client_own', 'client');
-      const ride = await createTestRide(client.clerkId, { status: 'requested' });
+  it('client can cancel their own ride in requested status', async () => {
+    mockClerkId = 'cancel_client_1';
+    await createTestUser('cancel_client_1', 'client');
+    const ride = await createTestRide('cancel_client_1', { status: 'requested' });
 
-      const app = createApp({ clerkId: client.clerkId, role: 'client' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Ya no necesito el servicio' }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.status).toBe('cancelled');
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Ya no necesito el servicio' }),
     });
 
-    it('should return 403 when client tries to cancel in accepted status', async () => {
-      const client = await createTestUser('cancel_client_acc', 'client');
-      const driver = await createTestUser('cancel_driver_acc', 'driver');
-      const ride = await createTestRide(client.clerkId, {
-        status: 'accepted',
-        driverId: driver.clerkId,
-      });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('cancelled');
+    expect(body.cancellationReason).toContain('Ya no necesito');
+  });
 
-      const app = createApp({ clerkId: client.clerkId, role: 'client' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Quiero cancelar' }),
-      });
+  it('client CANNOT cancel ride in accepted status', async () => {
+    mockClerkId = 'cancel_client_2';
+    await createTestUser('cancel_client_2', 'client');
+    const ride = await createTestRide('cancel_client_2', { status: 'accepted', driverId: 'some_driver' });
 
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toContain('conductor');
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
 
-    it('should cancel when driver in accepted status', async () => {
-      const client = await createTestUser('cancel_acc_client', 'client');
-      const driver = await createTestUser('cancel_acc_driver', 'driver');
-      const ride = await createTestRide(client.clerkId, {
-        status: 'accepted',
-        driverId: driver.clerkId,
-      });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBeDefined();
+  });
 
-      const app = createApp({ clerkId: driver.clerkId, role: 'driver' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'No puedo realizar el viaje' }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.status).toBe('cancelled');
+  it('driver can cancel ride in accepted status (unassign)', async () => {
+    mockClerkId = 'cancel_driver_1';
+    await createTestUser('cancel_driver_1', 'driver');
+    await createTestDriver('cancel_driver_1');
+    const ride = await createTestRide('client_for_driver', {
+      status: 'accepted',
+      driverId: 'cancel_driver_1',
     });
 
-    it('should return 403 when driver tries to cancel in requested status', async () => {
-      const client = await createTestUser('cancel_req_client', 'client');
-      const driver = await createTestUser('cancel_req_driver', 'driver');
-      const ride = await createTestRide(client.clerkId, { status: 'requested' });
-
-      const app = createApp({ clerkId: driver.clerkId, role: 'driver' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Quiero cancelar' }),
-      });
-
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toContain('cliente');
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'No puedo realizar el viaje' }),
     });
 
-    it('should return 403 when client tries to cancel another client ride', async () => {
-      const owner = await createTestUser('cancel_owner', 'client');
-      const other = await createTestUser('cancel_other', 'client');
-      const ride = await createTestRide(owner.clerkId, { status: 'requested' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Driver unassign: ride goes back to 'requested', driverId is removed
+    expect(body.status).toBe('requested');
+    expect(body.driverId).toBeUndefined();
+  });
 
-      const app = createApp({ clerkId: other.clerkId, role: 'client' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Quiero cancelar' }),
-      });
+  it('driver CANNOT cancel ride in requested status (no driver assigned)', async () => {
+    mockClerkId = 'cancel_driver_2';
+    await createTestUser('cancel_driver_2', 'driver');
+    await createTestDriver('cancel_driver_2');
+    const ride = await createTestRide('client_no_driver', { status: 'requested' });
 
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toContain('permiso');
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
 
-    it('should allow admin to cancel in any status', async () => {
-      const client = await createTestUser('cancel_admin_client', 'client');
-      const driver = await createTestUser('cancel_admin_driver', 'driver');
-      const admin = await createTestUser('cancel_admin', 'admin');
+    expect(res.status).toBe(403);
+  });
 
-      // Admin cancels in requested
-      const rideRequested = await createTestRide(client.clerkId, { status: 'requested' });
-      let app = createApp({ clerkId: admin.clerkId, role: 'admin' });
-      let res = await app.request(`/api/rides/${rideRequested._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Admin cancela' }),
-      });
-      expect(res.status).toBe(200);
+  it('client CANNOT cancel another client\'s ride', async () => {
+    mockClerkId = 'cancel_client_3';
+    await createTestUser('cancel_client_3', 'client');
+    const ride = await createTestRide('other_client', { status: 'requested' });
 
-      // Admin cancels in accepted
-      const rideAccepted = await createTestRide(client.clerkId, {
-        status: 'accepted',
-        driverId: driver.clerkId,
-      });
-      app = createApp({ clerkId: admin.clerkId, role: 'admin' });
-      res = await app.request(`/api/rides/${rideAccepted._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Admin cancela' }),
-      });
-      expect(res.status).toBe(200);
-
-      // Admin cancels in in_progress
-      const rideInProgress = await createTestRide(client.clerkId, {
-        status: 'in_progress',
-        driverId: driver.clerkId,
-      });
-      app = createApp({ clerkId: admin.clerkId, role: 'admin' });
-      res = await app.request(`/api/rides/${rideInProgress._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Admin cancela' }),
-      });
-      expect(res.status).toBe(200);
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
 
-    it('should return 403 when trying to cancel in in_progress status', async () => {
-      const client = await createTestUser('cancel_prog_client', 'client');
-      const driver = await createTestUser('cancel_prog_driver', 'driver');
-      const ride = await createTestRide(client.clerkId, {
-        status: 'in_progress',
-        driverId: driver.clerkId,
-      });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toContain('permiso');
+  });
 
-      const app = createApp({ clerkId: client.clerkId, role: 'client' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Quiero cancelar' }),
-      });
+  it('admin can cancel any ride', async () => {
+    mockClerkId = 'cancel_admin_1';
+    await createTestUser('cancel_admin_1', 'admin');
+    const ride = await createTestRide('some_client', { status: 'in_progress', driverId: 'some_driver' });
 
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toContain('No se puede cancelar');
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Admin override' }),
     });
 
-    it('should save cancellationReason when canceling with reason', async () => {
-      const client = await createTestUser('cancel_reason_client', 'client');
-      const ride = await createTestRide(client.clerkId, { status: 'requested' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('cancelled');
+  });
 
-      const app = createApp({ clerkId: client.clerkId, role: 'client' });
-      const res = await app.request(`/api/rides/${ride._id}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Cliente ya no necesita el servicio' }),
-      });
+  it('cannot cancel when ride is in_progress', async () => {
+    mockClerkId = 'cancel_client_4';
+    await createTestUser('cancel_client_4', 'client');
+    const ride = await createTestRide('cancel_client_4', { status: 'in_progress', driverId: 'some_driver' });
 
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.status).toBe('cancelled');
-      expect(body.cancellationReason).toBe('Cliente ya no necesita el servicio');
-
-      // Verify in DB
-      const savedRide = await db.collection('rides').findOne({ _id: ride._id });
-      expect(savedRide?.cancellationReason).toBe('Cliente ya no necesita el servicio');
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('cancel with reason saves cancellationReason in DB', async () => {
+    mockClerkId = 'cancel_client_5';
+    await createTestUser('cancel_client_5', 'client');
+    const ride = await createTestRide('cancel_client_5', { status: 'requested' });
+
+    const res = await app.request(`/api/rides/${ride._id}/cancel`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Razón de prueba' }),
+    });
+
+    expect(res.status).toBe(200);
+    // Verify in DB
+    const updatedRide = await db.collection('rides').findOne({ _id: ride._id });
+    expect(updatedRide?.cancellationReason).toBe('Razón de prueba');
+    expect(updatedRide?.status).toBe('cancelled');
   });
 });

@@ -2,6 +2,21 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../services/api'
 
+function downloadCSV(url: string) {
+  const token = localStorage.getItem('adminToken')
+  if (!token) return
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = url.includes('/rides') ? 'rides.csv' : url.includes('/users') ? 'usuarios.csv' : 'pagos.csv'
+      a.click()
+      URL.revokeObjectURL(a.href)
+    })
+    .catch(console.error)
+}
+
 interface Ride {
   _id: string
   title: string
@@ -138,6 +153,10 @@ export default function Rides() {
               <option value="paid">Pagados</option>
               <option value="cancelled">Cancelados</option>
             </select>
+            <button className="action-btn secondary" onClick={() => downloadCSV(`/api/admin/export/rides${statusFilter && statusFilter !== 'todos' ? `?status=${statusFilter}` : ''}`)}>
+              <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>download</span>
+              Exportar CSV
+            </button>
           </div>
         </div>
         <table className="data-table">

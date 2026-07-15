@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
-import { showConfirm, showError, showSuccess, showWarning } from '../services/alerts'
+// ponytail: dynamic import to split sweetalert2 chunk
 import type { UserRole, Ride } from '../types'
 import { StatusBadge } from '../components/StatusBadge'
 import DriverProfilePopup from '../components/DriverProfilePopup'
 import { usersAPI } from '../services/api'
+import { useTranslation } from 'react-i18next'
 
 interface Message {
   _id: string
@@ -31,6 +32,7 @@ function Chat() {
   const navigate = useNavigate()
   const { user } = useUser()
   const { getToken } = useAuth()
+  const { t, i18n } = useTranslation()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -43,7 +45,7 @@ function Chat() {
   const [submittingProposal, setSubmittingProposal] = useState(false)
   const [chatDriverUser, setChatDriverUser] = useState<any>(null)
   const [chatDriverProfile, setChatDriverProfile] = useState<any>(null)
-  const [driverPopupPos, setDriverPopupPos] = useState<{ x: number; y: number } | null>(null)
+  const [driverPopupPos, setDriverPopupPos] = useState<HTMLElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const contactId = searchParams.get('contactId')
@@ -191,7 +193,6 @@ function Chat() {
     }
 
     if (data.type === 'auth_success') {
-      console.log('WebSocket authenticated successfully')
       setIsConnected(true)
     }
   }, [])
@@ -325,6 +326,7 @@ function Chat() {
 
     const price = parseFloat(proposedPrice)
     if (isNaN(price) || price <= 0) {
+      const { showWarning } = await import('../services/alerts')
       await showWarning('Ingresa un precio valido')
       return
     }
@@ -344,10 +346,11 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
-        await showError(data.error || 'Error al proponer precio')
+        const { showError } = await import('../services/alerts')
+        await showError(data.error || t('chat.proposalError'))
         return
       }
-
+ 
       setProposedPrice('')
       setProposalInfo({
         driverId: user.id,
@@ -359,7 +362,8 @@ function Chat() {
       })
     } catch (err) {
       console.error('Error proposing price:', err)
-      await showError('Error al proponer precio')
+      const { showError } = await import('../services/alerts')
+      await showError(t('chat.proposalError'))
     } finally {
       setSubmittingProposal(false)
     }
@@ -368,9 +372,10 @@ function Chat() {
   async function handleAcceptPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
-    const accepted = await showConfirm({
-      title: 'Confirmar precio',
-      text: '¿Aceptas este precio y contratas al conductor?'
+    const { showConfirm: sc } = await import('../services/alerts')
+    const accepted = await sc({
+      title: t('chat.confirmPriceTitle'),
+      text: t('chat.confirmPriceText')
     })
 
     if (!accepted) return
@@ -389,25 +394,29 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
-        await showError(data.error || 'Error al aceptar precio')
+        const { showError } = await import('../services/alerts')
+        await showError(data.error || t('chat.acceptPriceError'))
         return
       }
 
       setProposalInfo(prev => prev ? { ...prev, status: 'accepted' } : null)
       setRideInfo(data.ride)
-      await showSuccess('¡Precio aceptado! El contrato ha iniciado.')
+      const { showSuccess } = await import('../services/alerts')
+      await showSuccess(data.message || t('chat.acceptPriceSuccess'))
     } catch (err) {
       console.error('Error accepting price:', err)
-      await showError('Error al aceptar precio')
+      const { showError } = await import('../services/alerts')
+      await showError(t('chat.acceptPriceError'))
     }
   }
 
   async function handleRejectPrice() {
     if (!user || !rideId || !driverId || !userRole) return
 
+    const { showConfirm } = await import('../services/alerts')
     const rejected = await showConfirm({
-      title: 'Rechazar precio',
-      text: '¿Rechazas este precio?'
+      title: t('chat.rejectPriceTitle'),
+      text: t('chat.rejectPriceText')
     })
 
     if (!rejected) return
@@ -426,7 +435,8 @@ function Chat() {
       const data = await response.json()
 
       if (!response.ok) {
-        await showError(data.error || 'Error al rechazar precio')
+        const { showError } = await import('../services/alerts')
+        await showError(data.error || t('chat.rejectPriceError'))
         return
       }
 
@@ -438,7 +448,8 @@ function Chat() {
       } : null)
     } catch (err) {
       console.error('Error rejecting price:', err)
-      await showError('Error al rechazar precio')
+      const { showError } = await import('../services/alerts')
+      await showError(t('chat.rejectPriceError'))
     }
   }
 
@@ -472,13 +483,13 @@ function Chat() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Error sending message')
+        throw new Error(error.error || t('chat.sendMessageError'))
       }
 
       setNewMessage('')
     } catch (error: any) {
       console.error('Error sending message:', error)
-      setError(error.message || 'Error sending message')
+      setError(error.message || t('chat.sendMessageError'))
     }
   }
 
@@ -490,11 +501,11 @@ function Chat() {
     const diffHours = Math.floor(diffMins / 60)
     const diffDays = Math.floor(diffHours / 24)
 
-    if (diffMins < 1) return 'Ahora'
-    if (diffMins < 60) return `hace ${diffMins}m`
-    if (diffHours < 24) return `hace ${diffHours}h`
-    if (diffDays < 7) return `hace ${diffDays}d`
-    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+    if (diffMins < 1) return t('chat.timeNow')
+    if (diffMins < 60) return t('chat.timeMinutesAgo', { count: diffMins })
+    if (diffHours < 24) return t('chat.timeHoursAgo', { count: diffHours })
+    if (diffDays < 7) return t('chat.timeDaysAgo', { count: diffDays })
+    return date.toLocaleDateString(i18n.language || 'en-US', { day: 'numeric', month: 'short' })
   }
 
   function isSystemMessage(senderId: string) {
@@ -533,10 +544,10 @@ function Chat() {
           <p style={{ color: 'var(--error)', marginBottom: 'var(--space-5)' }}>{error}</p>
           <button
             className="btn btn-outline"
-            onClick={() => navigate(userRole === 'driver' ? '/driver' : '/my-rides')}
+            onClick={() => navigate(-1)}
           >
             <span className="material-symbols-rounded">arrow_back</span>
-            {userRole === 'driver' ? 'Volver al Panel' : 'Volver a Mis Pedidos'}
+            {t('common.back')}
           </button>
         </div>
       </div>
@@ -561,12 +572,12 @@ function Chat() {
         gap: 'var(--space-3)',
       }}>
         <button
-          onClick={() => navigate(isDriver ? '/driver' : '/my-rides')}
+          onClick={() => navigate(-1)}
           className="btn btn-ghost"
           style={{ color: 'var(--text-muted)' }}
         >
           <span className="material-symbols-rounded">arrow_back</span>
-          Volver
+          {t('common.back')}
         </button>
 
         <div style={{
@@ -587,7 +598,7 @@ function Chat() {
             background: isConnected ? 'var(--success)' : 'var(--error)',
             animation: isConnected ? 'pulse 2s ease-in-out infinite' : 'none',
           }} />
-          {isConnected ? 'Conectado' : 'Desconectado'}
+          {isConnected ? t('chat.connected') : t('chat.disconnected')}
         </div>
       </div>
 
@@ -666,26 +677,41 @@ function Chat() {
         >
           {/* Driver avatar - clickable */}
           {chatDriverUser.imageUrl ? (
-            <img
-              src={chatDriverUser.imageUrl}
-              alt={chatDriverUser.firstName}
-              onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+            <button
+              type="button"
+              aria-label="Ver perfil del conductor"
+              onClick={(e) => setDriverPopupPos(e.currentTarget)}
               style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2px solid var(--primary-subtle)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
                 cursor: 'pointer',
-                transition: 'opacity 0.2s',
+                borderRadius: '50%',
+                display: 'inline-flex',
                 flexShrink: 0,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-            />
+            >
+              <img
+                src={chatDriverUser.imageUrl}
+                alt={chatDriverUser.firstName}
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid var(--primary-subtle)',
+                  transition: 'opacity 0.2s',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              />
+            </button>
           ) : (
-            <div
-              onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+            <button
+              type="button"
+              aria-label="Ver perfil del conductor"
+              onClick={(e) => setDriverPopupPos(e.currentTarget)}
               style={{
                 width: '44px',
                 height: '44px',
@@ -697,12 +723,14 @@ function Chat() {
                 justifyContent: 'center',
                 fontSize: 'var(--text-base)',
                 fontWeight: 'var(--font-bold)',
+                border: 'none',
+                padding: 0,
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
             >
               {chatDriverUser.firstName?.charAt(0) || 'C'}
-            </div>
+            </button>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
@@ -729,10 +757,11 @@ function Chat() {
             )}
           </div>
           <button
-            onClick={(e) => setDriverPopupPos({ x: e.clientX, y: e.clientY })}
+            onClick={(e) => setDriverPopupPos(e.currentTarget)}
             className="btn btn-ghost"
             style={{ padding: 'var(--space-2)', color: 'var(--text-muted)', flexShrink: 0 }}
-            title="Ver perfil del conductor"
+            title={t('chat.viewDriverProfile')}
+            aria-label={t('chat.viewDriverProfile')}
           >
             <span className="material-symbols-rounded">person</span>
           </button>
@@ -773,13 +802,13 @@ function Chat() {
                     color: 'var(--primary)',
                     marginBottom: 'var(--space-2)',
                   }}>
-                    Precio propuesto: ${proposalInfo.proposedPrice}
+                    {t('chat.proposalPendingTitle', { price: proposalInfo.proposedPrice })}
                   </p>
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                    Esperando respuesta del cliente...
+                    {t('chat.proposalPendingSubtitle')}
                   </p>
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)' }}>
-                    Propuestas restantes: {proposalInfo.remainingProposals}
+                    {t('chat.proposalRemaining', { count: proposalInfo.remainingProposals })}
                   </p>
                 </div>
               ) : proposalInfo?.status === 'accepted' ? (
@@ -791,8 +820,8 @@ function Chat() {
                   color: 'var(--success)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)' }}>check_circle</span>
-                  <p style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)' }}>¡Precio aceptado!</p>
-                  <p style={{ fontSize: 'var(--text-sm)' }}>El contrato esta activo.</p>
+                  <p style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)' }}>{t('chat.proposalAcceptedTitle')}</p>
+                  <p style={{ fontSize: 'var(--text-sm)' }}>{t('chat.proposalAcceptedText')}</p>
                 </div>
               ) : proposalInfo?.status === 'rejected' && !proposalInfo.canProposeMore ? (
                 <div style={{
@@ -803,8 +832,8 @@ function Chat() {
                   color: 'var(--error)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)' }}>cancel</span>
-                  <p style={{ fontWeight: 'var(--font-bold)' }}>Precio rechazado</p>
-                  <p style={{ fontSize: 'var(--text-sm)' }}>Has alcanzado el maximo de propuestas.</p>
+                  <p style={{ fontWeight: 'var(--font-bold)' }}>{t('chat.proposalRejectedTitle')}</p>
+                  <p style={{ fontSize: 'var(--text-sm)' }}>{t('chat.proposalRejectedLimit')}</p>
                 </div>
               ) : proposalInfo?.status === 'rejected' ? (
                 <div>
@@ -813,9 +842,9 @@ function Chat() {
                     marginBottom: 'var(--space-4)',
                     color: 'var(--warning)',
                   }}>
-                    <p style={{ fontWeight: 'var(--font-semibold)' }}>Precio rechazado</p>
+                    <p style={{ fontWeight: 'var(--font-semibold)' }}>{t('chat.proposalRejectedTitle')}</p>
                     <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                      Puedes enviar otra propuesta.
+                      {t('chat.proposalRejectedRetry')}
                     </p>
                   </div>
                   <form onSubmit={handleProposePrice} style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
@@ -831,7 +860,7 @@ function Chat() {
                       <input
                         type="number"
                         className="input"
-                        placeholder="Tu precio..."
+                        placeholder={t('chat.proposalPlaceholder')}
                         value={proposedPrice}
                         onChange={(e) => setProposedPrice(e.target.value)}
                         style={{ paddingLeft: 'var(--space-8)', fontFamily: 'var(--font-mono)' }}
@@ -844,11 +873,11 @@ function Chat() {
                       ) : (
                         <span className="material-symbols-rounded">send</span>
                       )}
-                      Proponer
+                      {t('chat.proposePrice')}
                     </button>
                   </form>
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)', textAlign: 'center' }}>
-                    Maximo 3 propuestas | Restantes: {proposalInfo?.remainingProposals || 3}
+                    {t('chat.proposalLimit', { count: proposalInfo?.remainingProposals || 3 })}
                   </p>
                 </div>
               ) : (
@@ -871,8 +900,8 @@ function Chat() {
                       <span className="material-symbols-rounded" style={{ color: 'var(--warning)' }}>payments</span>
                     </div>
                     <div>
-                      <p style={{ fontWeight: 'var(--font-semibold)', margin: 0 }}>¿Quieres proponer un precio?</p>
-                      <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 }}>El cliente recibira tu propuesta.</p>
+                      <p style={{ fontWeight: 'var(--font-semibold)', margin: 0 }}>{t('chat.proposalPromptTitle')}</p>
+                      <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: 0 }}>{t('chat.proposalPromptText')}</p>
                     </div>
                   </div>
                   <form onSubmit={handleProposePrice} style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
@@ -888,7 +917,7 @@ function Chat() {
                       <input
                         type="number"
                         className="input"
-                        placeholder="Tu precio..."
+                        placeholder={t('chat.proposalPlaceholder')}
                         value={proposedPrice}
                         onChange={(e) => setProposedPrice(e.target.value)}
                         style={{ paddingLeft: 'var(--space-8)', fontFamily: 'var(--font-mono)' }}
@@ -901,11 +930,11 @@ function Chat() {
                       ) : (
                         <span className="material-symbols-rounded">send</span>
                       )}
-                      Proponer
+                      {t('chat.proposePrice')}
                     </button>
                   </form>
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)', textAlign: 'center' }}>
-                    Maximo 3 propuestas
+                    {t('chat.proposalLimitInfo')}
                   </p>
                 </div>
               )}
@@ -939,16 +968,16 @@ function Chat() {
                     ${proposalInfo.proposedPrice}
                   </p>
                   <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-5)' }}>
-                    El conductor ha propuesto este precio para el servicio.
+                    {t('chat.clientProposalText')}
                   </p>
                   <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button onClick={handleRejectPrice} className="btn btn-outline" style={{ borderColor: 'var(--error)', color: 'var(--error)' }}>
                       <span className="material-symbols-rounded">close</span>
-                      Rechazar
+                      {t('common.reject')}
                     </button>
                     <button onClick={handleAcceptPrice} className="btn btn-primary">
                       <span className="material-symbols-rounded">check</span>
-                      Aceptar Precio
+                      {t('chat.acceptPrice')}
                     </button>
                   </div>
                 </div>
@@ -962,8 +991,8 @@ function Chat() {
                   color: 'var(--success)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '3rem', marginBottom: 'var(--space-2)' }}>check_circle</span>
-                  <p style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)' }}>¡Precio aceptado!</p>
-                  <p style={{ fontSize: 'var(--text-sm)' }}>El contrato esta activo.</p>
+                  <p style={{ fontWeight: 'var(--font-bold)', fontSize: 'var(--text-lg)' }}>{t('chat.proposalAcceptedTitle')}</p>
+                  <p style={{ fontSize: 'var(--text-sm)' }}>{t('chat.proposalAcceptedText')}</p>
                 </div>
               )}
               {proposalInfo.status === 'rejected' && (
@@ -975,9 +1004,9 @@ function Chat() {
                   color: 'var(--warning)',
                 }}>
                   <span className="material-symbols-rounded" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)' }}>cancel</span>
-                  <p style={{ fontWeight: 'var(--font-semibold)' }}>Has rechazado esta propuesta.</p>
+                  <p style={{ fontWeight: 'var(--font-semibold)' }}>{t('chat.clientRejectedTitle')}</p>
                   <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                    El conductor puede enviar una nueva propuesta.
+                    {t('chat.clientRejectedText')}
                   </p>
                 </div>
               )}
@@ -991,7 +1020,7 @@ function Chat() {
               color: 'var(--text-muted)',
             }}>
               <span className="material-symbols-rounded" style={{ fontSize: '2rem', marginBottom: 'var(--space-2)' }}>hourglass_empty</span>
-              <p>Espera la propuesta de precio del conductor para contratarlo...</p>
+              <p>{t('chat.clientWaitingProposal')}</p>
             </div>
           )}
         </div>
@@ -1014,13 +1043,16 @@ function Chat() {
         }}>
           <span className="material-symbols-rounded" style={{ color: 'var(--success)', fontSize: '1.5rem' }}>check_circle</span>
           <span style={{ color: 'var(--success)', fontWeight: 'var(--font-semibold)', wordBreak: 'break-word', textAlign: 'center' }}>
-            Contrato activo - Precio: ${rideInfo?.finalPrice}
+            {t('chat.contractActive', { price: rideInfo?.finalPrice })}
           </span>
         </div>
       )}
 
       {/* Messages Container */}
       <div
+        role="log"
+        aria-live="polite"
+        aria-label="Mensajes del chat"
         style={{
           height: 'min(450px, 50vh)',
           maxHeight: '50vh',
@@ -1047,7 +1079,7 @@ function Chat() {
           }}>
             <span className="material-symbols-rounded" style={{ fontSize: '3rem', opacity: 0.5 }}>chat_bubble</span>
             <p style={{ fontSize: 'var(--text-sm)' }}>
-              {isDriver ? 'Envía un mensaje al cliente para iniciar contacto!' : 'No hay mensajes aun. Inicia la conversacion!'}
+              {isDriver ? t('chat.emptyDriver') : t('chat.emptyClient')}
             </p>
           </div>
         ) : (
@@ -1118,15 +1150,17 @@ function Chat() {
       {/* Input */}
       {canChat ? (
         <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 'var(--space-3)' }}>
+          <label htmlFor="chat-input" className="sr-only">{t('chat.inputLabel') || 'Mensaje'}</label>
           <input
+            id="chat-input"
             type="text"
             className="input"
-            placeholder={isDriver ? 'Escribe un mensaje al cliente...' : 'Escribe un mensaje...'}
+            placeholder={isDriver ? t('chat.placeholderDriver') : t('chat.placeholder')}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             style={{ flex: 1 }}
           />
-          <button type="submit" className="btn btn-primary btn-icon" disabled={!isConnected}>
+          <button type="submit" className="btn btn-primary btn-icon" disabled={!isConnected} aria-label={t('chat.sendMessage') || 'Enviar mensaje'}>
             <span className="material-symbols-rounded">send</span>
           </button>
         </form>
@@ -1139,7 +1173,7 @@ function Chat() {
           color: 'var(--text-muted)',
         }}>
           <span className="material-symbols-rounded" style={{ fontSize: '1.5rem', marginBottom: 'var(--space-2)' }}>chat_bubble_disabled</span>
-          <p>Chat no disponible en este estado del pedido.</p>
+          <p>{t('chat.unavailable')}</p>
         </div>
       )}
 
@@ -1149,7 +1183,7 @@ function Chat() {
           driverUser={chatDriverUser}
           driver={chatDriverProfile}
           rideId={rideId}
-          position={driverPopupPos}
+          element={driverPopupPos}
           onClose={() => setDriverPopupPos(null)}
         />
       )}

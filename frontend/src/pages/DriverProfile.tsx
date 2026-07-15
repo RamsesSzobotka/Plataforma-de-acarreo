@@ -232,8 +232,8 @@ export default function DriverProfile() {
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', paddingBottom: '4rem' }}>
       {/* Back button */}
-      <Link
-        to="/driver"
+      <button
+        onClick={() => navigate(-1)}
         className="btn btn-ghost"
         style={{
           display: 'inline-flex',
@@ -241,11 +241,17 @@ export default function DriverProfile() {
           gap: 'var(--space-2)',
           marginBottom: 'var(--space-6)',
           color: 'var(--text-muted)',
+          border: 'none',
+          background: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 'inherit',
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver al panel
-      </Link>
+        Volver
+      </button>
 
       {/* Header */}
       <div style={{

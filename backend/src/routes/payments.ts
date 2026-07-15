@@ -1,4 +1,5 @@
 import { Hono } from 'hono/tiny'
+import { getDebugMode } from '../utils/debugLogger'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 import { User } from '../models/user'
@@ -92,6 +93,8 @@ payments.post('/charge', authMiddleware, async (c) => {
 
     const result = await createMarketplaceCharge(rideId)
 
+    if (getDebugMode()) console.log(`[Payments] 💰 Payment captured — rideId: ${rideId}, paymentIntent: ${result.paymentIntent.id}, amount: $${(result.paymentIntent.amount || 0) / 100}`)
+
     // Audit
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
     const userAgent = c.req.header('user-agent') || ''
@@ -131,6 +134,8 @@ payments.post('/create-intent', authMiddleware, async (c) => {
     const currentUser = c.get('user') as AuthUser
     const body = await c.req.json()
     const result = await createMarketplaceCharge(String(body.rideId))
+
+    if (getDebugMode()) console.log(`[Payments] ✅ PaymentIntent ${result.paymentIntent.id} created — amount: $${(result.paymentIntent.amount || 0) / 100}, client: ${currentUser.clerkId}`)
 
     // Audit
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
@@ -314,6 +319,8 @@ payments.post('/connect/create-account', authMiddleware, async (c) => {
       userAgent,
     })
 
+    if (getDebugMode()) console.log(`[Payments] 🏦 Connect account created — driverId: ${currentUser.clerkId}, accountId: ${account.stripeAccountId}`)
+
     return c.json({
       success: true,
       onboardingUrl: account.onboardingUrl,
@@ -326,36 +333,6 @@ payments.post('/connect/create-account', authMiddleware, async (c) => {
 
     console.error('Error creating Stripe Connect account:', error)
     return c.json({ error: 'Error creando cuenta Stripe Connect' }, 500)
-  }
-})
-
-payments.post('/create-connect-account', authMiddleware, async (c) => {
-  try {
-    const currentUser = c.get('user') as AuthUser
-
-    if (currentUser.role !== 'driver' && currentUser.role !== 'admin') {
-      return c.json({ error: 'Solo conductores pueden activar cuentas de pagos' }, 403)
-    }
-
-    const origin = process.env.FRONTEND_URL || 'http://localhost:5173'
-    const account = await createDriverConnectAccount({
-      clerkId: currentUser.clerkId,
-      email: currentUser.email,
-      origin,
-    })
-
-    return c.json({
-      success: true,
-      onboardingUrl: account.onboardingUrl,
-      stripeAccountId: account.stripeAccountId,
-    })
-  } catch (error: any) {
-    if (error instanceof MarketplaceStripeError) {
-      return c.json({ error: error.message }, error.statusCode)
-    }
-
-    console.error('Error creating connect account:', error)
-    return c.json({ error: 'Error creando connect account' }, 500)
   }
 })
 

@@ -146,9 +146,12 @@ export default function FileUpload({
       ) : (
         <div
           onClick={handleClick}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          role="button"
+          tabIndex={0}
           style={{
             border: `2px dashed ${isDragging ? 'var(--primary)' : 'var(--border)'}`,
             borderRadius: '12px',

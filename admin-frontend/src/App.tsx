@@ -9,6 +9,11 @@ import DriverDetail from './pages/DriverDetail'
 import Rides from './pages/Rides'
 import RideDetail from './pages/RideDetail'
 import Reports from './pages/Reports'
+import Disputes from './pages/Disputes'
+import UserDetail from './pages/UserDetail'
+import AuditLogs from './pages/AuditLogs'
+import Payments from './pages/Payments'
+import Settings from './pages/Settings'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -52,10 +57,15 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />
+          <Route path="users/:clerkId" element={<UserDetail />} />
           <Route path="drivers" element={<Drivers />} />
           <Route path="drivers/:userId" element={<DriverDetail />} />
           <Route path="rides" element={<Rides />} />
           <Route path="rides/:id" element={<RideDetail />} />
+          <Route path="payments" element={<Payments />} />
+          <Route path="disputes" element={<Disputes />} />
+          <Route path="audit-logs" element={<AuditLogs />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
 
         {/* Fallback - redirect to dashboard */}
