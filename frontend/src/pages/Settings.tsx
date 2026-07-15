@@ -26,6 +26,12 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     description: 'Elige qué cambios de estado recibir por correo',
     to: '/settings/email-notifications',
   },
+  {
+    icon: 'credit_card',
+    title: 'Método de Pago',
+    description: 'Administra tu tarjeta para pagar los acarreos',
+    to: '/add-payment-method',
+  },
 ]
 
 const cardStyle: React.CSSProperties = {
