@@ -242,14 +242,9 @@ function Layout() {
                         href="/add-payment-method"
                       />
                       <UserButton.Link
-                        label={t('nav.mcpSettings')}
-                        labelIcon={<span className="material-symbols-rounded">api</span>}
-                        href="/settings/mcp"
-                      />
-                      <UserButton.Link
-                        label={t('nav.gdpr', 'Privacidad y Datos')}
-                        labelIcon={<span className="material-symbols-rounded">privacy_tip</span>}
-                        href="/settings/gdpr"
+                        label="Configuración"
+                        labelIcon={<span className="material-symbols-rounded">settings</span>}
+                        href="/settings"
                       />
                     </UserButton.MenuItems>
                   </UserButton>
@@ -552,7 +547,7 @@ function Layout() {
                 )}
               </Link>
               <Link
-                to="/settings/gdpr"
+                to="/settings"
                 onClick={() => setMobileMenuOpen(false)}
                 style={{
                   color: 'var(--text-secondary)',
@@ -584,8 +579,8 @@ function Layout() {
                   e.currentTarget.style.background = 'transparent'
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>privacy_tip</span>
-                Privacidad y Datos
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>settings</span>
+                Configuración
               </Link>
               <UserButton
                 afterSignOutUrl="/"
@@ -611,14 +606,9 @@ function Layout() {
                     href="/add-payment-method"
                   />
                   <UserButton.Link
-                    label="Conexión MCP"
-                    labelIcon={<span className="material-symbols-rounded">api</span>}
-                    href="/settings/mcp"
-                  />
-                  <UserButton.Link
-                    label="Privacidad y Datos"
-                    labelIcon={<span className="material-symbols-rounded">privacy_tip</span>}
-                    href="/settings/gdpr"
+                    label="Configuración"
+                    labelIcon={<span className="material-symbols-rounded">settings</span>}
+                    href="/settings"
                   />
                 </UserButton.MenuItems>
               </UserButton>

@@ -28,6 +28,7 @@ const Privacy = lazy(() => import('./pages/Privacy'))
 const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'))
 const GdprSettings = lazy(() => import('./pages/GdprSettings'))
 const EmailNotificationSettings = lazy(() => import('./pages/EmailNotificationSettings'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -412,6 +413,11 @@ function App() {
         } />
         
         {/* Settings routes */}
+        <Route path="settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
         <Route path="settings/mcp" element={
           <ProtectedRoute>
             <SettingsMcp />

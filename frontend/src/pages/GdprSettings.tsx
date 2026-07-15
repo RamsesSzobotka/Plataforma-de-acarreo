@@ -62,7 +62,7 @@ export default function GdprSettings() {
 
   return (
     <div className="page-container" style={{ maxWidth: '700px', margin: '0 auto', padding: '2rem 1rem' }}>
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--primary)' }}>
+      <Link to="/settings" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--primary)' }}>
         <span className="material-symbols-rounded">arrow_back</span>
         {t('common.back', 'Volver')}
       </Link>
