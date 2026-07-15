@@ -237,11 +237,6 @@ function Layout() {
                         href={`/profile/${user?.id}`}
                       />
                       <UserButton.Link
-                        label={t('nav.paymentMethod')}
-                        labelIcon={<span className="material-symbols-rounded">credit_card</span>}
-                        href="/add-payment-method"
-                      />
-                      <UserButton.Link
                         label="Configuración"
                         labelIcon={<span className="material-symbols-rounded">settings</span>}
                         href="/settings"
@@ -599,11 +594,6 @@ function Layout() {
                     label="Ver Perfil Público"
                     labelIcon={<span className="material-symbols-rounded">person</span>}
                     href={`/profile/${user?.id}`}
-                  />
-                  <UserButton.Link
-                    label="Método de Pago"
-                    labelIcon={<span className="material-symbols-rounded">credit_card</span>}
-                    href="/add-payment-method"
                   />
                   <UserButton.Link
                     label="Configuración"
