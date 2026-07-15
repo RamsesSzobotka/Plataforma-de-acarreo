@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 const languages = [
-  { code: 'es', flag: '🇵🇦', name: 'Español', desc: 'Idioma predeterminado de la plataforma' },
-  { code: 'en', flag: '🇺🇸', name: 'English', desc: 'Switch to English interface' },
+  { code: 'es', codeLabel: 'ES', name: 'Español', desc: 'Idioma predeterminado de la plataforma' },
+  { code: 'en', codeLabel: 'EN', name: 'English', desc: 'Switch to English interface' },
 ]
 
 export default function LanguageSettings() {
@@ -66,7 +66,16 @@ export default function LanguageSettings() {
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <span style={{ fontSize: '2.5rem', lineHeight: 1, color: isActive ? '#fff' : undefined }}>{lang.flag}</span>
+                <span style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  fontFamily: 'var(--font-heading, sans-serif)',
+                  lineHeight: 1,
+                  color: isActive ? '#fff' : 'var(--text-primary)',
+                  letterSpacing: '0.05em',
+                }}>
+                  {lang.codeLabel}
+                </span>
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
