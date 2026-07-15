@@ -1,7 +1,7 @@
 
 # 🚛 Carglyn — Plataforma de Acarreos
 
-**Carglyn** es un marketplace B2B de transporte de mercancías que conecta clientes con conductores para mover carga de forma segura, trazable y con pago digital integrado.
+**Carglyn** es un marketplace C2C de transporte de mercancías que conecta clientes con conductores para mover carga de forma segura, trazable y con pago digital integrado.
 
 Combina la **experiencia Uber** (tracking en tiempo real, perfil visible del conductor, calificaciones, pago digital) con la **experiencia Facebook Marketplace** (múltiples imágenes, descripción rica, ofertas y negociación).
 
