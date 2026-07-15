@@ -4,8 +4,8 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import { wsService } from '../services/api'
 // ponytail: dynamic import to split sweetalert2 chunk
 import type { UserRole, Ride } from '../types'
-import { StatusBadge } from '../components/StatusBadge'
-import DriverProfilePopup from '../components/DriverProfilePopup'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import DriverProfilePopup from '../components/profile/DriverProfilePopup'
 import { usersAPI } from '../services/api'
 import { useTranslation } from 'react-i18next'
 

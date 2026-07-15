@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import SignInCustom from '../components/SignInCustom'
-import LanguageSwitcher from '../components/LanguageSwitcher'
+import SignInCustom from '../components/auth/SignInCustom'
+import LanguageSwitcher from '../components/ui/LanguageSwitcher'
 
 function AuthPage() {
   const { t } = useTranslation()

@@ -3,7 +3,7 @@ import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useNotificationBadge } from '../contexts/NotificationBadgeContext'
+import { useNotificationBadge } from '../../contexts/NotificationBadgeContext'
 
 function Layout() {
   const { isSignedIn } = useAuth()

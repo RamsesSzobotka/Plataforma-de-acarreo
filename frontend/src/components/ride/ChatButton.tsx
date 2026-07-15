@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useNotifications } from '../contexts/NotificationsContext'
+import { useNotifications } from '../../contexts/NotificationsContext'
 
 interface ChatButtonProps {
   rideId: string

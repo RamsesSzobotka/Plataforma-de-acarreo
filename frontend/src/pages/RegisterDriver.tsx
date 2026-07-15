@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { usersAPI } from '../services/api'
-import FileUpload from '../components/FileUpload'
-import AddressInput from '../components/AddressInput'
+import FileUpload from '../components/ui/FileUpload'
+import AddressInput from '../components/map/AddressInput'
 // ponytail: dynamic import to split sweetalert2 chunk
 import { useTranslation } from 'react-i18next'
 

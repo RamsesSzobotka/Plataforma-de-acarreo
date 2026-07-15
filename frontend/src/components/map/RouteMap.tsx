@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { RouteResult, Coordinates } from '../services/osrm'
-import { getRoute } from '../services/osrm'
+import type { RouteResult, Coordinates } from '../../services/osrm'
+import { getRoute } from '../../services/osrm'
 
 interface RouteMapProps {
   pickup: {

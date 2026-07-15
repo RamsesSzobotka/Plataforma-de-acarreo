@@ -7,7 +7,7 @@ import {
 } from '@stripe/react-stripe-js'
 import { useAuth } from '@clerk/clerk-react'
 import { useTranslation } from 'react-i18next'
-import { paymentsAPI, usersAPI } from '../services/api'
+import { paymentsAPI, usersAPI } from '../../services/api'
 import Swal from 'sweetalert2'
 
 interface AddPaymentMethodProps {

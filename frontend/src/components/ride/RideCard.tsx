@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { StatusBadge } from './StatusBadge'
+import { StatusBadge } from '../ui/StatusBadge'
 
 interface RideCardProps {
   ride: {

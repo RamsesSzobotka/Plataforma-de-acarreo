@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { subscribe, dismissToast, type ToastData, type ToastType } from '../services/toast'
+import { subscribe, dismissToast, type ToastData, type ToastType } from '../../services/toast'
 
 const ICONS: Record<ToastType, string> = {
   success: 'check_circle',

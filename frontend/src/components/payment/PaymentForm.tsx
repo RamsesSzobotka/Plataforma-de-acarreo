@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { paymentsAPI, ridesAPI } from '../services/api'
-import type { Ride } from '../types'
+import { paymentsAPI, ridesAPI } from '../../services/api'
+import type { Ride } from '../../types'
 
 interface PaymentFormProps {
   ride: Ride
