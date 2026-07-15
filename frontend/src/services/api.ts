@@ -661,3 +661,21 @@ export const gdprAPI = {
       method: 'DELETE',
     }, token),
 }
+
+type EmailPreferences = {
+  onAccepted: boolean
+  onInProgress: boolean
+  onCompleted: boolean
+  onCancelled: boolean
+}
+
+export const emailPreferencesAPI = {
+  get: (token?: string) =>
+    fetchAPI<{ emailPreferences: EmailPreferences }>('/api/users/me/email-preferences', {}, token),
+
+  update: (prefs: EmailPreferences, token?: string) =>
+    fetchAPI<{ emailPreferences: EmailPreferences }>('/api/users/me/email-preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    }, token),
+}

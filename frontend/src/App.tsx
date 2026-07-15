@@ -27,6 +27,7 @@ const Notifications = lazy(() => import('./pages/Notifications'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'))
 const GdprSettings = lazy(() => import('./pages/GdprSettings'))
+const EmailNotificationSettings = lazy(() => import('./pages/EmailNotificationSettings'))
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -428,6 +429,11 @@ function App() {
         <Route path="settings/gdpr" element={
           <ProtectedRoute>
             <GdprSettings />
+          </ProtectedRoute>
+        } />
+        <Route path="settings/email-notifications" element={
+          <ProtectedRoute>
+            <EmailNotificationSettings />
           </ProtectedRoute>
         } />
 

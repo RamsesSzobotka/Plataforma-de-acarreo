@@ -18,6 +18,7 @@ import {
 } from '../services/redis'
 import { createRatingAndUpdateAverage } from '../services/rating'
 import { createNotification } from '../services/notificationService'
+import { sendRideStatusEmail } from '../services/notifications/statusEmails'
 
 /**
  * Intenta realizar el cobro automático con el marketplace charge.
@@ -467,6 +468,13 @@ rides.patch('/:id/status', authMiddleware, async (c) => {
     userAgent,
   })
 
+  // Send email about generic status change (fire-and-forget)
+  sendRideStatusEmail({
+    ride: updatedRide,
+    oldStatus,
+    newStatus: updatedRide.status,
+  })
+
   return c.json(updatedRide)
 })
 
@@ -608,6 +616,13 @@ rides.post('/:id/accept', authMiddleware, async (c) => {
     { rideId: ride._id.toString() }
   )
 
+  // Send email to client about driver assignment (fire-and-forget)
+  sendRideStatusEmail({
+    ride,
+    oldStatus: 'requested',
+    newStatus: 'accepted',
+  })
+
   return c.json(ride)
 })
 
@@ -650,6 +665,13 @@ rides.post('/:id/start', authMiddleware, async (c) => {
       ride: updatedRide,
       timestamp: new Date().toISOString(),
     },
+  })
+
+  // Send email to client about trip starting (fire-and-forget)
+  sendRideStatusEmail({
+    ride: updatedRide,
+    oldStatus: 'accepted',
+    newStatus: 'in_progress',
   })
 
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
@@ -827,6 +849,13 @@ rides.post('/:id/confirm-delivery', authMiddleware, async (c) => {
     details: { status: 'completed' },
     ip,
     userAgent,
+  })
+
+  // Send email to driver about payment received (fire-and-forget)
+  sendRideStatusEmail({
+    ride: updatedRide,
+    oldStatus: 'in_progress',
+    newStatus: 'paid',
   })
 
   // ── Enviar factura por email después del pago ──
@@ -1025,6 +1054,27 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
       userAgent,
     })
 
+    // Notify client that driver withdrew
+    if (ride.clientId) {
+      try {
+        const { User } = await import('../models/user')
+        const clientUser = await User.findOne({ clerkId: ride.clientId }).select('emailPreferences email').lean()
+        if (clientUser?.email && clientUser?.emailPreferences?.onCancelled !== false) {
+          const { rideCancelledEmail } = await import('../services/notifications/templates')
+          const cancelledEmail = rideCancelledEmail(clientUser.email, {
+            rideId: ride._id.toString(),
+            title: ride.title,
+            pickupAddress: ride.pickupLocation?.address || '',
+            dropoffAddress: ride.dropoffLocation?.address || '',
+          }, 'el conductor', reason || 'El conductor se retiró')
+          const { sendEmail } = await import('../services/notifications/email')
+          await sendEmail(cancelledEmail)
+        }
+      } catch (err) {
+        console.error(`Error sending driver unassign email:`, err)
+      }
+    }
+
     return c.json(updatedRide)
   }
 
@@ -1091,6 +1141,15 @@ rides.post('/:id/cancel', authMiddleware, async (c) => {
     details: { reason: reason || 'No especificado' },
     ip,
     userAgent,
+  })
+
+  // Send email to the other party about cancellation (fire-and-forget)
+  sendRideStatusEmail({
+    ride: updatedRide,
+    oldStatus,
+    newStatus: 'cancelled',
+    cancelledBy: currentUser.clerkId,
+    cancellationReason: reason,
   })
 
   return c.json(updatedRide)  
