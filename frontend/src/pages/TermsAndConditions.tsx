@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 export default function TermsAndConditions() {
   const { t } = useTranslation()
@@ -13,10 +14,13 @@ export default function TermsAndConditions() {
       borderRadius: 'var(--radius)',
       minHeight: '60vh',
     }}>
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--primary)' }}>
-        <span className="material-symbols-rounded">arrow_back</span>
-        {t('common.back', 'Volver al inicio')}
-      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+          <span className="material-symbols-rounded">arrow_back</span>
+          {t('common.back', 'Volver al inicio')}
+        </Link>
+        <LanguageSwitcher />
+      </div>
 
       <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', marginBottom: '2rem' }}>
         {t('terms.title', 'Términos y Condiciones')}
