@@ -31,6 +31,14 @@ const userSchema = new mongoose.Schema({
   // Contraseña hasheada (para login directo de admin)
   password: { type: String },
   
+  // Preferencias de notificaciones por email
+  emailPreferences: {
+    onAccepted: { type: Boolean, default: true },
+    onInProgress: { type: Boolean, default: true },
+    onCompleted: { type: Boolean, default: true },
+    onCancelled: { type: Boolean, default: true },
+  },
+  
 }, {
   timestamps: true
 })

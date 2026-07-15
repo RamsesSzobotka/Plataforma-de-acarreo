@@ -198,7 +198,7 @@ function SettingsMcp() {
     <div>
       {/* Back link */}
       <Link
-        to="/"
+        to="/settings"
         style={{
           display: 'inline-flex',
           alignItems: 'center',

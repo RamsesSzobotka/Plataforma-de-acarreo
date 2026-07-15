@@ -2,7 +2,7 @@ import { Outlet, Link } from 'react-router-dom'
 import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import LanguageSwitcher from './LanguageSwitcher'
+
 import { useNotificationBadge } from '../contexts/NotificationBadgeContext'
 
 function Layout() {
@@ -156,8 +156,6 @@ function Layout() {
                   {t('nav.createRide')}
                 </Link>
 
-                <LanguageSwitcher />
-
                 {/* Notifications Bell */}
                 <Link
                   to="/notifications"
@@ -237,19 +235,9 @@ function Layout() {
                         href={`/profile/${user?.id}`}
                       />
                       <UserButton.Link
-                        label={t('nav.paymentMethod')}
-                        labelIcon={<span className="material-symbols-rounded">credit_card</span>}
-                        href="/add-payment-method"
-                      />
-                      <UserButton.Link
-                        label={t('nav.mcpSettings')}
-                        labelIcon={<span className="material-symbols-rounded">api</span>}
-                        href="/settings/mcp"
-                      />
-                      <UserButton.Link
-                        label={t('nav.gdpr', 'Privacidad y Datos')}
-                        labelIcon={<span className="material-symbols-rounded">privacy_tip</span>}
-                        href="/settings/gdpr"
+                        label={t('nav.settings')}
+                        labelIcon={<span className="material-symbols-rounded">settings</span>}
+                        href="/settings"
                       />
                     </UserButton.MenuItems>
                   </UserButton>
@@ -499,9 +487,6 @@ function Layout() {
 
             {/* Divider */}
             <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)' }}>
-              <div style={{ marginBottom: 'var(--space-3)' }}>
-                <LanguageSwitcher />
-              </div>
               <Link
                 to="/notifications"
                 onClick={() => setMobileMenuOpen(false)}
@@ -552,7 +537,7 @@ function Layout() {
                 )}
               </Link>
               <Link
-                to="/settings/gdpr"
+                to="/settings"
                 onClick={() => setMobileMenuOpen(false)}
                 style={{
                   color: 'var(--text-secondary)',
@@ -584,8 +569,8 @@ function Layout() {
                   e.currentTarget.style.background = 'transparent'
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>privacy_tip</span>
-                Privacidad y Datos
+                <span className="material-symbols-rounded" style={{ fontSize: '1.25rem' }}>settings</span>
+                {t('nav.settings')}
               </Link>
               <UserButton
                 afterSignOutUrl="/"
@@ -606,19 +591,9 @@ function Layout() {
                     href={`/profile/${user?.id}`}
                   />
                   <UserButton.Link
-                    label="Método de Pago"
-                    labelIcon={<span className="material-symbols-rounded">credit_card</span>}
-                    href="/add-payment-method"
-                  />
-                  <UserButton.Link
-                    label="Conexión MCP"
-                    labelIcon={<span className="material-symbols-rounded">api</span>}
-                    href="/settings/mcp"
-                  />
-                  <UserButton.Link
-                    label="Privacidad y Datos"
-                    labelIcon={<span className="material-symbols-rounded">privacy_tip</span>}
-                    href="/settings/gdpr"
+                    label={t('nav.settings')}
+                    labelIcon={<span className="material-symbols-rounded">settings</span>}
+                    href="/settings"
                   />
                 </UserButton.MenuItems>
               </UserButton>

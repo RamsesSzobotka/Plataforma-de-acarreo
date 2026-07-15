@@ -27,6 +27,9 @@ const Notifications = lazy(() => import('./pages/Notifications'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const TermsAndConditions = lazy(() => import('./pages/TermsAndConditions'))
 const GdprSettings = lazy(() => import('./pages/GdprSettings'))
+const EmailNotificationSettings = lazy(() => import('./pages/EmailNotificationSettings'))
+const LanguageSettings = lazy(() => import('./pages/LanguageSettings'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
@@ -411,6 +414,11 @@ function App() {
         } />
         
         {/* Settings routes */}
+        <Route path="settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
         <Route path="settings/mcp" element={
           <ProtectedRoute>
             <SettingsMcp />
@@ -428,6 +436,16 @@ function App() {
         <Route path="settings/gdpr" element={
           <ProtectedRoute>
             <GdprSettings />
+          </ProtectedRoute>
+        } />
+        <Route path="settings/email-notifications" element={
+          <ProtectedRoute>
+            <EmailNotificationSettings />
+          </ProtectedRoute>
+        } />
+        <Route path="settings/language" element={
+          <ProtectedRoute>
+            <LanguageSettings />
           </ProtectedRoute>
         } />
 

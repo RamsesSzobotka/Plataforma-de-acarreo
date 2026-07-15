@@ -616,4 +616,56 @@ users.patch('/driver/:userId/verify', authMiddleware, requireRole(['admin']), as
   })
 })
 
+// === EMAIL NOTIFICATION PREFERENCES ===
+
+// Get email notification preferences
+users.get('/me/email-preferences', authMiddleware, async (c) => {
+  const currentUser = c.get('user') as AuthUser
+  const user = await User.findOne({ clerkId: currentUser.clerkId }).select('emailPreferences').lean()
+
+  if (!user) return c.json({ error: 'Usuario no encontrado' }, 404)
+
+  return c.json({
+    emailPreferences: user.emailPreferences || {
+      onAccepted: true,
+      onInProgress: true,
+      onCompleted: true,
+      onCancelled: true,
+    }
+  })
+})
+
+// Update email notification preferences
+users.patch('/me/email-preferences', authMiddleware, async (c) => {
+  const currentUser = c.get('user') as AuthUser
+  const body = await c.req.json()
+
+  // Only allow specific fields
+  const allowedFields = ['onAccepted', 'onInProgress', 'onCompleted', 'onCancelled']
+  const updates: Record<string, boolean> = {}
+
+  for (const field of allowedFields) {
+    if (typeof body[field] === 'boolean') {
+      updates[field] = body[field]
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: 'No se proporcionaron campos válidos' }, 400)
+  }
+
+  const user = await User.findOneAndUpdate(
+    { clerkId: currentUser.clerkId },
+    { $set: Object.fromEntries(
+        Object.entries(updates).map(([k, v]) => [`emailPreferences.${k}`, v])
+      )
+    },
+    { new: true }
+  ).select('emailPreferences')
+
+  if (!user) return c.json({ error: 'Usuario no encontrado' }, 404)
+
+  return c.json({ emailPreferences: user.emailPreferences })
+})
+
 export default users
