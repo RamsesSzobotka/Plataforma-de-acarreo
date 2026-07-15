@@ -1,4 +1,5 @@
 import { Hono } from 'hono/tiny'
+import { getDebugMode } from '../utils/debugLogger'
 import { authMiddleware } from '../middleware'
 import type { AuthUser } from '../middleware'
 import { User } from '../models/user'
@@ -92,6 +93,8 @@ payments.post('/charge', authMiddleware, async (c) => {
 
     const result = await createMarketplaceCharge(rideId)
 
+    if (getDebugMode()) console.log(`[Payments] 💰 Payment captured — rideId: ${rideId}, paymentIntent: ${result.paymentIntent.id}, amount: $${(result.paymentIntent.amount || 0) / 100}`)
+
     // Audit
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
     const userAgent = c.req.header('user-agent') || ''
@@ -131,6 +134,8 @@ payments.post('/create-intent', authMiddleware, async (c) => {
     const currentUser = c.get('user') as AuthUser
     const body = await c.req.json()
     const result = await createMarketplaceCharge(String(body.rideId))
+
+    if (getDebugMode()) console.log(`[Payments] ✅ PaymentIntent ${result.paymentIntent.id} created — amount: $${(result.paymentIntent.amount || 0) / 100}, client: ${currentUser.clerkId}`)
 
     // Audit
     const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
@@ -313,6 +318,8 @@ payments.post('/connect/create-account', authMiddleware, async (c) => {
       ip,
       userAgent,
     })
+
+    if (getDebugMode()) console.log(`[Payments] 🏦 Connect account created — driverId: ${currentUser.clerkId}, accountId: ${account.stripeAccountId}`)
 
     return c.json({
       success: true,

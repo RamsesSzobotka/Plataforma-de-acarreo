@@ -11,6 +11,7 @@ import {
   type WsData,
 } from './services/websocket'
 import { saveDriverLocation, connectRedis } from './services/redis'
+import { getDebugMode } from './utils/debugLogger'
 import { rateLimiter } from './middleware/rateLimiter'
 import { monitoringMiddleware } from './middleware/monitoring'
 import rides from './routes/rides'
@@ -104,7 +105,7 @@ app.use('*', async (c, next) => {
   const start = Date.now()
   await next()
   const ms = Date.now() - start
-  console.log(`${c.req.method} ${c.req.path} - ${c.res.status} - ${ms}ms`)
+  console.warn(`${c.req.method} ${c.req.path} - ${c.res.status} - ${ms}ms`)
 })
 
 // ── Rate limiting ───────────────────────────────────────────
@@ -171,7 +172,7 @@ const server = Bun.serve({
     open(ws: ServerWebSocket<WsData>) {
       const { rideId } = ws.data
       const isTracking = rideId?.startsWith('tracking:')
-      console.log(`🔌 [WS] WebSocket open: rideId=${rideId}, isTracking=${isTracking}`)
+      if (getDebugMode()) console.log(`🔌 [WS] WebSocket open: rideId=${rideId}, isTracking=${isTracking}`)
     },
     async message(ws: ServerWebSocket<WsData>, msg: string | Buffer) {
       const { rideId } = ws.data
@@ -289,7 +290,7 @@ const server = Bun.serve({
         if (message.type === 'location_update' && message.latitude && message.longitude) {
           // Extraer el rideId real (sin prefijo tracking:)
           const realRideId = rideId.startsWith('tracking:') ? rideId.slice(9) : rideId
-          console.log(`📍 [TRACKING] Received location_update for rideId=${realRideId} from clerkId=${ws.data.clerkId}`)
+          if (getDebugMode()) console.log(`📍 [TRACKING] Received location_update for rideId=${realRideId} from clerkId=${ws.data.clerkId}`)
           console.log(`📍 [TRACKING] Coords: lat=${message.latitude}, lng=${message.longitude}, heading=${message.heading}, speed=${message.speed}`)
 
           // Guardar en Redis con TTL
@@ -327,10 +328,10 @@ const server = Bun.serve({
 })
 
 async function initServer() {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`)
+  console.warn(`🚀 Servidor corriendo en puerto ${PORT}`)
   try {
     await connectDB()
-    console.log('✅ MongoDB conectado')
+    console.warn('✅ MongoDB conectado')
 
     // Conectar Redis (falla silenciosamente si no está disponible — tracking usa fallback)
     await connectRedis()
@@ -338,9 +339,9 @@ async function initServer() {
     // Run pending database migrations
     const count = await runMigrations()
     if (count > 0) {
-      console.log(`✅ ${count} migraciones aplicadas`)
+      console.warn(`✅ ${count} migraciones aplicadas`)
     } else {
-      console.log('📦 Base de datos actualizada — sin migraciones pendientes')
+      console.warn('📦 Base de datos actualizada — sin migraciones pendientes')
     }
 
     // Load debug mode setting
@@ -351,7 +352,7 @@ async function initServer() {
 
     const { User } = await import('./models/user')
     await User.createAdmin('admin@gmail.com', 'Hola123!')
-    console.log('✅ Admin creado')
+    console.warn('✅ Admin creado')
   } catch (err) {
     console.error('❌ Error:', err)
   }

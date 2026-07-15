@@ -6,7 +6,7 @@ import { AuditLog } from '../models/auditLog'
 import { Setting } from '../models/setting'
 import { logAudit } from '../services/audit'
 import { createNotification } from '../services/notificationService'
-import { setDebugMode } from '../utils/debugLogger'
+import { setDebugMode, getDebugMode } from '../utils/debugLogger'
 import { mongoose } from '../db/mongo'
 
 // ── Clerk helper ──────────────────────────────────────────────────────────────
@@ -202,6 +202,10 @@ admin.patch('/settings', async (c) => {
   )
 
   setDebugMode(debugMode)
+  if (getDebugMode()) {
+    const adminUser: any = c.get('adminUser')
+    console.log(`[Admin] ⚙️ Debug mode ${debugMode ? 'activado' : 'desactivado'} por admin ${adminUser?.clerkId || 'unknown'}`)
+  }
 
   return c.json({ debugMode, message: `Debug mode ${debugMode ? 'activado' : 'desactivado'}` })
 })

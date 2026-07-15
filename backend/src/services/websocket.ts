@@ -1,3 +1,5 @@
+import { getDebugMode } from '../utils/debugLogger'
+
 /**
  * WebSocket Service
  *
@@ -35,6 +37,7 @@ export function getWsConnections(): Map<string, Set<WsConnection>> {
 /** Broadcast de un evento a todos los miembros de una sala */
 export function broadcastToRide(rideId: string, data: any) {
   const connections = wsConnections.get(rideId)
+  if (getDebugMode()) console.log(`[WS] 📡 Broadcast — rideId: ${rideId}, type: ${data.type || 'unknown'}, connections: ${connections?.size ?? 0}`)
   console.log(`📡 [WS] broadcastToRide: rideId=${rideId}, connectionCount=${connections?.size ?? 0}, type=${data.type}`)
   if (!connections) return
   const message = JSON.stringify(data)
@@ -57,6 +60,7 @@ export function broadcastToUser(clerkId: string, data: any) {
 export function addConnection(rideId: string, ws: ServerWebSocket<WsData>, clerkId: string) {
   if (!wsConnections.has(rideId)) wsConnections.set(rideId, new Set())
   wsConnections.get(rideId)!.add({ ws, clerkId })
+  if (getDebugMode()) console.log(`[WS] 🔗 Connection added — rideId: ${rideId}, clerkId: ${clerkId}, total connections: ${wsConnections.get(rideId)!.size}`)
 }
 
 /** Agregar una conexión autenticada al mapa de usuario */
@@ -71,6 +75,7 @@ export function removeConnection(ws: ServerWebSocket<WsData>) {
     for (const conn of connections) {
       if (conn.ws === ws) {
         connections.delete(conn)
+        if (getDebugMode()) console.log(`[WS] 🔌 Connection removed — rideId: ${rideId}, clerkId: ${conn.clerkId}, remaining: ${connections.size}`)
         if (connections.size === 0) wsConnections.delete(rideId)
         break
       }
