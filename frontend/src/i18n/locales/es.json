@@ -723,6 +723,23 @@
   "gdpr.confirmDeleteText": "Todos tus datos personales serán anonimizados. Esta acción no se puede deshacer.",
   "gdpr.confirmDeleteBtn": "Sí, eliminar mi cuenta",
 
+  "emailSettings.title": "Notificaciones por Email",
+  "emailSettings.subtitle": "Selecciona qué cambios de estado quieres notificar por correo electrónico",
+  "emailSettings.onAccepted": "Nuevo conductor asignado",
+  "emailSettings.onAcceptedDesc": "Cuando un conductor acepte tu pedido",
+  "emailSettings.onInProgress": "Viaje en progreso",
+  "emailSettings.onInProgressDesc": "Cuando el conductor inicie el viaje",
+  "emailSettings.onCompleted": "Pago recibido",
+  "emailSettings.onCompletedDesc": "Cuando se complete y procese el pago",
+  "emailSettings.onCancelled": "Acarreo cancelado",
+  "emailSettings.onCancelledDesc": "Cuando cancelen un acarreo",
+  "emailSettings.saveBtn": "Guardar cambios",
+  "emailSettings.saving": "Guardando...",
+  "emailSettings.savedSuccess": "Preferencias guardadas",
+  "emailSettings.saveError": "Error al guardar las preferencias",
+  "emailSettings.loadError": "No se pudieron cargar las preferencias",
+  "emailSettings.loading": "Cargando...",
+
   "nav.settings": "Configuración",
 
   "settings.title": "Configuración",

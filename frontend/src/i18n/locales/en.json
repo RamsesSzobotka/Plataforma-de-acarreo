@@ -640,6 +640,23 @@
   "gdpr.confirmDeleteText": "All your personal data will be anonymized. This action cannot be undone.",
   "gdpr.confirmDeleteBtn": "Yes, delete my account",
 
+  "emailSettings.title": "Email Notifications",
+  "emailSettings.subtitle": "Choose which status changes you want to be notified by email",
+  "emailSettings.onAccepted": "New driver assigned",
+  "emailSettings.onAcceptedDesc": "When a driver accepts your ride",
+  "emailSettings.onInProgress": "Trip in progress",
+  "emailSettings.onInProgressDesc": "When the driver starts the trip",
+  "emailSettings.onCompleted": "Payment received",
+  "emailSettings.onCompletedDesc": "When payment is completed and processed",
+  "emailSettings.onCancelled": "Ride cancelled",
+  "emailSettings.onCancelledDesc": "When a ride is cancelled",
+  "emailSettings.saveBtn": "Save changes",
+  "emailSettings.saving": "Saving...",
+  "emailSettings.savedSuccess": "Preferences saved",
+  "emailSettings.saveError": "Error saving preferences",
+  "emailSettings.loadError": "Could not load preferences",
+  "emailSettings.loading": "Loading...",
+
   "nav.settings": "Settings",
 
   "settings.title": "Settings",

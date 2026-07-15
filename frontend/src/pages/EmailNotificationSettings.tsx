@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
+import { useTranslation } from 'react-i18next'
 import { showToast } from '../services/toast'
 import { emailPreferencesAPI } from '../services/api'
 
@@ -11,11 +12,11 @@ interface EmailPreferences {
   onCancelled: boolean
 }
 
-const TOGGLES: Array<{ key: keyof EmailPreferences; title: string; subtitle: string }> = [
-  { key: 'onAccepted', title: 'Nuevo conductor asignado', subtitle: 'Cuando un conductor acepte tu pedido' },
-  { key: 'onInProgress', title: 'Viaje en progreso', subtitle: 'Cuando el conductor inicie el viaje' },
-  { key: 'onCompleted', title: 'Pago recibido', subtitle: 'Cuando se complete y procese el pago' },
-  { key: 'onCancelled', title: 'Acarreo cancelado', subtitle: 'Cuando cancelen un acarreo' },
+const TOGGLES: Array<{ key: keyof EmailPreferences; titleKey: string; subKey: string }> = [
+  { key: 'onAccepted', titleKey: 'emailSettings.onAccepted', subKey: 'emailSettings.onAcceptedDesc' },
+  { key: 'onInProgress', titleKey: 'emailSettings.onInProgress', subKey: 'emailSettings.onInProgressDesc' },
+  { key: 'onCompleted', titleKey: 'emailSettings.onCompleted', subKey: 'emailSettings.onCompletedDesc' },
+  { key: 'onCancelled', titleKey: 'emailSettings.onCancelled', subKey: 'emailSettings.onCancelledDesc' },
 ]
 
 const rowStyle: React.CSSProperties = {
@@ -26,6 +27,7 @@ const rowStyle: React.CSSProperties = {
 }
 
 export default function EmailNotificationSettings() {
+  const { t } = useTranslation()
   const { getToken } = useAuth()
   const [prefs, setPrefs] = useState<EmailPreferences>({
     onAccepted: true,
@@ -45,14 +47,14 @@ export default function EmailNotificationSettings() {
         const data = await emailPreferencesAPI.get(token ?? undefined)
         if (!cancelled) setPrefs(data.emailPreferences)
       } catch {
-        if (!cancelled) setError('No se pudieron cargar las preferencias')
+        if (!cancelled) setError(t('emailSettings.loadError'))
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     load()
     return () => { cancelled = true }
-  }, [getToken])
+  }, [getToken, t])
 
   const toggle = (key: keyof EmailPreferences) => {
     setPrefs(prev => ({ ...prev, [key]: !prev[key] }))
@@ -64,9 +66,9 @@ export default function EmailNotificationSettings() {
     try {
       const token = await getToken()
       await emailPreferencesAPI.update(prefs, token ?? undefined)
-      showToast('Preferencias guardadas', 'success')
+      showToast(t('emailSettings.savedSuccess'), 'success')
     } catch {
-      showToast('Error al guardar las preferencias', 'error')
+      showToast(t('emailSettings.saveError'), 'error')
     } finally {
       setSaving(false)
     }
@@ -75,7 +77,7 @@ export default function EmailNotificationSettings() {
   if (loading) {
     return (
       <div style={{ maxWidth: '700px', margin: '0 auto', padding: '2rem 1rem' }}>
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Cargando...</div>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>{t('emailSettings.loading')}</div>
       </div>
     )
   }
@@ -94,14 +96,14 @@ export default function EmailNotificationSettings() {
         }}
       >
         <span className="material-symbols-rounded">arrow_back</span>
-        Volver
+        {t('common.back')}
       </Link>
 
       <h1 style={{ fontFamily: 'var(--font-heading)', marginBottom: '0.5rem' }}>
-        Notificaciones por Email
+        {t('emailSettings.title')}
       </h1>
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-        Selecciona qué cambios de estado quieres notificar por correo electrónico
+        {t('emailSettings.subtitle')}
       </p>
 
       {error && (
@@ -137,16 +139,16 @@ export default function EmailNotificationSettings() {
           >
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                {item.title}
+                {t(item.titleKey)}
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                {item.subtitle}
+                {t(item.subKey)}
               </div>
             </div>
             <div
               role="switch"
               aria-checked={prefs[item.key]}
-              aria-label={item.title}
+              aria-label={t(item.titleKey)}
               tabIndex={0}
               onClick={() => toggle(item.key)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(item.key) } }}
@@ -196,7 +198,7 @@ export default function EmailNotificationSettings() {
           transition: 'all 0.2s',
         }}
       >
-        {saving ? 'Guardando...' : 'Guardar cambios'}
+        {saving ? t('emailSettings.saving') : t('emailSettings.saveBtn')}
       </button>
     </div>
   )
