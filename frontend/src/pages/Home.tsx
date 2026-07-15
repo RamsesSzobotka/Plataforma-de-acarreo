@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SignInButton, SignUpButton, useUser } from '@clerk/clerk-react'
 import { useTranslation } from 'react-i18next'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 function Home() {
   const { isSignedIn } = useUser()
@@ -42,6 +43,11 @@ function Home() {
         }} />
         
         <div style={{ position: 'relative', zIndex: 1, maxWidth: '1400px', margin: '0 auto', padding: '0 2rem' }}>
+          {!isSignedIn && (
+            <div style={{ position: 'absolute', top: 0, right: '2rem' }}>
+              <LanguageSwitcher />
+            </div>
+          )}
           <h1 style={{
             fontFamily: '"Plus Jakarta Sans", sans-serif',
             fontWeight: '800',

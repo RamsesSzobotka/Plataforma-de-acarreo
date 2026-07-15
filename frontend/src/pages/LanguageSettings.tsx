@@ -66,7 +66,7 @@ export default function LanguageSettings() {
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <span style={{ fontSize: '2.5rem', lineHeight: 1 }}>{lang.flag}</span>
+                <span style={{ fontSize: '2.5rem', lineHeight: 1, color: isActive ? '#fff' : undefined }}>{lang.flag}</span>
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
