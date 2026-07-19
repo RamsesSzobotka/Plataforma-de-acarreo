@@ -29,16 +29,14 @@ export function sendTrackingLocation(
     speed?: number
   },
 ) {
-  if (trackingWsService.getState().isConnected) {
-    trackingWsService.send({
-      type: 'location_update',
-      rideId,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      heading: coords.heading ?? 0,
-      speed: coords.speed ?? 0,
-    })
-  }
+  trackingWsService.sendWhenReady({
+    type: 'location_update',
+    rideId,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    heading: coords.heading ?? 0,
+    speed: coords.speed ?? 0,
+  })
 }
 
 /**

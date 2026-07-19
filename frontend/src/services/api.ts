@@ -6,6 +6,7 @@ export class WebSocketService {
   private ws: WebSocket | null = null
   private rideId: string | null = null
   private token: string | null = null
+  private pathPrefix: string = '/ws/chat/'
   // Use array of callbacks to allow multiple listeners
   private messageCallbacks: Set<(data: any) => void> = new Set()
   private errorCallbacks: Set<(error: Event) => void> = new Set()
@@ -14,10 +15,14 @@ export class WebSocketService {
   private reconnectDelay = 1000
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private isIntentionallyDisconnected = false
+  private isAuthenticated = false
+  private pendingQueue: any[] = []
 
   connect(rideId: string, token: string, pathPrefix = '/ws/chat/') {
     // Reset flag to allow reconnection (tracking uses this)
     this.isIntentionallyDisconnected = false
+    this.pathPrefix = pathPrefix
+    this.isAuthenticated = false
 
     // Already connected to this ride
     if (this.ws?.readyState === WebSocket.OPEN && this.rideId === rideId) {
@@ -27,6 +32,7 @@ export class WebSocketService {
     // Different ride - disconnect first
     if (this.ws && this.rideId !== rideId) {
       this.disconnectInternal()
+      this.pendingQueue = [] // new ride, discard stale queued messages
     }
 
     this.rideId = rideId
@@ -48,6 +54,11 @@ export class WebSocketService {
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
+        // ponytail: intercept auth_success to drain queued messages and track auth state
+        if (data.type === 'auth_success') {
+          this.isAuthenticated = true
+          this.drainPending()
+        }
         // Notify all listeners
         this.messageCallbacks.forEach(callback => {
           try {
@@ -74,6 +85,7 @@ export class WebSocketService {
 
     this.ws.onclose = () => {
       this.stopHeartbeat()
+      this.isAuthenticated = false
       
       // Don't reconnect if intentionally disconnected
       if (this.isIntentionallyDisconnected) {
@@ -86,7 +98,7 @@ export class WebSocketService {
         const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
         setTimeout(() => {
           if (this.rideId && this.token && !this.isIntentionallyDisconnected) {
-            this.connect(this.rideId, this.token)
+            this.connect(this.rideId, this.token, this.pathPrefix)
           }
         }, delay)
       }
@@ -129,6 +141,7 @@ export class WebSocketService {
   // Internal disconnect without resetting intent flag
   private disconnectInternal() {
     this.stopHeartbeat()
+    this.isAuthenticated = false
     if (this.ws) {
       this.ws.close(1000, 'Switching rides')
       this.ws = null
@@ -138,6 +151,8 @@ export class WebSocketService {
   disconnect() {
     this.isIntentionallyDisconnected = true
     this.stopHeartbeat()
+    this.isAuthenticated = false
+    this.pendingQueue = []
     if (this.ws) {
       this.ws.close(1000, 'User left')
       this.ws = null
@@ -164,6 +179,24 @@ export class WebSocketService {
       this.ws.send(JSON.stringify(data))
     } else {
       console.warn('WebSocket not connected, cannot send:', data)
+    }
+  }
+
+  /** Send or queue — messages queued until auth_success, then drained */
+  sendWhenReady(data: any) {
+    if (this.isAuthenticated && this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data))
+    } else {
+      this.pendingQueue.push(data)
+    }
+  }
+
+  private drainPending() {
+    while (this.pendingQueue.length > 0) {
+      const data = this.pendingQueue.shift()!
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(data))
+      }
     }
   }
 }

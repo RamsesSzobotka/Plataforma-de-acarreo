@@ -274,6 +274,9 @@ const server = Bun.serve({
         }
 
         if (!ws.data.authenticated) {
+          if (message.type === 'location_update') {
+            console.log(`📍 [TRACKING] Rejected location_update — not authenticated yet: rideId=${rideId}, clerkId=${ws.data.clerkId}`)
+          }
           ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }))
           return
         }
