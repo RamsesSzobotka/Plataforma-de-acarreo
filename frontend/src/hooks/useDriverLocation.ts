@@ -69,18 +69,24 @@ export function useDriverLocation({
   }, [rideId])
 
   async function startSharing() {
-    if (!supported || !rideId) return
+    if (!supported || !rideId) {
+      console.log('[TRACKING] startSharing skipped: supported=', supported, 'rideId=', rideId)
+      return
+    }
 
+    console.log('[TRACKING] startSharing for rideId=', rideId)
     setError(null)
 
     // Conectar WebSocket de tracking
     try {
       const token = await getToken()
+      console.log('[TRACKING] token obtained:', token ? 'yes (length=' + token.length + ')' : 'NO')
       if (token) {
         connectTracking(rideId, token)
+        console.log('[TRACKING] connectTracking called')
       }
     } catch (err) {
-      console.error('Error connecting tracking WS:', err)
+      console.error('[TRACKING] Error connecting tracking WS:', err)
     }
 
     // ── Primero: watchPosition (GPS nativo, ideal en móviles) ──
@@ -155,16 +161,20 @@ export function useDriverLocation({
 
   // ── Detectar cuando el viaje pasa a in_progress o se completa ──
   useEffect(() => {
+    console.log('[TRACKING] useEffect: rideId=', rideId, 'rideStatus=', rideStatus, 'enabled=', enabled, 'wasInProgress=', wasInProgress.current)
     if (!enabled || !rideId) {
+      console.log('[TRACKING] useEffect: stopping (no rideId or disabled)')
       stopSharing()
       return
     }
 
     const isInProgress = rideStatus === 'in_progress'
+    console.log('[TRACKING] useEffect: isInProgress=', isInProgress, 'wasInProgress.current=', wasInProgress.current)
 
     if (isInProgress && !wasInProgress.current) {
       // Transición a in_progress → iniciar tracking
       wasInProgress.current = true
+      console.log('[TRACKING] useEffect: starting sharing')
       startSharing()
     } else if (!isInProgress && wasInProgress.current) {
       // Transición fuera de in_progress → detener tracking
