@@ -43,22 +43,25 @@ interface MapViewProps {
   truckIcon: L.DivIcon
 }
 
-function createMarkerIcon(color: string, label: string): L.DivIcon {
+function createMarkerIcon(color: string, iconName: string): L.DivIcon {
   return L.divIcon({
     className: 'custom-marker',
     html: `<div style="
+      width: 36px;
+      height: 36px;
       background: ${color};
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      border: 3px solid white;
       color: white;
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      white-space: nowrap;
-    ">${label}</div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
+      font-size: 20px;
+      font-family: 'Material Symbols Rounded';
+    ">${iconName}</div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
   })
 }
 
@@ -514,8 +517,8 @@ export function RouteMap({ pickup, dropoff, driverLocation }: RouteMapProps) {
     typeof dropoff.coordinates.lat === 'number' &&
     typeof dropoff.coordinates.lng === 'number'
 
-  const pickupIcon = useMemo(() => createMarkerIcon('#22C55E', 'Recogida'), [])
-  const dropoffIcon = useMemo(() => createMarkerIcon('#EF4444', 'Destino'), [])
+  const pickupIcon = useMemo(() => createMarkerIcon('#22C55E', 'trip_origin'), [])
+  const dropoffIcon = useMemo(() => createMarkerIcon('#EF4444', 'location_on'), [])
   const truckIcon = useMemo(() => createTruckIcon(), [])
 
   useEffect(() => {
