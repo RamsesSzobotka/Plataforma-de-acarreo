@@ -1,4 +1,4 @@
-import { Outlet, Link } from 'react-router-dom'
+import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,6 +9,7 @@ function Layout() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { unreadCount } = useNotificationBadge()
 
@@ -264,24 +265,24 @@ function Layout() {
             )}
           </nav>
 
-          {/* Hamburger Button - Mobile Only (outside desktop-nav) */}
-          {isSignedIn && (
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="hamburger-btn"
-              style={{
-                display: 'none',
-                padding: 'var(--space-2)',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-              }}
-              aria-label={t('nav.openMenu')}
-            >
-              <span className="material-symbols-rounded">menu</span>
-            </button>
-          )}
+          {/* Hamburger Button - Mobile Only: menu si logueado, sign-in si no */}
+          <button
+            onClick={() => isSignedIn ? setMobileMenuOpen(true) : navigate('/sign-in')}
+            className="hamburger-btn"
+            style={{
+              display: 'none',
+              padding: 'var(--space-2)',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+            }}
+            aria-label={isSignedIn ? t('nav.openMenu') : t('nav.signIn')}
+          >
+            <span className="material-symbols-rounded">
+              {isSignedIn ? 'menu' : 'login'}
+            </span>
+          </button>
         </div>
       </header>
 
