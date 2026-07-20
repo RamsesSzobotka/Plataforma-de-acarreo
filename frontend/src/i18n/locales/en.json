@@ -623,6 +623,7 @@
   "consent.termsText": "I have read and accept the <1>Terms and Conditions</1> of Carglyn.",
   "consent.accept": "Accept and continue",
   "consent.saving": "Saving...",
+  "consent.signOut": "Sign out",
 
   "gdpr.title": "Privacy & Data",
   "gdpr.subtitle": "Manage your personal data under the General Data Protection Regulation (GDPR)",

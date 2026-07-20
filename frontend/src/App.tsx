@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, useClerk } from '@clerk/clerk-react'
 import { Trans, useTranslation } from 'react-i18next'
 import Layout from './components/layout/Layout'
 import { NotificationsProvider } from './contexts/NotificationsContext'
@@ -80,6 +80,7 @@ function ConsentOverlay() {
   const [loading, setLoading] = useState(false)
   const [privacyChecked, setPrivacyChecked] = useState(false)
   const [termsChecked, setTermsChecked] = useState(false)
+  const { signOut } = useClerk()
 
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -282,6 +283,24 @@ function ConsentOverlay() {
         >
           {loading ? t('consent.saving') : t('consent.accept')}
         </button>
+        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+          <button
+            onClick={() => signOut()}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              textDecoration: 'underline',
+              padding: '0.5rem',
+              fontFamily: 'var(--font-body)',
+            }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>logout</span>
+            {t('consent.signOut')}
+          </button>
+        </div>
       </div>
     </div>
   )
