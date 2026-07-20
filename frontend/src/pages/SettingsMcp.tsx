@@ -59,10 +59,9 @@ function SettingsMcp() {
         { name: 'get_public_driver_profile', descriptionKey: 'mcp.tools.get_public_driver_profile' },
       ]
 
-  // Active environment for snippet
-  const [env, setEnv] = useState<'localhost' | 'production'>('localhost')
+  // Active agent tab
   const [agentTab, setAgentTab] = useState<'opencode' | 'claude' | 'codex'>('opencode')
-  const baseUrl = env === 'localhost' ? 'http://localhost:3000' : 'https://carglyn-backend.onrender.com'
+  const baseUrl = 'https://carglyn-backend.onrender.com'
 
   // ── Fetch token status ────────────────────────────────────────────────────
 
@@ -414,24 +413,6 @@ function SettingsMcp() {
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
               {t('mcp.configSubtitle')}
             </p>
-
-            {/* Environment Toggle */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-              <button
-                className={`tab ${env === 'localhost' ? 'active' : ''}`}
-                onClick={() => setEnv('localhost')}
-              >
-                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>laptop</span>
-                Localhost
-              </button>
-              <button
-                className={`tab ${env === 'production' ? 'active' : ''}`}
-                onClick={() => setEnv('production')}
-              >
-                <span className="material-symbols-rounded" style={{ fontSize: '1rem', verticalAlign: 'middle', marginRight: '0.25rem' }}>cloud</span>
-                Producción
-              </button>
-            </div>
 
             {/* Tool Tabs */}
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
