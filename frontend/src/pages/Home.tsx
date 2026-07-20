@@ -58,7 +58,8 @@ function Home() {
             maxWidth: '700px',
           }}>
             {t('home.title')}{' '}
-            <span style={{ color: '#F97316' }}>{t('home.hero.emitters')}</span> y{' '}
+            <span style={{ color: '#F97316' }}>{t('home.hero.emitters')}</span>
+            {t('home.hero.and')}{' '}
             <span style={{ color: '#0D9488' }}>{t('home.hero.drivers')}</span>{' '}
             {t('home.hero.rides')}
           </h1>
@@ -488,10 +489,10 @@ function Home() {
                 gap: '1rem',
               }}>
                 {[
-                  'Conductores verificados con rating',
-                  'Negocia precios sin compromiso',
-                  'Pago seguro solo al confirmar entrega',
-                  'Soporte en tiempo real',
+                  t('home.forClients.benefit1'),
+                  t('home.forClients.benefit2'),
+                  t('home.forClients.benefit3'),
+                  t('home.forClients.benefit4'),
                 ].map((item, index) => (
                   <li key={index} style={{
                     display: 'flex',
