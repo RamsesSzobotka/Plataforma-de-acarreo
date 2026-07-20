@@ -1,6 +1,6 @@
 import { Outlet, Link } from 'react-router-dom'
 import { useAuth, UserButton, useUser } from '@clerk/clerk-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useNotificationBadge } from '../../contexts/NotificationBadgeContext'
@@ -11,6 +11,16 @@ function Layout() {
   const { t } = useTranslation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { unreadCount } = useNotificationBadge()
+
+  // Prevenir scroll del body cuando el menú mobile está abierto
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [mobileMenuOpen])
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -374,6 +384,7 @@ function Layout() {
             display: 'flex',
             flexDirection: 'column',
             gap: 'var(--space-4)',
+            overflowY: 'auto',
           }}>
             {/* Close button */}
             <button
