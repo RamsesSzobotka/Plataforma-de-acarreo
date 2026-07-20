@@ -44,27 +44,7 @@ function Home() {
         
         <div style={{ position: 'relative', zIndex: 1, maxWidth: '1400px', margin: '0 auto', padding: '0 2rem' }}>
           {!isSignedIn && (
-            <div style={{ position: 'absolute', top: 0, right: '2rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <SignInButton mode="modal">
-                <button style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  color: 'white',
-                  padding: '0.4rem 0.85rem',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontFamily: '"Plus Jakarta Sans", sans-serif',
-                  fontWeight: '600',
-                  fontSize: '0.8rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  whiteSpace: 'nowrap',
-                }}>
-                  <span className="material-symbols-rounded" style={{ fontSize: '1rem' }}>login</span>
-                  {t('home.hero.signIn')}
-                </button>
-              </SignInButton>
+            <div style={{ position: 'absolute', top: 0, right: '2rem' }}>
               <LanguageSwitcher />
             </div>
           )}
