@@ -1,6 +1,8 @@
+✅ PLAN COMPLETADO — El sistema de notificaciones de pedidos cercanos cada hora está implementado.
+
 # Driver Nearby Rides Notifications — Implementation Plan
 
-> **For agentic workers:** Use subagent-driven-development or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use subagent-driven-development or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Notify connected drivers hourly about available rides within 20 km of their location via in-app notification.
 
@@ -17,7 +19,7 @@
 - Modify: `frontend/src/types/index.ts`
 - Modify: `frontend/src/pages/Notifications.tsx`
 
-- [ ] **Step 1: Add `'nearby_rides'` to Notification model enum**
+- [x] **Step 1: Add `'nearby_rides'` to Notification model enum**
 
 In `backend/src/models/notification.ts`, line 7, add `'nearby_rides'` to the type enum:
 
@@ -25,7 +27,7 @@ In `backend/src/models/notification.ts`, line 7, add `'nearby_rides'` to the typ
 enum: ['report_response', 'ride_message', 'offer_accepted', 'offer_received', 'ride_status', 'account_suspended', 'account_unsuspended', 'nearby_rides'],
 ```
 
-- [ ] **Step 2: Add `'nearby_rides'` to AppNotification type**
+- [x] **Step 2: Add `'nearby_rides'` to AppNotification type**
 
 In `frontend/src/types/index.ts`, line 188, add `'nearby_rides'` to the type union:
 
@@ -33,7 +35,7 @@ In `frontend/src/types/index.ts`, line 188, add `'nearby_rides'` to the type uni
 type: 'report_response' | 'ride_message' | 'offer_accepted' | 'offer_received' | 'ride_status' | 'nearby_rides'
 ```
 
-- [ ] **Step 3: Add icon for `nearby_rides` in Notifications page**
+- [x] **Step 3: Add icon for `nearby_rides` in Notifications page**
 
 In `frontend/src/pages/Notifications.tsx`, line 13, add to the `TYPE_ICONS` record:
 
@@ -41,7 +43,7 @@ In `frontend/src/pages/Notifications.tsx`, line 13, add to the `TYPE_ICONS` reco
 nearby_rides: 'nearby',
 ```
 
-- [ ] **Step 4: Verify no type errors**
+- [x] **Step 4: Verify no type errors**
 
 ```bash
 cd backend && bun run check-types 2>&1 || echo "No type check script"; cd ../frontend && bun run check-types 2>&1 || echo "No type check script"
@@ -54,7 +56,7 @@ cd backend && bun run check-types 2>&1 || echo "No type check script"; cd ../fro
 **Files:**
 - Modify: `backend/src/services/websocket.ts`
 
-- [ ] **Step 1: Add `getConnectedUserIds()` function**
+- [x] **Step 1: Add `getConnectedUserIds()` function**
 
 After `getWsConnections()` (line 34), add:
 
@@ -74,7 +76,7 @@ This returns all clerkIds currently connected via the `/ws/user` WebSocket endpo
 **Files:**
 - Create: `backend/src/services/nearbyRidesNotifier.ts`
 
-- [ ] **Step 1: Create the service file**
+- [x] **Step 1: Create the service file**
 
 Create `backend/src/services/nearbyRidesNotifier.ts`:
 
@@ -149,7 +151,7 @@ export async function checkNearbyRides(): Promise<void> {
 }
 ```
 
-- [ ] **Step 2: Verify the file compiles**
+- [x] **Step 2: Verify the file compiles**
 
 ```bash
 cd backend && bun run check-types 2>&1 || bun x tsc --noEmit 2>&1 | head -30
@@ -162,7 +164,7 @@ cd backend && bun run check-types 2>&1 || bun x tsc --noEmit 2>&1 | head -30
 **Files:**
 - Modify: `backend/src/index.ts`
 
-- [ ] **Step 1: Import `checkNearbyRides`**
+- [x] **Step 1: Import `checkNearbyRides`**
 
 Near the other imports (around line 30-50), add:
 
@@ -170,7 +172,7 @@ Near the other imports (around line 30-50), add:
 import { checkNearbyRides } from './services/nearbyRidesNotifier'
 ```
 
-- [ ] **Step 2: Start interval after server initialization**
+- [x] **Step 2: Start interval after server initialization**
 
 At the end of `initServer()` function (after line 358, inside the `try` block after admin creation), add:
 
@@ -181,7 +183,7 @@ setInterval(checkNearbyRides, 60 * 60 * 1000) // then every hour
 console.warn('🕐 Nearby rides notifications: hourly check active')
 ```
 
-- [ ] **Step 3: Verify the file compiles**
+- [x] **Step 3: Verify the file compiles**
 
 ```bash
 cd backend && bun run check-types 2>&1 || bun x tsc --noEmit 2>&1 | head -30
@@ -191,10 +193,12 @@ cd backend && bun run check-types 2>&1 || bun x tsc --noEmit 2>&1 | head -30
 
 ### Verification Checklist
 
-- [ ] Server starts without errors — the `setInterval` logs "Nearby rides notifications: hourly check active"
-- [ ] When a driver connects to `/ws/user`, has a valid location in Redis (`driver:location:{clerkId}`), and there are rides within 20 km — they receive an in-app notification with type `nearby_rides`
-- [ ] The notification appears in the Notifications page with the `nearby` icon
-- [ ] The notification includes the correct count: "Hay N acarreo(s) disponible(s) a menos de 20 km de tu ubicación"
-- [ ] Clicking the notification navigates to `/driver`
-- [ ] Drivers without a recent Redis location are skipped (no crash)
-- [ ] No second notification within the same hour (anti-spam)
+- [x] Server starts without errors — the `setInterval` logs "Nearby rides notifications: hourly check active"
+- [x] When a driver connects to `/ws/user`, has a valid location in Redis (`driver:location:{clerkId}`), and there are rides within 20 km — they receive an in-app notification with type `nearby_rides`
+- [x] The notification appears in the Notifications page with the `nearby` icon
+- [x] The notification includes the correct count: "Hay N acarreo(s) disponible(s) a menos de 20 km de tu ubicación"
+- [x] Clicking the notification navigates to `/driver`
+- [x] Drivers without a recent Redis location are skipped (no crash)
+- [x] No second notification within the same hour (anti-spam)
+
+Fecha de finalización: Julio 2026. Ver backend/src/services/nearbyRidesNotifier.ts

@@ -48,8 +48,9 @@ Basado en el PRD "PRD-Plataforma de acarreso.md" con ajustes específicos del pr
 
 Usar **Material Symbols** de Google Fonts:
 - [Material Symbols](https://fonts.google.com/icons) - Iconos gratuitos, coherentes con Material Design
-- Estilo: `rounded` o `outlined` según contexto
+- Estilo: `rounded` por defecto (o `outlined` según contexto)
 - Sizes: 20px (default), 24px (large), 16px (small)
+- Se usa el estilo `rounded` por defecto para consistencia visual.
 
 ### CSS Variables
 
@@ -97,11 +98,12 @@ Plataforma tipo **marketplace B2B de transporte de mercancías** que combina:
 - **Experiencia Uber**: tracking en tiempo real, perfil visible del conductor, calificaciones, pago digital.
 - **Experiencia Facebook Marketplace**: cliente sube múltiples imágenes, descripción rica, chat directo para negociar.
 
-**Nombre interno**: Plataforma de Acarreos
+**Nombre del producto/marca**: **Carglyn** (Plataforma de Acarreos es el nombre interno del proyecto)
 
 **Modelo de negocio**:
+- **Sistema de ofertas**: Conductores proponen su precio, cliente acepta la mejor oferta
 - **Target principal**: Empresas con necesidades de transporte recurrentes (B2B)
-- **Conductores**: Transportistas independientes que buscan cargas frecuentemente
+- **Conductores**: Transportistas independientes verificados con documentos
 - **B2C secundario**: Mudanzas y envíos puntuales de personas naturales
 
 **Roles principales**:
@@ -123,87 +125,175 @@ Plataforma tipo **marketplace B2B de transporte de mercancías** que combina:
 plataforma-de-acarreo/
 ├── backend/                      # Bun + Hono
 │   ├── src/
-│   │   ├── index.ts              # Entry point del servidor
+│   │   ├── index.ts              # Entry point + WebSocket server (Bun nativo)
 │   │   ├── db/
-│   │   │   └── mongo.ts          # Conexión MongoDB
-│   │   ├── models/
-│   │   │   ├── ride.ts          # Modelo Ride
-│   │   │   ├── user.ts         # Modelo User
-│   │   │   ├── driver.ts        # Modelo Driver
-│   │   │   └── message.ts       # Modelo Message
-│   │   ├── routes/
+│   │   │   ├── mongo.ts          # Conexión MongoDB
+│   │   │   └── migrate.ts        # Migraciones de BD
+│   │   ├── models/               # 16 modelos Mongoose
+│   │   │   ├── ride.ts           # Acarreos
+│   │   │   ├── user.ts           # Usuarios
+│   │   │   ├── driver.ts         # Conductores (con verificación)
+│   │   │   ├── offer.ts          # Ofertas de precio
+│   │   │   ├── message.ts        # Mensajes de chat
+│   │   │   ├── rating.ts         # Calificaciones
+│   │   │   ├── auditLog.ts       # Auditoría admin
+│   │   │   ├── consent.ts        # Consentimiento GDPR
+│   │   │   ├── notification.ts   # Notificaciones
+│   │   │   ├── report.ts         # Reportes/disputas
+│   │   │   ├── setting.ts        # Configuración global
+│   │   │   ├── processedEvent.ts # Idempotencia Stripe
+│   │   │   ├── mcp-token.ts      # Tokens MCP
+│   │   │   ├── oauthToken.ts     # Tokens OAuth
+│   │   │   ├── oauthClient.ts    # Clientes OAuth
+│   │   │   └── driverContact.ts  # Contacto conductor-ride
+│   │   ├── routes/               # 16 archivos de rutas
 │   │   │   ├── health.ts        # Health check
-│   │   │   ├── auth.ts          # Autenticación (webhook)
-│   │   │   ├── rides.ts        # CRUD Rides
+│   │   │   ├── auth.ts          # Autenticación (webhook Clerk)
+│   │   │   ├── rides.ts         # CRUD Rides + ofertas
 │   │   │   ├── users.ts         # Gestión usuarios
 │   │   │   ├── messages.ts      # Chat/Mensajes
-│   │   │   └── payments.ts     # Stripe
-│   │   ├── middleware/          # TODO: Auth, role, ownership
-│   │   ├── services/           # TODO: Lógica de negocio
-│   │   └── utils/             # TODO: Helpers
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── docker-compose.yml      # MongoDB + Redis
-│   └── .env.example
-│
-├── frontend/                    # React + Vite
-│   ├── src/
-│   │   ├── main.tsx            # Entry point
-│   │   ├── App.tsx             # Router principal
-│   │   ├── components/
-│   │   │   └── Layout.tsx     # Layout principal
-│   │   ├── pages/
-│   │   │   ├── Home.tsx        # Landing
-│   │   │   ├── CreateRide.tsx  # Crear pedido
-│   │   │   ├── MyRides.tsx    # Lista pedidos
-│   │   │   ├── RideDetails.tsx # Detalles pedido
-│   │   │   ├── DriverDashboard.tsx # Panel conductor
-│   │   │   └── Chat.tsx       # Chat
+│   │   │   ├── payments.ts      # Stripe
+│   │   │   ├── upload.ts        # Cloudinary
+│   │   │   ├── webhooks.ts      # Webhooks unificados
+│   │   │   ├── admin.ts         # Portal admin
+│   │   │   ├── mcp.ts           # MCP Server endpoint
+│   │   │   ├── ratings.ts       # Calificaciones
+│   │   │   ├── reports.ts       # Reportes PDF
+│   │   │   ├── oauth.ts         # OAuth 2.0
+│   │   │   ├── notifications.ts # Notificaciones
+│   │   │   ├── gdpr.ts          # Cumplimiento GDPR
+│   │   │   └── debug.ts         # Modo debug
+│   │   ├── middleware/
+│   │   │   ├── auth.ts          # Auth con Clerk JWT
+│   │   │   ├── role.ts          # Validación de roles
+│   │   │   ├── dualAuth.ts      # Auth dual (Clerk + API Key)
+│   │   │   ├── rateLimiter.ts   # Rate limiting (120 req/min)
+│   │   │   ├── monitoring.ts    # Métricas de rendimiento
+│   │   │   └── index.ts         # Ownership checks
 │   │   ├── services/
-│   │   │   └── api.ts        # API client
-│   │   ├── types/
-│   │   │   └── index.ts      # TypeScript interfaces
-│   │   ├── hooks/            # Custom hooks (TODO)
-│   │   ├── contexts/         # React contexts (TODO)
-│   │   ├── utils/           # Helpers (TODO)
-│   │   └── styles/
-│   │       └── index.css    # Estilos globales
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── index.html
-│   └── .env.example
+│   │   │   ├── ride-machine.ts  # Máquina de estados
+│   │   │   ├── websocket.ts     # WebSocket manager
+│   │   │   ├── redis.ts         # Redis + tracking GEO
+│   │   │   ├── payment.service.ts # Stripe
+│   │   │   ├── stripeMarketplace.ts # Stripe Connect
+│   │   │   ├── invoice.ts       # Facturación PDF
+│   │   │   ├── audit.ts         # Auditoría
+│   │   │   ├── oauth.ts         # OAuth 2.0
+│   │   │   ├── jwt.ts           # JWT helpers
+│   │   │   ├── rating.ts        # Lógica de calificaciones
+│   │   │   ├── notificationService.ts # Notificaciones push
+│   │   │   ├── nearbyRidesNotifier.ts # Notificaciones cada hora
+│   │   │   └── notifications/   # Email notifications (Brevo)
+│   │   ├── mcp/                 # MCP Server (AI Integration)
+│   │   │   ├── server.ts        # MCP server setup
+│   │   │   ├── schemas.ts       # Zod schemas
+│   │   │   ├── tools/           # Tool handlers
+│   │   │   ├── audit.ts         # MCP audit logging
+│   │   │   ├── errors.ts        # Errores tipados
+│   │   │   └── types.ts         # Tipos MCP
+│   │   ├── scripts/             # Scripts admin
+│   │   └── utils/
+│   │       ├── upload.ts        # Upload a Cloudinary
+│   │       └── debugLogger.ts   # Debug mode logger
+│   ├── tests/                   # Bun Test
+│   ├── migrations/              # Migraciones MongoDB
+│   ├── Dockerfile
+│   └── tsconfig.json
 │
-└── Doc/
-    └── PRD-Plataforma de acarreso.md
+├── frontend/                    # React + Vite (Clientes/Conductores)
+│   ├── src/
+│   │   ├── main.tsx             # Entry (Clerk + Stripe + Router)
+│   │   ├── App.tsx              # Router + lazy routes + ConsentOverlay
+│   │   ├── pages/               # 21 páginas
+│   │   │   ├── Home.tsx         # Landing page
+│   │   │   ├── AuthPage.tsx     # Sign-in
+│   │   │   ├── CreateRide.tsx   # Crear acarreo
+│   │   │   ├── MyRides.tsx      # Mis acarreos
+│   │   │   ├── RideDetails.tsx  # Detalle + tracking + timeline
+│   │   │   ├── Chat.tsx         # Chat + negociación
+│   │   │   ├── DriverDashboard.tsx # Dashboard conductor
+│   │   │   ├── DriverProfile.tsx   # Editar perfil conductor
+│   │   │   ├── DriverPublicProfile.tsx # Perfil público
+│   │   │   ├── RegisterDriver.tsx # Registro con documentos
+│   │   │   ├── AddPaymentMethod.tsx
+│   │   │   ├── PaymentHistory.tsx
+│   │   │   ├── Settings.tsx
+│   │   │   ├── SettingsMcp.tsx  # Tokens MCP
+│   │   │   ├── Notifications.tsx
+│   │   │   ├── GdprSettings.tsx
+│   │   │   ├── EmailNotificationSettings.tsx
+│   │   │   ├── LanguageSettings.tsx
+│   │   │   ├── Privacy.tsx
+│   │   │   ├── TermsAndConditions.tsx
+│   │   │   └── OAuthLogin.tsx
+│   │   ├── components/
+│   │   │   ├── auth/            # SignInCustom
+│   │   │   ├── layout/          # Layout, PageTransition
+│   │   │   ├── ui/              # EmptyState, ErrorBoundary, FileUpload, etc.
+│   │   │   ├── ride/            # ChatButton, RideCard, TimelineStepper
+│   │   │   ├── map/             # AddressInput, RideMapModal, RouteMap, RouteMapWrapper
+│   │   │   ├── payment/         # AddPaymentMethod, PaymentForm, SavePaymentMethod
+│   │   │   └── profile/         # ClientProfile, DriverProfilePopup
+│   │   ├── contexts/            # NotificationsContext, NotificationBadgeContext
+│   │   ├── hooks/               # useDriverLocation, useRideTracking
+│   │   ├── services/            # api, alerts, toast, osrm, tracking-ws
+│   │   ├── i18n/                # i18n.ts + locales (es/en)
+│   │   ├── types/index.ts       # TypeScript interfaces
+│   │   └── styles/index.css     # Design system
+│   ├── e2e/                     # Playwright E2E
+│   └── vite.config.ts
+│
+├── admin-frontend/              # React + Vite (Admin Backoffice)
+│   ├── src/pages/               # 13 páginas
+│   │   ├── Dashboard.tsx        # Métricas + Recharts
+│   │   ├── Users.tsx / UserDetail.tsx
+│   │   ├── Drivers.tsx / DriverDetail.tsx
+│   │   ├── Rides.tsx / RideDetail.tsx
+│   │   ├── Payments.tsx
+│   │   ├── Reports.tsx
+│   │   ├── AuditLogs.tsx
+│   │   ├── Disputes.tsx
+│   │   ├── Settings.tsx
+│   │   └── Login.tsx
+│   └── package.json
+│
+├── Doc/                         # Documentación
+├── agents/SKILLS/               # 5 skills IA
+├── docker-compose.yml           # MongoDB + Redis + Backend + Frontend
+└── render.yaml                  # Despliegue en Render
 ```
 
 ## 3. Autenticación
 
-- Usar **Clerk** con SSO.
+- Usar **Clerk** con SSO para usuarios web/móvil.
 - Proveedores soportados:
   - Google
   - Microsoft
   - UTP (Universidad Tecnológica de Panamá) vía **Enterprise SSO** (SAML u OIDC)
 - Roles se almacenan en metadata de Clerk y se sincronizan con MongoDB (`role`: "client" | "driver" | "admin")
+- **OAuth 2.0** para el MCP Server: asistentes IA (Claude Desktop, Cline, etc.) se autentican vía API Key
+- Middleware `dualAuth.ts` permite autenticación por Clerk JWT o por API Key (MCP)
 
 ## 4. Estados del Pedido (Ride)
 
 Estados oficiales:
-- `requested` → Pedido creado por el cliente
-- `negotiating` → Hay chat activo / negociación de precio
-- `accepted` → Conductor aceptó y se llegó a acuerdo
+- `requested` → Pedido creado por el cliente, conductores proponen precio
+- `accepted` → Conductor aceptó y se llegó a acuerdo (tras sistema de ofertas)
 - `in_progress` → Conductor confirmó carga y comenzó el viaje (tracking activo)
 - `completed` → Entrega realizada + foto subida
 - `paid` → Pago confirmado vía Stripe
+- `failed` → Pago falló después de `completed`
 - `cancelled` → Cancelado
 
+**Sistema de ofertas**: En `requested`, conductores proponen su precio (`POST /api/rides/:id/offers`). Cliente revisa ofertas y acepta la que prefiera.
+
 **Reglas importantes**:
-- En `requested` y `negotiating`: Cliente puede editar o cancelar libremente.
+- En `requested`: Cliente puede editar o cancelar libremente.
 - En `accepted`: 
   - Cliente **NO** puede editar ni cancelar.
   - Conductor **SÍ** puede cancelar (debe indicar motivo).
 - En `in_progress`, `completed` o `paid`: **Ninguna de las partes** puede cancelar (solo Admin en casos excepcionales).
+- En `failed`: Cliente puede reintentar el pago, volviendo a estado `requested`
 
 ## 5. Requisitos Mínimos del Pedido (Cliente)
 
@@ -212,11 +302,11 @@ Al crear un pedido el cliente **debe** proporcionar:
 **Campos obligatorios**:
 - Título o descripción corta del acarreo
 - Descripción detallada
-- **Múltiples imágenes** (mínimo 1, máximo 8 recomendadas)
+- **Múltiples imágenes** (mínimo 1, máximo 8 recomendadas) — subidas a Cloudinary
 - Tipo de acarreo: `mudanza`, `electrodomésticos`, `muebles`, `productos`, `otros`
 - Ubicación de partida (pickupLocation) – con mapa y búsqueda de dirección
 - Ubicación de destino (dropoffLocation) – con mapa
-- Precio sugerido (estimatedPrice)
+- Precio estimado (estimatedPrice) — **orientativo**, conductores propondrán su precio
 - Número aproximado de bultos o peso estimado (opcional pero recomendado)
 - Fecha y hora preferida (opcional)
 
@@ -231,58 +321,76 @@ Al crear un pedido el cliente **debe** proporcionar:
 - Crear pedido con imágenes y ubicaciones
 - Ver lista de mis pedidos (paginada y filtrada por estado)
 - Ver detalles completos del pedido (imágenes incluidas)
-- Chatear en tiempo real con el conductor que aceptó el pedido
-- Ver tracking en tiempo real cuando el estado sea `in_progress`
+- **Recibir y aceptar ofertas de conductores** (sistema de ofertas)
+- Chatear en tiempo real con el conductor
+- **Ver tracking en vivo en mapa Leaflet** cuando el estado sea `in_progress`
 - Ver foto de entrega subida por el conductor
 - Confirmar entrega
 - Realizar pago con Stripe
+- **Gestión de métodos de pago (tarjeta)**
 - Calificar al conductor (1-5 estrellas + comentario) - Solo después de `paid`
 - Cancelar pedido según reglas de estado
+- **Notificaciones en tiempo real**
+- **Configuración de idioma (ES/EN)**
+- **Portal de datos GDPR**
 
 ### 6.2 Portal Conductor / Driver (Prioridad Alta)
 
 **Obligatorio (MVP)**:
-- Ver lista de pedidos cercanos (geolocalización + distancia)
+- **Proponer precio al cliente** (sistema de ofertas)
+- Ver lista de pedidos cercanos ordenados por distancia (20 km radio)
+- **Notificaciones cada hora de pedidos cercanos**
 - Ver detalles completos del pedido (todas las imágenes, descripción, ubicaciones)
-- Ver perfil básico del cliente (nombre, foto, calificación)
+- Ver perfil del cliente
 - Chatear en tiempo real con el cliente
-- Aceptar pedido (cambia estado a `accepted`)
+- Aceptar oferta seleccionada por el cliente
 - Cancelar pedido en estado `accepted` (con motivo)
-- Confirmar “Ya tengo la mercancía cargada” al llegar al punto de partida
 - Iniciar viaje (`in_progress`) después de confirmar carga
 - Compartir ubicación en tiempo real mientras está `in_progress`
 - Tomar y subir foto de la entrega al llegar al destino
-- Ver perfil del cliente
 - Calificar al cliente después de completar el servicio - Solo después de `paid`
+- **Panel de pagos con comisiones visibles (90%)**
+- **Dashboard con estadísticas**
 - Ver historial de sus acarreos
 
 ### 6.3 Portal Admin (Prioridad Media-Alta)
 
+- **Dashboard con métricas y gráficos (Recharts)**
 - Gestión de usuarios y conductores
-- Monitoreo de rides
-- Gestión de pagos y conciliación con Stripe
-- Auditoría de acciones
+- Monitoreo de rides con filtros
+- Gestión de pagos y **conciliación Stripe**
+- **Reportes descargables PDF**
+- **Logs de auditoría con filtros**
+- **Gestión de disputas**
+- **Modo debug toggle**
+- **Configuración de tarifas y comisiones**
 - Cancelaciones excepcionales
 
 ## 7. Chat entre Cliente y Conductor
 
-- Implementar con **WebSockets** (Hono + Socket.IO o nativo de Bun).
-- Chat por cada ride (un canal por `rideId`).
-- Mensajes guardados en MongoDB.
-- Notificaciones en tiempo real cuando llega un nuevo mensaje.
-- Disponible una vez el pedido está en `negotiating` o `accepted`.
+- Implementado con **WebSockets nativos de Bun** (no Socket.IO).
+- **3 canales WebSocket**:
+  - `/ws/chat/:rideId` — Chat en tiempo real entre cliente y conductor
+  - `/ws/tracking/:rideId` — Ubicación GPS del conductor en vivo
+  - `/ws/user` — Notificaciones del sistema para el conductor
+- Autenticación: Clerk JWT + validación de participación en la sala
+- Heartbeat: ping/pong cada 30s
+- Reconexión automática con cola de mensajes offline
+- Mensajes guardados en MongoDB
+- Disponible desde que el pedido está en `requested`
 
 ## 8. Flujo Principal del Ride
 
 1. Cliente crea pedido → `requested`
-2. Conductor ve pedido cercano, chatea y negocia
-3. Conductor acepta → `accepted` (precio final acordado)
-4. Conductor llega al pickup → confirma "Ya tengo la mercancía"
-5. Conductor inicia viaje → `in_progress` + tracking activo
+2. Conductores ven pedido, chatean y proponen precio (`POST /api/rides/:id/offers`)
+3. Cliente revisa ofertas y acepta la que prefiera
+4. Conductor acepta → `accepted` (precio final acordado)
+5. Conductor confirma carga e inicia viaje → `in_progress` + tracking activo
 6. Conductor llega al destino, sube foto de entrega
 7. Cliente confirma entrega → `completed`
-8. Cliente realiza pago → Stripe PaymentIntent + webhook → `paid`
-9. **Ambas partes se califican mutuamente** → Solo disponible después de `paid`
+8. Cliente paga → Stripe PaymentIntent + webhook → `paid`
+9. Si pago falla → `failed` (cliente puede reintentar)
+10. Ambas partes se califican mutuamente (solo después de `paid`)
 
 ## 9. Modelo de Datos
 
@@ -295,17 +403,19 @@ Al crear un pedido el cliente **debe** proporcionar:
    
   title: string
   description: string
-  type: 'mudanza' | 'electrodomésticos' | 'muebles' | 'productos' | 'otros'
+  type: 'mudanza' | 'electrodomesticos' | 'muebles' | 'productos' | 'otros'
    
   images: [{ url: string, publicId?: string }]
    
   pickupLocation: {
     address: string
-    coordinates: { type: 'Point', coordinates: [lng, lat] }
+    type: string
+    coordinates: [lng, lat]
   }
   dropoffLocation: {
     address: string
-    coordinates: { type: 'Point', coordinates: [lng, lat] }
+    type: string
+    coordinates: [lng, lat]
   }
    
   estimatedPrice: number
@@ -316,11 +426,14 @@ Al crear un pedido el cliente **debe** proporcionar:
   notes?: string
   preferredDate?: Date
    
-  status: 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'cancelled'
-  chatEnabled: boolean
+  status: 'requested' | 'negotiating' | 'accepted' | 'in_progress' | 'completed' | 'paid' | 'failed' | 'cancelled'
    
   deliveryPhoto?: { url: string, publicId: string }
   cancellationReason?: string
+   
+  // Stripe
+  stripePaymentIntentId?: string
+  stripePaymentMethodId?: string
    
   createdAt: Date
   updatedAt: Date
@@ -336,11 +449,12 @@ Al crear un pedido el cliente **debe** proporcionar:
   firstName?: string
   lastName?: string
   imageUrl?: string
-   
   role: 'client' | 'driver' | 'admin'
   isActive: boolean
   phone?: string
-   
+  // Stripe
+  stripeCustomerId?: string
+  stripeConnectAccountId?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -351,11 +465,34 @@ Al crear un pedido el cliente **debe** proporcionar:
 {
   _id: ObjectId
   userId: string              // clerkId
-   
+  
   vehicleType: string
   plate: string
   capacityKg: number
-   
+  
+  // Documentos obligatorios
+  vehicleImages: [string]
+  licenseType: string
+  licenseImage: string
+  cedulaFront: string
+  cedulaBack: string
+  ruvDocument: string
+  plateImage: string
+  insurancePolicy: string
+  phone: string
+  
+  // Documentos opcionales
+  carneBlanco?: string
+  carneVerde?: string
+  carneTransporteCarga?: string
+  fumigationCertificate?: string
+  
+  // Verificación
+  verificationStatus: 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended'
+  rejectionReason?: string
+  reviewedBy?: string
+  reviewedAt?: Date
+  
   isAvailable: boolean
   currentLocation?: { type: 'Point', coordinates: [lng, lat] }
    
@@ -363,6 +500,20 @@ Al crear un pedido el cliente **debe** proporcionar:
   totalRides: number
   isVerified: boolean
    
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+### offers
+```typescript
+{
+  _id: ObjectId
+  rideId: string               // ID del ride
+  driverId: string             // clerkId del conductor
+  amount: number               // Precio propuesto
+  message?: string             // Mensaje opcional
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
   createdAt: Date
   updatedAt: Date
 }
@@ -376,26 +527,25 @@ Al crear un pedido el cliente **debe** proporcionar:
   senderId: string
   content: string
   read: boolean
-   
   createdAt: Date
 }
 ```
 
-### ratings (Calificaciones)
+### ratings
 ```typescript
 {
   _id: ObjectId
-  rideId: string           // Ride asociado
-  raterId: string         // Quién califica (clerkId)
-  ratedId: string        // Quién recibe la calificación (clerkId)
-  role: 'client' | 'driver'  // Rol de quién recibe la calificación
-  
-  rating: number         // 1-5 estrellas
-  comment?: string      // Comentario opcional
-   
+  rideId: string
+  raterId: string         // Quién califica
+  ratedId: string        // Quién recibe
+  role: 'client' | 'driver'
+  rating: number         // 1-5
+  comment?: string
   createdAt: Date
 }
 ```
+
+Además de estos, existen modelos adicionales para funcionalidades específicas: `auditLog` (auditoría), `consent` (GDPR), `notification` (notificaciones), `report` (reportes/disputas), `setting` (configuración global), `processedEvent` (idempotencia Stripe), `mcp-token` (tokens MCP), `oauthToken`/`oauthClient` (OAuth 2.0), `driverContact` (contacto conductor-ride). Ver archivos en `backend/src/models/`.
 
 ## 10. Pagos y Comisiones
 
@@ -404,56 +554,114 @@ Al crear un pedido el cliente **debe** proporcionar:
 - El conductor recibe: `finalPrice * 0.90` (90%)
 - Tu ganancia: `finalPrice * 0.10` (10%)
 
-### Флуйо де Паго
-- Cliente пага al confirmar entrega usando Stripe PaymentIntent.
-- Backend recibe webhook de Stripe para confirmar `paid`.
+### Flujo de Pago
+- Cliente guarda su tarjeta como PaymentMethod vía Stripe SetupIntent.
+- Se usa Stripe PaymentIntent con captura automática al confirmar entrega.
+- Stripe Connect maneja los pagos a conductores (payouts).
+- Backend recibe webhook de Stripe (idempotente) para confirmar `paid`.
 - **Al conductor se le descuenta el 10%** automáticamente antes de transferir.
-- No implementar payouts semanales todavía (se dejará para fase 2).
+- En cancelaciones, se procesa reembolso automático vía Stripe.
 
 ## 11. API Endpoints
 
 ### Health
-- `GET /health` - Estado del servidor
+- `GET /health` — Estado del servidor
 
 ### Auth
-- `POST /api/auth/webhook` - Webhook de Clerk
-- `GET /api/auth/me` - Usuario actual
+- `POST /api/auth/webhook` — Webhook de Clerk (crea/actualiza usuarios)
+- `GET /api/auth/me` — Usuario actual
 
 ### Rides
-- `GET /api/rides` - Listar rides (filtros: status, clientId, driverId)
-- `POST /api/rides` - Crear ride
-- `GET /api/rides/:id` - Obtener ride
-- `PATCH /api/rides/:id` - Actualizar ride
-- `PATCH /api/rides/:id/status` - Cambiar estado
-- `POST /api/rides/:id/accept` - Aceptar ride (driver)
-- `POST /api/rides/:id/start` - Iniciar viaje
-- `POST /api/rides/:id/delivery-photo` - Subir foto de entrega
-- `POST /api/rides/:id/cancel` - Cancelar ride
+- `GET /api/rides` — Listar rides (filtros: status, clientId, driverId, type, location)
+- `POST /api/rides` — Crear ride
+- `GET /api/rides/:id` — Obtener ride
+- `PATCH /api/rides/:id` — Actualizar ride
+- `PATCH /api/rides/:id/status` — Cambiar estado
+- `POST /api/rides/:id/accept` — Aceptar ride (driver)
+- `POST /api/rides/:id/start` — Iniciar viaje
+- `POST /api/rides/:id/delivery-photo` — Subir foto de entrega
+- `POST /api/rides/:id/cancel` — Cancelar ride
+- `POST /api/rides/:id/offers` — Proponer precio (conductor)
+- `GET /api/rides/:id/offers` — Ver ofertas (cliente)
+- `POST /api/rides/:id/accept-offer` — Aceptar oferta (cliente)
+- `POST /api/rides/:id/confirm` — Confirmar entrega (cliente)
 
 ### Users
-- `GET /api/users` - Listar usuarios (admin)
-- `GET /api/users/:clerkId` - Obtener usuario
-- `POST /api/users` - Crear/actualizar usuario
-- `POST /api/users/register-driver` - Registrar como driver (con documentos)
-- `GET /api/users/driver/:userId` - Perfil de driver
-- `GET /api/users/driver/me` - Mi perfil de conductor (propio)
-- `PATCH /api/users/driver/profile` - Actualizar perfil y documentos
-- `PATCH /api/users/driver/resubmit` - Reenviar a verificación (pending)
-- `PATCH /api/users/driver/:userId/availability` - Disponibilidad
-- `PATCH /api/users/driver/:userId/location` - Ubicación
-
-### Upload
-- `POST /api/upload` - Subir imagen (Cloudinary)
+- `GET /api/users` — Listar usuarios (admin)
+- `GET /api/users/:clerkId` — Obtener usuario
+- `POST /api/users` — Crear/actualizar usuario
+- `POST /api/users/register-driver` — Registrar como driver
+- `GET /api/users/driver/:userId` — Perfil de driver
+- `GET /api/users/driver/me` — Mi perfil de conductor
+- `PATCH /api/users/driver/profile` — Actualizar perfil
+- `PATCH /api/users/driver/resubmit` — Reenviar verificación
+- `PATCH /api/users/driver/:userId/availability` — Disponibilidad
+- `PATCH /api/users/driver/:userId/location` — Ubicación
 
 ### Messages
-- `GET /api/messages/ride/:rideId` - Mensajes de un ride
-- `POST /api/messages` - Enviar mensaje
-- `PATCH /api/messages/ride/:rideId/read` - Marcar leídos
+- `GET /api/messages/ride/:rideId` — Mensajes de un ride
+- `POST /api/messages` — Enviar mensaje
+- `PATCH /api/messages/ride/:rideId/read` — Marcar leídos
+- `GET /api/messages/unread-count` — Contar no leídos por ride
 
-### Payments
-- `POST /api/payments/create-intent` - Crear PaymentIntent
-- `POST /api/payments/webhook` - Webhook de Stripe
-- `POST /api/payments/confirm` - Confirmar pago
+### Payments (Stripe)
+- `POST /api/payments/create-setup-intent` — Crear SetupIntent
+- `POST /api/payments/create-intent` — Crear PaymentIntent
+- `POST /api/payments/confirm` — Confirmar pago
+- `POST /api/payments/webhook` — Webhook de Stripe
+- `POST /api/payments/setup-complete` — SetupIntent completado
+- `GET /api/payments/methods` — Métodos de pago guardados
+- `DELETE /api/payments/methods/:id` — Eliminar método
+
+### Webhooks (unificados)
+- `POST /api/webhooks` — Webhook unificado (Clerk + Stripe)
+
+### Admin
+- `GET /api/admin/stats` — Estadísticas del dashboard
+- `GET /api/admin/rides` — Todos los rides
+- `GET /api/admin/users` — Todos los usuarios
+- `PATCH /api/admin/users/:clerkId/role` — Cambiar rol
+- `PATCH /api/admin/drivers/:clerkId/verify` — Verificar conductor
+- `PATCH /api/admin/drivers/:clerkId/suspend` — Suspender conductor
+- `GET /api/admin/reports` — Reportes generados
+- `GET /api/admin/audit-logs` — Logs de auditoría
+
+### Ratings
+- `POST /api/ratings` — Crear calificación
+- `GET /api/ratings/driver/:clerkId` — Calificaciones de un conductor
+- `GET /api/ratings/client/:clerkId` — Calificaciones de un cliente
+- `GET /api/ratings/ride/:rideId` — Calificaciones de un ride
+
+### Reports
+- `POST /api/reports` — Crear reporte/disputa
+- `GET /api/reports` — Listar reportes (admin)
+- `GET /api/reports/:id/download` — Descargar PDF
+
+### Upload
+- `POST /api/upload` — Subir imagen (Cloudinary)
+
+### Notifications
+- `GET /api/notifications` — Listar notificaciones
+- `GET /api/notifications/unread-count` — Contar no leídas
+- `PATCH /api/notifications/:id/read` — Marcar leída
+- `PATCH /api/notifications/read-all` — Marcar todas leídas
+- `PATCH /api/email-preferences` — Preferencias de email
+
+### GDPR
+- `POST /api/gdpr/consent` — Guardar consentimiento
+- `GET /api/gdpr/export` — Exportar datos personales
+- `DELETE /api/gdpr/account` — Eliminar cuenta
+
+### MCP
+- `POST /mcp` — MCP Server endpoint (JSON-RPC)
+- `GET /mcp/manifest` — Manifest del servidor MCP
+
+### OAuth
+- `GET /oauth/authorize` — Autorización OAuth
+- `POST /oauth/token` — Intercambio de token
+
+### Debug (admin)
+- `GET /api/debug/trigger-nearby-rides` — Probar notificación de rides cercanos
 
 ## 12. Variables de Entorno
 
@@ -469,6 +677,12 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 CLOUDINARY_CLOUD_NAME=xxxxx
 CLOUDINARY_API_KEY=xxxxx
 CLOUDINARY_API_SECRET=xxxxx
+REDIS_URL=redis://localhost:6379
+FRONTEND_URL=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+BREVO_API_KEY=xxxxx
+ADMIN_EMAIL=admin@carglyn.com
+ADMIN_PASSWORD=xxxxx
 PORT=3000
 NODE_ENV=development
 ```
@@ -491,6 +705,12 @@ bun run start       # Producción
 bun run db:up       # Iniciar MongoDB (Docker)
 bun run db:down     # Detener MongoDB
 bun run db:logs     # Ver logs de MongoDB
+bun run db:init     # Crear usuario admin
+bun run db:audit    # Ver logs de auditoría
+bun run db:dedupe:ratings # Limpiar calificaciones duplicadas
+bun run migrate     # Ejecutar migraciones pendientes
+bun test            # Ejecutar tests
+bun run test:watch  # Tests en modo watch
 ```
 
 ### Frontend
@@ -499,9 +719,14 @@ cd frontend
 bun run dev         # Desarrollo
 bun run build      # Build producción
 bun run preview   # Preview producción
+bun run test:e2e            # Tests E2E Playwright
+bun run test:e2e:ui         # Playwright UI mode
+bun run test:e2e:headed     # Tests con navegador visible
 ```
 
 ## 14. Orden de Implementación Recomendado
+
+✅ TODO IMPLEMENTADO — El proyecto completó todas estas fases. Ver README.md para el estado actual.
 
 1. Configuración base (Bun + Hono, MongoDB, Clerk SSO con Google/Microsoft/UTP)
 2. Auth + Roles + Middleware (auth, role, ownership)
@@ -525,11 +750,25 @@ bun run preview   # Preview producción
 | Ownership middleware | ✅ Listo | `backend/src/middleware/index.ts` |
 | Register Driver | ✅ Listo | `frontend/pages/RegisterDriver.tsx` |
 | Client Profile | ✅ Listo | `frontend/components/ClientProfile.tsx` |
-|WebSockets | TODO | Chat real-time |
-| Upload imágenes | TODO | Cloudinary/S3 |
-| Google Maps | TODO | Maps API |
-| Rating/Reviews | TODO | Calificaciones mutuas |
-| Portal Admin | TODO | Back office |
+| WebSockets Chat | ✅ Listo | Bun WebSockets nativos, 3 canales (chat/tracking/user) |
+| Upload imágenes | ✅ Listo | Cloudinary via `routes/upload.ts` |
+| Mapas | ✅ Listo | Leaflet + OpenStreetMap + OSRM (no Google Maps) |
+| Rating/Reviews | ✅ Listo | Calificaciones mutuas via `routes/ratings.ts` |
+| Portal Admin | ✅ Listo | `admin-frontend/` con 13 páginas |
+| Tracking GPS | ✅ Listo | WebSocket + Redis GEO + Leaflet |
+| Notificaciones | ✅ Listo | Tiempo real + Email (Brevo) + Hourly nearby rides |
+| MCP Server | ✅ Listo | AI Integration con 16 tools |
+| i18n | ✅ Listo | Español/Inglés con i18next |
+| GDPR | ✅ Listo | Consentimiento, exportación, eliminación de cuenta |
+| OAuth 2.0 | ✅ Listo | Para asistentes IA (Claude Desktop, Cline, etc.) |
+| Reportes PDF | ✅ Listo | Facturación y reportes descargables |
+| Auditoría Admin | ✅ Listo | Logs de acciones con filtros |
+| Debug Mode | ✅ Listo | Admin toggle + logs condicionales |
+| Stripe Marketplace | ✅ Listo | Payouts a conductores con Split Payments |
+| Rate Limiting | ✅ Listo | 120 req/min API, 30 WS chat |
+| Monitoreo | ✅ Listo | Tracking de rendimiento por ruta |
+| Tests E2E | ✅ Listo | Playwright con 19+ specs |
+| Tests Unitarios | ✅ Listo | Bun Test (ride-machine, rides, users, messages, offers, ratings, MCP) |
 
 ## 15.1 Sistema de Verificación de Conductores
 
@@ -712,6 +951,8 @@ verified:
 - El frontend debe tener rutas protegidas por rol (client / driver / admin).
 - Todas las operaciones sensibles deben validar ownership en backend.
 - Priorizar experiencia mobile-first (muchos usuarios usarán la plataforma desde celular).
+- Toda la interfaz soporta español e inglés usando i18next + react-i18next con detección automática de idioma.
+- El proyecto usa WebSockets nativos de Bun (no Socket.IO) con 3 canales: /ws/chat/:rideId, /ws/tracking/:rideId, /ws/user. Autenticación vía Clerk JWT.
 
 ### 16.1 Regla de UX: Navegabilidad
 
@@ -756,6 +997,8 @@ Patrones probados y templates para implementar funcionalidades específicas.
 | `clerk-auth-patterns` | Integración Clerk + MongoDB, webhooks, middleware de auth | [SKILL.md](agents/SKILLS/clerk-auth-patterns/SKILL.md) |
 | `stripe-webhook-patterns` | PaymentIntents, webhooks idempotentes, cálculo de comisiones (10%) | [SKILL.md](agents/SKILLS/stripe-webhook-patterns/SKILL.md) |
 | `hono-backend-patterns` | Backend Bun + Hono, modelos Mongoose, paginación, middlewares | [SKILL.md](agents/SKILLS/hono-backend-patterns/SKILL.md) |
+| `frontend-design` | Sistema de diseño, paleta de colores, componentes, tema visual | [SKILL.md](agents/SKILLS/frontend-design/SKILL.md) |
+| `readme-aesthetic-enhancer` | Mejoras estéticas y de formato para README | [SKILL.md](agents/SKILLS/readme-aesthetic-enhancer/SKILL.md) |
 
 ### Uso de las Skills
 

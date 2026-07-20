@@ -1,3 +1,5 @@
+✅ PLAN COMPLETADO — El sistema de notificaciones está implementado.
+
 # Sistema de Notificaciones — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development to implement this plan task-by-task.
@@ -789,3 +791,5 @@ Also add a notifications link in the mobile drawer (after the LanguageSwitcher d
   )}
 </Link>
 ```
+
+Fecha de finalización: Julio 2026. Ver backend/src/services/notificationService.ts, backend/src/routes/notifications.ts, frontend/src/pages/Notifications.tsx

@@ -1,3 +1,5 @@
+**NOTA**: Este plan de migración no fue ejecutado. La implementación final optó por mantener Streamable HTTP como transporte. Ver MCP-STADO.md para el diseño actual.
+
 # Migración MCP: HTTP → stdio
 
 > **Fecha**: 2026-06-24

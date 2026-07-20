@@ -1,5 +1,7 @@
 # PRD-Plataforma de Acarreos
 
+> **NOTA**: Este PRD fue escrito durante la fase inicial del proyecto. Para el estado actualizado del código, ver [README.md](../README.md) y [AGENTS.md](../AGENTS.md). La mayoría de los módulos aquí descritos están implementados.
+
 Documento orientado a ejecución por IA y equipos fullstack.
 
 ## 0. Contrato de Implementación para IA
@@ -40,69 +42,50 @@ Construir una plataforma C2C de acarreos on-demand, tipo marketplace, que conect
 |------|-------------|
 | Frontend | React + Vite |
 | Backend | Bun + Hono |
-| Base de datos | MongoDB |
-| Autenticación | Clerk (SSO) |
-| Pagos | Stripe |
+| Base de datos | MongoDB + Redis (caching + GEO) |
+| Autenticación | Clerk (SSO) + OAuth 2.0 propio |
+| Pagos | Stripe (PaymentIntents + Connect Marketplace) |
+| Mapas | Leaflet + OpenStreetMap + OSRM |
+| Archivos | Cloudinary |
+| AI / MCP | MCP Server (JSON-RPC) para integración con asistentes IA |
+| Notificaciones | WebSockets nativos (Bun) + Brevo (Email) |
+| Tests | Bun Test (unitarios) + Playwright (E2E) |
 
 ### 1.4 Estructura de Proyecto
 
 ```
 plataforma-de-acarreo/
-├── backend/
+├── backend/                      # Bun + Hono
 │   ├── src/
-│   │   ├── index.ts              # Entry point
-│   │   ├── db/
-│   │   │   └── mongo.ts         # Conexión MongoDB
-│   │   ├── models/
-│   │   │   ├── ride.ts
-│   │   │   ├── user.ts
-│   │   │   ├── driver.ts
-│   │   │   └── message.ts
-│   │   ├── routes/
-│   │   │   ├── health.ts
-│   │   │   ├── auth.ts
-│   │   │   ├── rides.ts
-│   │   │   ├── users.ts
-│   │   │   ├── messages.ts
-│   │   │   └── payments.ts
-│   │   ├── middleware/          # Por implementar
-│   │   ├── services/           # Por implementar
-│   │   └── utils/             # Por implementar
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── docker-compose.yml     # MongoDB + Redis
-│   └── .env.example
-│
-├── frontend/
+│   │   ├── index.ts              # Entry + WebSocket server nativo
+│   │   ├── db/                   # MongoDB connection + migrations
+│   │   ├── models/               # 16 modelos Mongoose
+│   │   ├── routes/               # 16 archivos de rutas
+│   │   ├── middleware/            # 6 middlewares (auth, role, dualAuth, rateLimiter, monitoring, index)
+│   │   ├── services/              # 13 servicios (ride-machine, websocket, redis, payment, invoice, audit, oauth, jwt, rating, stripeMarketplace, notificationService, nearbyRidesNotifier, notifications/)
+│   │   ├── mcp/                  # MCP Server completo
+│   │   ├── scripts/              
+│   │   └── utils/                
+│   ├── tests/                    # Bun Test
+│   ├── migrations/
+│   └── ...
+├── frontend/                     # React + Vite
 │   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   └── Layout.tsx
-│   │   ├── pages/
-│   │   │   ├── Home.tsx
-│   │   │   ├── CreateRide.tsx
-│   │   │   ├── MyRides.tsx
-│   │   │   ├── RideDetails.tsx
-│   │   │   ├── DriverDashboard.tsx
-│   │   │   └── Chat.tsx
-│   │   ├── services/
-│   │   │   └── api.ts
-│   │   ├── types/
-│   │   │   └── index.ts
-│   │   ├── hooks/             # Por implementar
-│   │   ├── contexts/         # Por implementar
-│   │   ├── utils/           # Por implementar
-│   │   └── styles/
-│   │       └── index.css
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── index.html
-│   └── .env.example
-│
-└── Doc/
-    └── PRD-Plataforma de acarreso.md
+│   │   ├── pages/                # 21 páginas
+│   │   ├── components/           # 18 componentes en 7 subcarpetas
+│   │   ├── hooks/                # useDriverLocation, useRideTracking
+│   │   ├── contexts/             # Notifications, NotificationBadge
+│   │   ├── services/             # API client, alerts, toast, osrm, tracking-ws
+│   │   ├── i18n/                 # ES/EN
+│   │   └── types/
+│   └── e2e/                      # Playwright (19 specs)
+├── admin-frontend/               # React + Vite (Admin Backoffice)
+│   ├── src/pages/                # 13 páginas
+│   └── package.json
+├── Doc/
+├── agents/SKILLS/               # 5 skills IA
+├── docker-compose.yml
+└── render.yaml
 ```
 
 ## 2. Alcance del Producto
@@ -124,16 +107,16 @@ plataforma-de-acarreo/
 
 | Módulo | Descripción | Estado |
 |--------|-------------|--------|
-| M01 | Auth SSO (Clerk): login federado, callback, sesión, perfil autenticado | Pendiente |
-| M02 | Usuarios y Roles: perfil, estados, RBAC y ownership | Pendiente |
-| M03 | Portal Cliente: crear ride, seguimiento, historial paginado, pago | Pendiente |
-| M04 | Portal Conductor: disponibilidad, aceptar ride, actualizar estados, historial | Pendiente |
-| M05 | Rides Engine: ciclo de vida de ride, matching, reglas de estado | Pendiente |
-| M06 | Pagos Stripe: PaymentIntent, confirmación, webhook idempotente | Pendiente |
-| M07 | WebSockets: eventos de ride y ubicación en tiempo real | Pendiente |
-| M08 | Back Office Admin: dashboard, gestión users/drivers/rides/payments, tarifas | Pendiente |
-| M09 | Auditoría Admin: bitácora de acciones críticas y trazabilidad | Pendiente |
-| M10 | Optimización: paginación, filtros, índices, cache básico | Pendiente |
+| M01 | Auth SSO (Clerk): login federado, callback, sesión, perfil autenticado | ✅ Completado |
+| M02 | Usuarios y Roles: perfil, estados, RBAC y ownership | ✅ Completado |
+| M03 | Portal Cliente: crear ride, seguimiento, historial paginado, pago | ✅ Completado |
+| M04 | Portal Conductor: disponibilidad, aceptar ride, actualizar estados, historial | ✅ Completado |
+| M05 | Rides Engine: ciclo de vida de ride, matching, reglas de estado | ✅ Completado |
+| M06 | Pagos Stripe: PaymentIntent, confirmación, webhook idempotente | ✅ Completado |
+| M07 | WebSockets: eventos de ride y ubicación en tiempo real | ✅ Completado |
+| M08 | Back Office Admin: dashboard, gestión users/drivers/rides/payments, tarifas | ✅ Completado |
+| M09 | Auditoría Admin: bitácora de acciones críticas y trazabilidad | ✅ Completado |
+| M10 | Optimización: paginación, filtros, índices, cache básico | ✅ Completado |
 
 ## 3. Arquitectura General
 
@@ -150,6 +133,9 @@ React + Vite
 Integraciones externas:
 - Clerk (Auth)
 - Stripe (Pagos)
+- Cloudinary (Archivos)
+- Brevo (Email)
+- MCP Server (AI / asistentes IA via JSON-RPC)
 ```
 
 ### 3.2 Principios Arquitectónicos
@@ -553,6 +539,11 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 CLOUDINARY_CLOUD_NAME=xxxxx
 CLOUDINARY_API_KEY=xxxxx
 CLOUDINARY_API_SECRET=xxxxx
+REDIS_URL=redis://localhost:6379
+FRONTEND_URL=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+BREVO_API_KEY=xxxxx
+ADMIN_EMAIL=admin@carglyn.com
 PORT=3000
 NODE_ENV=development
 ```
@@ -563,6 +554,12 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 VITE_API_URL=http://localhost:3000
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
 VITE_CLOUDINARY_CLOUD_NAME=xxxxx
+```
+
+### Admin Frontend (.env)
+```
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
+VITE_API_URL=http://localhost:3000
 ```
 
 ## 14. Scripts
@@ -587,31 +584,35 @@ bun run preview   # Preview producción
 
 ## 15. Roadmap Técnico
 
+> Todas las fases completadas. El proyecto está en estado de mantenimiento y mejoras.
+
 ### Fase 1 - Fundación
 - ✅ Setup Bun + Hono
 - ✅ Conexión MongoDB
-- ⏳ Integración Clerk SSO
-- ⏳ Integración Stripe base
+- ✅ Integración Clerk SSO
+- ✅ Integración Stripe base
 
 ### Fase 2 - Operación Core
-- ⏳ CRUD Users y Drivers
-- ⏳ Flujo completo de Rides
-- ⏳ Matching geoespacial
-- ⏳ Paginación y filtros en listados
+- ✅ CRUD Users/Drivers/Rides
+- ✅ Flujo completo de Rides
+- ✅ Matching geoespacial
+- ✅ Paginación y filtros en listados
 
 ### Fase 3 - Tiempo Real y Pagos
-- ⏳ WebSockets y tracking en vivo
-- ⏳ Confirmación de pagos por webhook
-- ⏳ Hardening de seguridad
+- ✅ WebSockets nativos (3 canales: chat, tracking, user)
+- ✅ Tracking GPS en vivo con Redis GEO
+- ✅ Confirmación de pagos por webhook (idempotente)
+- ✅ Rate limiting y hardening de seguridad
 
 ### Fase 4 - Back Office
-- ⏳ Dashboard y módulos admin completos
-- ⏳ Auditoría y reportería
+- ✅ Dashboard con Recharts (métricas y gráficos)
+- ✅ Gestión usuarios/conductores/rides/pagos
+- ✅ Auditoría y reportería (PDF descargable)
 
 ### Fase 5 - Escalado
-- ⏳ Optimización de consultas
-- ⏳ Cache y mejoras de rendimiento
-- ⏳ Pruebas integrales (manual + automatizadas)
+- ✅ Redis caching
+- ✅ Tests backend (Bun Test) + E2E (Playwright, 19+ specs)
+- ✅ CI/CD configurado en Render
 
 ## 16. Orden de Construcción Recomendado para IA
 
@@ -642,11 +643,11 @@ Regla de dependencia:
 - ✅ Backend modular con Bun + Hono + MongoDB.
 - ✅ Portal Cliente funcional.
 - ✅ Portal Conductor funcional.
-- ⏳ Back Office Admin completo para gestión operativa.
-- ⏳ Integración Clerk (SSO).
-- ⏳ Integración Stripe con webhook seguro.
-- ⏳ Matching de conductores y tracking en tiempo real.
-- ⏳ Endpoints protegidos, auditables y optimizados con paginación.
+- ✅ Back Office Admin completo (`admin-frontend/`) con 13 páginas.
+- ✅ Integración Clerk (SSO) con Google, Microsoft y UTP.
+- ✅ Integración Stripe con PaymentIntents, Connect Marketplace y webhook seguro.
+- ✅ Matching de conductores y tracking en tiempo real (WebSockets + Redis GEO + Leaflet).
+- ✅ Endpoints protegidos, auditables y optimizados con paginación.
 
 ## 18.3 Sistema de Verificación de Conductores (NUEVO)
 

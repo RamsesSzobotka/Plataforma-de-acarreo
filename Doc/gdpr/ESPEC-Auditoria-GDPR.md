@@ -1,7 +1,9 @@
+✅ IMPLEMENTADO — Julio 2026. Ver backend/src/routes/gdpr.ts, frontend/src/pages/GdprSettings.tsx
+
 # Especificación: Auditoría de Admin (H-42) + Cumplimiento GDPR (H-43)
 
 **Fecha**: 2026-07-13
-**Estado**: Aprobado para implementación
+**Estado**: ✅ Implementado
 **Historias**: H-42 (Auditoría), H-43 (GDPR)
 
 ---
@@ -238,3 +240,5 @@ En `App.tsx`:
 - Portal de transparencia (qué datos tiene el sistema sobre ti)
 - Anonimización completa de rides históricos
 - Política de cookies
+
+Nota: La anonimización de notificaciones durante la eliminación de cuenta (DELETE /api/gdpr/account) queda pendiente como mejora futura.

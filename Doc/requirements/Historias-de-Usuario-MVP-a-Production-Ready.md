@@ -1,5 +1,7 @@
 # Historias de Usuario — Plataforma de Acarreos (Carglyn)
   **Integrantes:** Ramses Szobotka,Justin Barrios
+
+> **Estado**: La gran mayoría de estas historias de usuario han sido implementadas. Ver [CHECKLIST-Historias-Usuario.md](CHECKLIST-Historias-Usuario.md) para el estado detallado de cada historia.
 ---
 
 ## Sección 1: Inventario Actual — Funcionalidades YA implementadas (MVP)
@@ -16,7 +18,7 @@
 | **H-06** | Como **cliente**, quiero **confirmar la entrega cuando el conductor llega al destino**, para **completar el servicio y proceder al pago**. | 1. Boton "Confirmar Entrega" cuando el ride esta `in_progress`.<br>2. Validacion de que existe foto de entrega.<br>3. Cobro automatico si hay metodo de pago guardado.<br>4. Transicion de estado a `completed` o `paid`. |
 | **H-07** | Como **cliente**, quiero **pagar con Stripe usando una tarjeta guardada**, para **completar el pago de forma segura**. | 1. SetupIntent para guardar metodo de pago.<br>2. Off-session charge con marketplace (10% comision).<br>3. PaymentIntent con Stripe Connect.<br>4. Webhook de Stripe para confirmar pago. |
 | **H-08** | Como **cliente**, quiero **calificar al conductor (1-5 estrellas + comentario) despues del pago**, para **compartir mi experiencia**. | 1. Solo disponible cuando el estado es `paid`.<br>2. Calificacion del 1 al 5.<br>3. Comentario opcional.<br>4. Recalculo automatico del rating promedio del conductor. |
-| **H-09** | Como **cliente**, quiero **cancelar mi pedido cuando esta en estado requested o negotiating**, para **retirar la solicitud si cambio de opinion**. | 1. Boton de cancelar visible en estados permitidos.<br>2. Confirmacion antes de cancelar.<br>3. Registro del motivo de cancelacion.<br>4. No se puede cancelar en `accepted`, `in_progress`, `completed`, `paid`. |
+| **H-09** | Como **cliente**, quiero **cancelar mi pedido cuando esta en estado requested**, para **retirar la solicitud si cambio de opinion**. | 1. Boton de cancelar visible en estado `requested`.<br>2. Confirmacion antes de cancelar.<br>3. Registro del motivo de cancelacion.<br>4. No se puede cancelar en `accepted`, `in_progress`, `completed`, `paid`. |
 | **H-10** | Como **cliente**, quiero **guardar un metodo de pago en mi perfil**, para **usarlo en pedidos futuros sin tener que ingresarlo cada vez**. | 1. SetupIntent con Stripe.<br>2. Adjuntar PaymentMethod al Customer.<br>3. Guardar `stripePaymentMethodId` en el perfil.<br>4. Verificar que el metodo existe antes de crear un ride. |
 
 ### 1.2 Portal Conductor
@@ -48,7 +50,7 @@
 
 | # | Historia | Criterios de Aceptación |
 |---|----------|------------------------|
-| **H-26** | Como **usuario**, quiero **chatear en tiempo real con la otra parte del servicio**, para **coordinar la entrega sin salir de la plataforma**. | 1. WebSocket nativo de Bun.<br>2. Autenticacion via token JWT en el handshake.<br>3. Broadcast de mensajes por rideId.<br>4. Persistencia de mensajes en MongoDB. |
+| **H-26** | Como **usuario**, quiero **chatear en tiempo real con la otra parte del servicio**, para **coordinar la entrega sin salir de la plataforma**. | 1. 3 canales WebSocket: /ws/chat/:rideId (chat en tiempo real), /ws/tracking/:rideId (tracking GPS del conductor), /ws/user (notificaciones del conductor).<br>2. Autenticacion via token JWT en el handshake.<br>3. Broadcast de mensajes por rideId.<br>4. Persistencia de mensajes en MongoDB. |
 | **H-27** | Como **cliente o conductor**, quiero **subir imagenes a Cloudinary**, para **adjuntar evidencia visual a los pedidos**. | 1. Upload via multipart/form-data.<br>2. Soporta carpetas (rides, drivers, etc.).<br>3. Retorna URL publica y publicId.<br>4. Autenticacion requerida. |
 | **H-28** | Como **admin**, quiero **tener MongoDB y Redis disponibles via Docker Compose**, para **entorno de desarrollo consistente con servicios listos para integrar**. | 1. MongoDB 7 con healthcheck.<br>2. Redis 7 Alpine disponible en docker-compose (pendiente de integracion en la app).<br>3. Datos persistentes en volumen.<br>4. Script init-admin para crear admin inicial. |
 | **H-29** | Como **sistema**, quiero **tener un health check endpoint**, para **verificar que el servidor y MongoDB estan operativos**. | 1. `GET /health` retorna estado de API y MongoDB.<br>2. `GET /health/ready` readiness check.<br>3. Responde rapido sin autenticacion. |
@@ -66,6 +68,8 @@
 | **H-32** [MCP] | Como **usuario**, quiero **obtener detalles completos de un acarreo por su ID**, para **analizar el estado y la informacion del servicio**. | 1. Retorna todos los campos del ride.<br>2. Incluye ubicaciones, imagenes, precios.<br>3. Error si no existe o no pertenece al usuario.<br>4. Datos formateados para consumo IA. | `get_ride_details` | Token MCP | El agente puede obtener informacion detallada de un servicio especifico. |
 | **H-33** [MCP] | Como **usuario**, quiero **ver las ofertas recibidas para un acarreo**, para **evaluar cuales conductores estan interesados**. | 1. Lista de conductores que contactaron.<br>2. Precio propuesto por cada uno.<br>3. Numero de propuestas restantes.<br>4. Datos del conductor (nombre, rating). | `view_offers` | Token MCP | El agente puede revisar y comparar ofertas de conductores. |
 | **H-34** [MCP] | Como **usuario**, quiero **aceptar la oferta de un conductor para un acarreo**, para **formalizar el servicio sin intervencion manual**. | 1. Acepta rideId + driverId.<br>2. Cambia estado a `accepted`.<br>3. Desactiva otros contacts.<br>4. Precio opcional (si se negocio antes). | `accept_offer` | Token MCP | El agente puede formalizar contratos aceptando ofertas de conductores. |
+
+> **Nota:** Además de estas 5 herramientas de cliente, existen 7 herramientas para conductores (ver sección 2.7) y herramientas adicionales documentadas en MCP-STADO.md para un total de 16 tools MCP implementadas.
 
 ### 2.2 Infraestructura y DevOps
 
@@ -124,7 +128,7 @@
 | **H-60** [MCP] | Como **usuario**, quiero **calificar a la contraparte (1-5 estrellas + comentario)**, para **compartir feedback post-servicio**. | 1. rideId + rating + comment opcional.<br>2. Solo en estado `paid`.<br>3. Detectar automaticamente quien califica a quien.<br>4. Recalcular promedio del calificado. | `rate_service` | Token MCP | El agente puede calificar automaticamente post-servicio. |
 | **H-61** [MCP] | Como **usuario**, quiero **obtener el historial de pagos del conductor**, para **analizar ganancias y productividad**. | 1. Paginacion.<br>2. Total de ganancias agregado.<br>3. Filtro por periodo de fechas.<br>4. Detalle por ride. | `get_payment_history` | Token MCP (driver) | El agente puede consultar y reportar ganancias del conductor. |
 | **H-62** [MCP] | Como **usuario**, quiero **obtener el perfil completo de un conductor (rating, vehiculo, documentos, viajes)**, para **evaluar a un conductor antes de aceptar su oferta**. | 1. Retorna nombre, foto, rating y total de viajes.<br>2. Incluye tipo de vehiculo, placa y capacidad.<br>3. Muestra documentos verificados (licencia, seguro).<br>4. Error si el conductor no existe o no esta verificado. | `get_driver_profile` | Token MCP (driver) | El agente puede consultar informacion detallada de un conductor para decisiones informadas. |
-| **H-63** [MCP] | Como **usuario**, quiero **cancelar un pedido en estados permitidos (requested, negotiating)**, para **gestionar cancelaciones sin abrir la plataforma**. | 1. Solo se puede cancelar en `requested` o `negotiating`.<br>2. Motivo de cancelacion requerido.<br>3. El cliente recibe notificacion de la cancelacion.<br>4. Retorna el estado actualizado del ride. | `cancel_ride` | Token MCP (client) | El agente puede cancelar pedidos en nombre del cliente cuando las condiciones lo permiten. |
+| **H-63** [MCP] | Como **usuario**, quiero **cancelar un pedido en estado requested**, para **gestionar cancelaciones sin abrir la plataforma**. | 1. Solo se puede cancelar en `requested`.<br>2. Motivo de cancelacion requerido.<br>3. El cliente recibe notificacion de la cancelacion.<br>4. Retorna el estado actualizado del ride. | `cancel_ride` | Token MCP (client) | El agente puede cancelar pedidos en nombre del cliente cuando las condiciones lo permiten. |
 
 ### 2.8 Mejoras de Experiencia de Usuario
 
@@ -156,13 +160,15 @@
 
 | Tipo | Cantidad | Con MCP |
 |------|----------|---------|
-| **Implementado (MVP)** | 29 historias | 0 historias [MCP] |
-| **Production Ready (faltante)** | 43 historias | 15 historias [MCP] |
-| **Total** | **72 historias** | **15 historias [MCP]** |
+| **Implementado** | ~63 historias | ~16 historias [MCP] |
+| **Pendiente** | ~9 historias | 0 historias [MCP] |
+| **Total** | **72 historias** | **~16 historias [MCP]** |
 
-### Total de historias [MCP]: 15 (H-30 a H-34, H-54 a H-63)
+### Total de historias [MCP]: ~16
 
-### Tools MCP (15 en total, todas en Production Ready):
+> **Nota:** Este documento describe las historias de usuario. Para el estado actual de implementación, ver [CHECKLIST-Historias-Usuario.md](CHECKLIST-Historias-Usuario.md).
+
+### Tools MCP (~16 en total, la mayoría implementadas):
 | Tool | Descripción | Rol |
 |------|-------------|-----|
 | `list_my_rides` | Listar acarreos del cliente | Client |

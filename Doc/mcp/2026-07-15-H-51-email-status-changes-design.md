@@ -1,3 +1,5 @@
+✅ IMPLEMENTADO — Las notificaciones por email en cambios de estado están implementadas vía Brevo.
+
 # H-51: Email en cambio de estado — Design Doc
 
 ## Resumen

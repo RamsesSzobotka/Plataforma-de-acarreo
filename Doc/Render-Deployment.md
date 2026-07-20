@@ -29,6 +29,11 @@ Variables requeridas en Render (no las pongas en el repo):
 - `CLOUDINARY_API_SECRET`
 - `FRONTEND_URL` - URL pública del static site, por ejemplo `https://tu-frontend.onrender.com`
 - `ALLOWED_ORIGINS` - orígenes separados por coma, por ejemplo `https://tu-frontend.onrender.com,http://localhost:5173`
+- `MCP_JWT_SECRET` - Secreto JWT para MCP Server
+- `MCP_PUBLIC_URL` - URL pública del MCP Server
+- `CLERK_SIGN_IN_URL` - URL de Sign In de Clerk
+- `BREVO_API_KEY` - API Key de Brevo para emails
+- `ADMIN_EMAIL` / `ADMIN_PASSWORD` - Credenciales admin
 - `REDIS_URL` - opcional; el tracking tiene fallback si Redis no está disponible
 
 En desarrollo local, el backend permite por defecto `http://localhost:5173`, `http://localhost:5174` y `http://localhost:3000`. En producción (`NODE_ENV=production`), configurá `FRONTEND_URL` y/o `ALLOWED_ORIGINS` explícitamente.
@@ -63,3 +68,7 @@ Render Free no ofrece IP fija. Para pruebas, en Atlas agregá temporalmente Netw
 6. Configurar webhooks externos con URLs públicas de Render:
    - Clerk: `https://tu-backend.onrender.com/api/auth/webhook`
    - Stripe: `https://tu-backend.onrender.com/api/payments/webhook`
+
+### Admin Frontend Deployment
+
+El admin-frontend/ puede desplegarse como un Static Site adicional en Render, similar al frontend principal.

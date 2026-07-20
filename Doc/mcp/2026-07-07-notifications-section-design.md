@@ -1,3 +1,5 @@
+✅ IMPLEMENTADO — Julio 2026. Ver backend/src/services/notificationService.ts, backend/src/routes/notifications.ts, frontend/src/pages/Notifications.tsx
+
 # Sistema de Notificaciones — Design Doc
 
 ## Resumen
