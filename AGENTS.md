@@ -91,7 +91,7 @@ Usar **Material Symbols** de Google Fonts:
   --font-body: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
-
+```
 ## 0.1. Visión y Objetivo del Producto
 
 Plataforma tipo **marketplace B2B de transporte de mercancías** que combina:
@@ -120,7 +120,6 @@ Plataforma tipo **marketplace B2B de transporte de mercancías** que combina:
 **Pagos**: Stripe
 
 ## 2. Estructura de Carpetas
-
 ```
 plataforma-de-acarreo/
 ├── backend/                      # Bun + Hono
@@ -262,7 +261,6 @@ plataforma-de-acarreo/
 ├── docker-compose.yml           # MongoDB + Redis + Backend + Frontend
 └── render.yaml                  # Despliegue en Render
 ```
-
 ## 3. Autenticación
 
 - Usar **Clerk** con SSO para usuarios web/móvil.
